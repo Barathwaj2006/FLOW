@@ -36,20 +36,21 @@
   * Multi-package Swift repository layout (`packages/FlowCore`, `packages/FlowMacOS`).
   * Continuous Integration (CI) configuration for native macOS runners.
 * **Exit Gate**: All specification documents approved; directory structure initialized; CI pipeline passing.
-* **Current Status**: **IN PROGRESS** (Completing now).
+* **Current Status**: **COMPLETE**.
 
 ---
 
 ### Phase 1: Voice Core
 * **Goal**: The fundamental loop: Global Hotkey $\longrightarrow$ Microphone Capture $\longrightarrow$ VAD $\longrightarrow$ Local ASR $\longrightarrow$ Text Insertion.
 * **Key Deliverables**:
-  * Global hotkey daemon using macOS `CGEventTap`.
-  * Real-time 16kHz audio capture via `AVAudioEngine` with noise gate.
-  * Silero VAD integration (speech detection and silence termination).
-  * Modular `ASREngineProtocol` with local `WhisperKit` / `whisper.cpp` driver.
-  * Universal cursor text insertion engine (`AXUIElement` with safe clipboard fallback).
-  * Minimal non-activating Floating HUD indicating recording state.
+  * Global hotkey daemon using macOS `CGEventTap` and Push-to-Talk.
+  * Real-time 16kHz audio capture via `AVAudioEngine` with noise gate and format conversion.
+  * Adaptive RMS Energy VAD with trailing silence detection.
+  * Modular `ASREngineRegistry` with `AppleSpeechEngine`, `WhisperCppEngine` (Metal/CPU), and `MockASREngine`.
+  * Universal cursor text insertion engine (`AXUIElement` with 150ms safe clipboard fallback).
+  * Minimal non-activating Floating HUD indicating recording and processing states.
 * **Exit Gate**: Press hotkey, speak a sentence, and raw text appears at the cursor in TextEdit and VS Code with $< 450\text{ ms}$ latency. Zero cloud network requests.
+* **Current Status**: **COMPLETE** (Benchmarks and reliability test suite verified).
 
 ---
 

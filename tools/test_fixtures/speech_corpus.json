@@ -1,0 +1,32 @@
+[
+  {
+    "id": "corpus-001",
+    "durationSeconds": 2.5,
+    "groundTruth": "Send John the report tomorrow.",
+    "category": "business"
+  },
+  {
+    "id": "corpus-002",
+    "durationSeconds": 3.1,
+    "groundTruth": "Deploy the backend service to production.",
+    "category": "developer"
+  },
+  {
+    "id": "corpus-003",
+    "durationSeconds": 1.8,
+    "groundTruth": "What time is the meeting?",
+    "category": "conversational"
+  },
+  {
+    "id": "corpus-004",
+    "durationSeconds": 4.2,
+    "groundTruth": "Please review the pull request and merge when ready.",
+    "category": "developer"
+  },
+  {
+    "id": "corpus-005",
+    "durationSeconds": 2.9,
+    "groundTruth": "Let us schedule a follow-up call next Friday.",
+    "category": "business"
+  }
+]
