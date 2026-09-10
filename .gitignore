@@ -1,19 +1,11 @@
-# Xcode
-.DS_Store
-*/.DS_Store
-build/
-DerivedData/
-*.xcodeproj
-*.xcworkspace
-!default.sublime-project
-*.xcuserstate
-project.xcworkspace/
-xcuserdata/
-
-# Swift Package Manager
-.build/
-.swiftpm/
-Package.resolved
+# .NET / Visual Studio
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
 
 # Models and Binary Assets (Do not commit heavy weights)
 models/*.bin
@@ -44,3 +36,8 @@ aws-credentials.json
 .vscode/
 *.swp
 *~
+
+# Legacy / Platform
+.DS_Store
+build/
+.build/
