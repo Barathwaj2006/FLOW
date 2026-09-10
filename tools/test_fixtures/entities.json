@@ -1,0 +1,28 @@
+[
+  {
+    "id": "tc-001",
+    "description": "Negative constraint preservation",
+    "input": "Build a FastAPI backend using PostgreSQL and Redis. Do not use Firebase.",
+    "protectedEntities": [
+      { "text": "FastAPI", "category": "technicalTerm", "isNegativeConstraint": false },
+      { "text": "PostgreSQL", "category": "technicalTerm", "isNegativeConstraint": false },
+      { "text": "Redis", "category": "technicalTerm", "isNegativeConstraint": false },
+      { "text": "Firebase", "category": "technicalTerm", "isNegativeConstraint": true }
+    ],
+    "invalidOutputs": [
+      "Build a backend using Express and Firebase.",
+      "Build a FastAPI backend with PostgreSQL, Redis, and Firebase auth."
+    ],
+    "validOutput": "Build a robust FastAPI backend service backed by PostgreSQL and Redis. Ensure Firebase is excluded."
+  },
+  {
+    "id": "tc-002",
+    "description": "No-Invention rule compliance",
+    "input": "Build me a website where students upload resumes and AI finds jobs based on their skills.",
+    "inventedStacksForbidden": ["React", "Next.js", "PostgreSQL", "Firebase", "Auth0"],
+    "validOutputStructure": {
+      "objective": "Build a website connecting student resumes to jobs via skill-matching AI.",
+      "database": "[Unspecified - Needs specification]"
+    }
+  }
+]

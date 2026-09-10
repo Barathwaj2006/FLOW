@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: FLOW - Serverless AWS Bedrock Proxy Stack for Advanced macOS Voice AI
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Runtime: python3.11
+
+Resources:
+  FlowBedrockApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Auth:
+        DefaultAuthorizer: AWS_IAM
+
+  BedrockProxyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: handler.lambda_handler
+      Environment:
+        Variables:
+          DEFAULT_BEDROCK_MODEL_ID: "anthropic.claude-3-5-sonnet-20240620-v1:0"
+      Policies:
+        - Statement:
+            - Sid: AllowBedrockInferenceOnly
+              Effect: Allow
+              Action:
+                - "bedrock:InvokeModel"
+                - "bedrock:InvokeModelWithResponseStream"
+              Resource:
+                - "arn:aws:bedrock:*:*:foundation-model/anthropic.claude-*"
+                - "arn:aws:bedrock:*:*:foundation-model/amazon.nova-*"
+      Events:
+        PromptEnhance:
+          Type: Api
+          Properties:
+            RestApiId: !Ref FlowBedrockApi
+            Path: /v1/ai/enhance-prompt
+            Method: post
+        GenerateReply:
+          Type: Api
+          Properties:
+            RestApiId: !Ref FlowBedrockApi
+            Path: /v1/ai/generate-reply
+            Method: post
+
+Outputs:
+  ApiEndpoint:
+    Description: "API Gateway Endpoint URL for FLOW macOS Client"
+    Value: !Sub "https://${FlowBedrockApi}.execute-api.${AWS::Region}.amazonaws.com/prod"

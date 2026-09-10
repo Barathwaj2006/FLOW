@@ -1,0 +1,46 @@
+# Xcode
+.DS_Store
+*/.DS_Store
+build/
+DerivedData/
+*.xcodeproj
+*.xcworkspace
+!default.sublime-project
+*.xcuserstate
+project.xcworkspace/
+xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Models and Binary Assets (Do not commit heavy weights)
+models/*.bin
+models/*.onnx
+models/*.mlmodelc
+models/*.mlpackage
+*.gguf
+*.weights
+
+# Local User Data and Cache
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+local_cache/
+recordings/
+tmp/
+*.log
+
+# Environment and Secrets
+.env
+.env.local
+aws-credentials.json
+*.pem
+*.key
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*~

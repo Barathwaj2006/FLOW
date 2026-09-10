@@ -1,0 +1,22 @@
+[
+  {
+    "input": "hello world period this is a test question mark",
+    "expected": "Hello world. This is a test?"
+  },
+  {
+    "input": "please note colon item one comma item two comma and item three period",
+    "expected": "Please note: item one, item two, and item three."
+  },
+  {
+    "input": "first paragraph new line second paragraph",
+    "expected": "First paragraph\nSecond paragraph"
+  },
+  {
+    "input": "send john the report tomorrow actually friday",
+    "expected": "Send john the report tomorrow—actually, Friday"
+  },
+  {
+    "input": "um we need to like deploy the the server uh right now",
+    "expected": "We need to like deploy the server right now"
+  }
+]
