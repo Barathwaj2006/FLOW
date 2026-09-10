@@ -1,172 +1,215 @@
-# ARCHITECTURE.md — System Architecture Specification
+# ARCHITECTURE.md — Windows System Architecture Specification
 
-> **Status**: Active Architecture Baseline  
-> **Project**: FLOW — AI Voice Productivity Platform for macOS  
-> **Target Platform**: macOS 14.0+ (Sonoma) / macOS 15.0+ (Sequoia) on Apple Silicon  
+> **Status**: Active Architecture Baseline — Windows Realignment  
+> **Project**: FLOW — AI Voice Productivity Platform for Windows  
+> **Target Platform**: Windows 10/11 x64 Native Desktop Application  
 
 ---
 
 ## 1. System Topology & Architectural Layers
 
-FLOW is designed as a high-performance, modular system partitioned into three strictly segregated layers:
+FLOW is architected across four distinct boundaries ensuring modularity, native performance, and offline privacy:
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                     LAYER 1: macOS Host & UI Layer                       │
-│                         (packages/FlowMacOS)                             │
-│                                                                          │
-│  ┌──────────────────────┐  ┌─────────────────────┐  ┌─────────────────┐  │
-│  │   Global Hotkeys     │  │    Floating HUD     │  │  Menu Bar App   │  │
-│  │    (CGEventTap)      │  │ (NSPanel / SwiftUI) │  │  (NSStatusItem) │  │
-│  └──────────┬───────────┘  └──────────▲──────────┘  └────────┬────────┘  │
-│             │                         │                      │           │
-│  ┌──────────▼───────────┐  ┌──────────┴──────────┐  ┌────────▼────────┐  │
-│  │   Audio Capture      │  │   Text Insertion    │  │ Screen Capture  │  │
-│  │ (AVAudioEngine Tap)  │  │ (AXUIElement/Paste) │  │(ScreenCaptureKit│  │
-│  └──────────┬───────────┘  └──────────▲──────────┘  └────────┬────────┘  │
-└─────────────┼─────────────────────────┼──────────────────────┼───────────┘
-              │ 16kHz PCM Audio Stream  │ Validated Text       │ Crop Image
-┌─────────────▼─────────────────────────┴──────────────────────▼───────────┐
-│                 LAYER 2: Platform-Agnostic Core Engine                   │
-│                          (packages/FlowCore)                             │
-│                                                                          │
-│  ┌───────────────────┐  ┌───────────────────────┐  ┌──────────────────┐  │
-│  │  Voice Pipeline   │  │    Language Engine    │  │   Content Lock   │  │
-│  │ - Silero VAD      │  │ - Spoken Punctuation  │  │ - Entity Extract │  │
-│  │ - WhisperKit ASR  │  │ - Filler Removal      │  │ - Bi-dir Check   │  │
-│  │ - Metal / ANE     │  │ - Backtracking Parser │  │ - Diff Engine    │  │
-│  └─────────┬─────────┘  └───────────▲───────────┘  └────────┬─────────┘  │
-│            │                        │                       │            │
-│            └────────────────────────┴───────────────────────┘            │
-│                                     │                                    │
-│  ┌───────────────────┐  ┌───────────▼───────────┐  ┌──────────────────┐  │
-│  │  Developer Mode   │  │  Personal Intelligence│  │  Context Engine  │  │
-│  │ - Casing Engine   │  │ - SQLite (GRDB.swift) │  │ - Active App     │  │
-│  │ - Code Formatter  │  │ - Custom Dictionary   │  │ - Min Necessary  │  │
-│  └───────────────────┘  └───────────────────────┘  └──────────────────┘  │
-└─────────────────────────────────────┬────────────────────────────────────┘
-                                      │ Explicit User Command (Cloud AI)
-┌─────────────────────────────────────▼────────────────────────────────────┐
-│                    LAYER 3: AWS Cloud Infrastructure                     │
-│                             (infra/aws)                                  │
-│                                                                          │
-│  ┌───────────────────┐  ┌───────────────────────┐  ┌──────────────────┐  │
-│  │  Amazon Bedrock   │  │      AWS Lambda       │  │ Amazon API GW    │  │
-│  │ - Claude 3.5 S/H  │  │ - Stateless Handler   │  │ - SigV4 Auth     │  │
-│  │ - Amazon Nova     │  │ - Rate Limiting       │  │ - TLS 1.3        │  │
-│  └───────────────────┘  └───────────────────────┘  └──────────────────┘  │
-└──────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│                  LAYER 1: Presentation & Shell UX                          │
+│                   (WinUI 3 / Windows App SDK)                              │
+│                                                                            │
+│  ┌─────────────────────────┐  ┌───────────────────────┐  ┌──────────────┐  │
+│  │    Floating HUD Panel   │  │   Settings Dashboard  │  │  System Tray │  │
+│  │  (WS_EX_NOACTIVATE/TOP) │  │    (Fluent / Mica)    │  │ (NotifyIcon) │  │
+│  └────────────▲────────────┘  └───────────┬───────────┘  └──────┬───────┘  │
+└───────────────┼───────────────────────────┼─────────────────────┼──────────┘
+                │ State / Event Binding     │ User Preferences    │ Lifecycle
+┌───────────────▼───────────────────────────▼─────────────────────▼──────────┐
+│                  LAYER 2: Application Core (.NET 9 / C#)                   │
+│                                                                            │
+│  ┌───────────────────────┐  ┌───────────────────────┐  ┌────────────────┐  │
+│  │  Session Coordinator  │  │    Language Engine    │  │  Content Lock  │  │
+│  │  - Async State Mach.  │  │  - Spoken Punctuation │  │  - Entities    │  │
+│  │  - PTT / Hands-Free   │  │  - Backtrack Resolver │  │  - Constraints │  │
+│  │  - Error Handling     │  │  - Filler Removal     │  │  - Diff Engine │  │
+│  └───────────┬───────────┘  └───────────▲───────────┘  └────────┬───────┘  │
+│              │                          │                       │          │
+│              ├──────────────────────────┴───────────────────────┘          │
+│              │                                                             │
+│  ┌───────────▼───────────┐  ┌───────────────────────┐  ┌────────────────┐  │
+│  │    Developer Mode     │  │  Personal Intelligence│  │ Local Storage  │  │
+│  │  - Casing Transformer │  │  - Custom Dictionary  │  │ - SQLite DB    │  │
+│  │  - Shell & Code Rules │  │  - Snippet Expander   │  │ - DPAPI Encrypt│  │
+│  └───────────────────────┘  └───────────────────────┘  └────────────────┘  │
+└──────────────┬──────────────────────────────────────────────┬──────────────┘
+               │ Audio Stream / Insertion Commands            │ Direct Calls
+┌──────────────▼──────────────────────────────┐┌──────────────▼──────────────┐
+│  LAYER 3A: Windows Integration Subsystems   ││  LAYER 3B: Native AI Engine │
+│                                             ││                             │
+│  ┌───────────────────────┐  ┌────────────┐  ││  ┌───────────────────────┐  │
+│  │ WASAPI Audio Capture  │  │ Global PTT │  ││  │ Silero VAD (ONNX/DML) │  │
+│  │ (IAudioCaptureClient) │  │(WH_KEYBD_LL│  ││  └───────────┬───────────┘  │
+│  └───────────────────────┘  └────────────┘  ││              │              │
+│  ┌───────────────────────┐  ┌────────────┐  ││  ┌───────────▼───────────┐  │
+│  │ UI Automation Engine  │  │ SendInput  │  ││  │ IASREngine (DirectML  │  │
+│  │ (IUIAutomation Target)│  │ (Ctrl+V)   │  ││  │  or whisper.cpp)      │  │
+│  └───────────────────────┘  └────────────┘  ││  └───────────┬───────────┘  │
+│  ┌───────────────────────────────────────┐  ││  ┌───────────▼───────────┐  │
+│  │ Windows Graphics Capture (Direct3D11) │  ││  │ GPU / NPU / CPU Fallbk│  │
+│  └───────────────────────────────────────┘  ││  └───────────────────────┘  │
+└─────────────────────────────────────────────┘└─────────────────────────────┘
+                                      │ Optional Cloud Invocation (Opt-In)
+┌─────────────────────────────────────▼──────────────────────────────────────┐
+│                 LAYER 4: AWS Bedrock Cloud Infrastructure                  │
+│                                                                            │
+│  [FLOW Windows App] ──HTTPS/SigV4──► [API Gateway] ──► [Lambda Proxy]      │
+│                                                              │             │
+│                                                    [Amazon Bedrock]        │
+│                                                    - Claude 3.5 Sonnet     │
+│                                                    - Amazon Nova           │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Voice Engine (Local Audio & ASR Pipeline)
+## 2. Windows Integration Subsystems
 
-### Audio Ingestion & Buffer Management
-* **Capture Interface**: `AVAudioEngine` input node configured with a tap block on a high-priority background audio queue.
-* **Audio Format**: Strict 16,000 Hz, 1-channel (mono), 32-bit float or 16-bit linear PCM.
-* **Buffering**: Ring buffer (`AudioRingBuffer`) holding up to 30 seconds of rolling audio to eliminate allocation spikes during speech.
-* **Noise Suppression**: Apple's native `AUVoiceProcessing` hardware-accelerated DSP unit enabled on the input node for beamforming and acoustic echo cancellation.
+### A. Global Hotkey Management
+* **Push-to-Talk (PTT) Requirement**: Push-to-talk requires capturing distinct `KeyDown` (start capture) and `KeyUp` (stop capture and commit) transitions.
+* **Architecture**:
+  * Standard Win32 `RegisterHotKey` generates a `WM_HOTKEY` notification only on key press and does not natively report key release.
+  * Therefore, FLOW utilizes a low-level keyboard hook (`SetWindowsHookEx(WH_KEYBOARD_LL)`) or dedicated raw input thread to monitor the push-to-talk trigger (e.g. `Ctrl + Space`, `Right Alt`, or `CapsLock`) with sub-millisecond precision.
+  * The hook procedure dispatches events asynchronously to a background worker to avoid blocking the OS message queue.
 
-### Voice Activity Detection (VAD)
-* **Engine**: Silero VAD (v4/v5 ONNX model compiled to CoreML or executed via ONNX Runtime Swift FFI).
-* **Chunk Window**: 512 samples (32ms frames).
-* **Thresholding**: Speech probability threshold $> 0.65$; trailing silence window of 450ms before triggering speech termination.
-* **Modes**:
-  * *Push-to-Talk*: Recording active while hotkey is depressed; terminates immediately on key release.
-  * *Hands-Free*: Dynamic start on speech detection; auto-commits after silence threshold.
+### B. Audio Capture Pipeline (WASAPI)
+* **API**: Windows Audio Session API (WASAPI) utilizing `IAudioClient3` and `IAudioCaptureClient`.
+* **Mode**: Event-driven shared mode (with configurable exclusive mode for ultra-low-latency setups).
+* **Format**: Standardized internally to 16,000 Hz, 1-channel (mono), 32-bit linear PCM float.
+* **Resampling**: If the hardware device operates at 48,000 Hz or 44,100 Hz, a lightweight native resampler (via Media Foundation or WDL-Resampler) converts frames to 16kHz before buffering.
+* **Buffering**: Lock-free circular audio buffer (`AudioRingBuffer`) holding up to 30 seconds of speech.
+* **Device Handling**: Listens for `IMMNotificationClient` callbacks to gracefully handle USB/Bluetooth microphone disconnections, default device switches, and route changes without application crash or hung threads.
 
-### Automatic Speech Recognition (ASR)
-FLOW defines a polymorphic ASR driver protocol:
-```swift
-public protocol ASREngineProtocol: Sendable {
-    func loadModel(identifier: String) async throws
-    func transcribe(audio: AudioBuffer, options: TranscribeOptions) async throws -> TranscriptionResult
-    func streamTranscribe(audioStream: AsyncStream<AudioChunk>) -> AsyncStream<TranscriptionFragment>
+### C. Focused Target Detection & Text Context
+* **API**: Windows UI Automation (`IUIAutomation`).
+* **Inspection**: On hotkey trigger, queries `IUIAutomation::GetFocusedElement` to resolve:
+  * Control Type (`UIA_EditControlTypeId`, `UIA_DocumentControlTypeId`).
+  * Supported Control Patterns (`IUIAutomationValuePattern`, `IUIAutomationTextPattern2`).
+  * Active Process & Executable name (e.g. `code.exe`, `notepad.exe`, `slack.exe`).
+* **Performance**: Calls use background thread caching via `IUIAutomationCacheRequest` to minimize cross-process COM stalls.
+
+---
+
+## 3. Text Insertion & Safety Architecture
+
+The text insertion service places characters at the active cursor position without clipboard corruption or accidental message dispatch.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                  Initiate Text Insertion                     │
+└──────────────────────────────┬───────────────────────────────┘
+                               │
+            ┌──────────────────▼──────────────────┐
+            │ Query Focused IUIAutomationElement   │
+            └──────────────────┬──────────────────┘
+                               │
+                Check Supported Control Patterns
+                ┌──────────────┴──────────────┐
+                │                             │
+       Supports ValuePattern?        No / Non-Standard Target
+                │                             │
+                ▼                             ▼
+   ┌───────────────────────────┐ ┌───────────────────────────────┐
+   │ IUIAutomationValuePattern │ │ Safe Clipboard Fallback       │
+   │ .SetValue(cleanText)      │ │ 1. Backup Win32 Clipboard     │
+   │ (Instant, zero clipboard) │ │ 2. SetText(cleanText)         │
+   └───────────────────────────┘ │ 3. SendInput(Ctrl + V)        │
+                                 │ 4. Sleep 150ms                │
+                                 │ 5. Restore original Clipboard │
+                                 └──────────────┬────────────────┘
+                                                │
+                                 ┌──────────────▼────────────────┐
+                                 │ Inviolable Filter Safeguard   │
+                                 │ Strictly reject VK_RETURN,    │
+                                 │ VK_ENTER, and form submission │
+                                 └───────────────────────────────┘
+```
+
+### Safety Rules:
+1. **Never Send / Submit**: Under no circumstances shall FLOW simulate `VK_RETURN` (`0x0D`), keypad enter, or trigger automated button clicks.
+2. **Clipboard Isolation**: When using the `Ctrl+V` fallback:
+   * Existing clipboard data (text, HTML, images, custom formats) is backed up.
+   * New text is written to the clipboard.
+   * `SendInput` emits `Ctrl+V`.
+   * The original clipboard payload is restored within 150ms.
+3. **Target Validation**: If the focused element is a password field (`IsPassword == true`) or read-only, FLOW displays an informative tooltip and aborts insertion.
+
+---
+
+## 4. Local AI & Speech Recognition (ASR) Layer
+
+FLOW defines an extensible inference abstraction (`IASREngine`):
+
+```csharp
+public interface IASREngine : IAsyncDisposable
+{
+    string ModelIdentifier { get; }
+    Task LoadModelAsync(string modelPath, CancellationToken ct);
+    Task<TranscriptionResult> TranscribeAsync(AudioBuffer audio, TranscribeOptions options, CancellationToken ct);
 }
 ```
 
-#### Driver Implementations:
-1. **WhisperKit Engine (Primary)**:
-   * Optimized for Apple Silicon (M1/M2/M3/M4).
-   * Executes Whisper architecture (`base.en`, `small`, `large-v3-turbo`) compiled to CoreML.
-   * Dispatches matrix operations directly to the **Apple Neural Engine (ANE)** and **Metal GPU**, minimizing CPU/battery draw.
-2. **whisper.cpp Engine (Universal Fallback)**:
-   * Portable C/C++ implementation compiled via SPM with Metal acceleration.
-   * Serves as reliable fallback for Intel Macs and platforms lacking CoreML weights.
-3. **Apple Speech Engine (Instant Fallback)**:
-   * Native `SFSpeechRecognizer` with `requiresOnDeviceRecognition = true`. Zero weight download required.
-
-### Latency Budget (Target: $< 400\text{ ms}$)
-```
-Speech Ends ──(150ms Silence Window)──> VAD Flags EndOfSpeech
-            ──(150ms ANE Inference)───> Raw Token String Emitted
-            ──(20ms Language Engine)──> Clean Punctuated Text
-            ──(15ms Content Lock)─────> Entity/Constraint Verified
-            ──(15ms AXUIElement)──────> Characters Appear at Cursor
-Total Duration from Vocal Silence to Screen: ~350 ms
-```
+### Supported & Evaluated Backends:
+1. **ONNX Runtime with DirectML (Primary Candidate)**:
+   * Leverages Microsoft DirectML (DirectX 12 compute) to execute Whisper and Silero VAD models.
+   * Provides hardware-accelerated tensor computation across NVIDIA GeForce/RTX, AMD Radeon, Intel Arc GPUs, and Windows Copilot+ NPUs.
+2. **whisper.cpp with AVX2 CPU Fallback (Secondary Candidate)**:
+   * Highly optimized C++ implementation with lightweight GGML quantized weights (`q4_0`, `q5_0`).
+   * Provides predictable performance on non-GPU enterprise Windows machines via AVX2 / AVX-512 vector extensions.
+3. **Mock ASR Engine**:
+   * Deterministic test driver for automated CI and reliability verification.
 
 ---
 
-## 3. Language Engine (Local Formatting & Cleanup)
+## 5. Screen AI Architecture (Windows Graphics Capture)
 
-The Language Engine operates in two deterministic stages without cloud dependencies:
-
-### Stage 1: Lexical & State Machine Filter
-* **Filler Word Removal**: Configurable dictionary (`"um"`, `"uh"`, `"er"`, `"you know"`, `"like"` when used as hesitation marker).
-* **Stutter & Repetition Collapse**: Detects duplicated tokens (*"the the"*, *"in in"*).
-* **Spoken Punctuation Parsing**:
-  * `"period"` $\longrightarrow$ `.`
-  * `"comma"` $\longrightarrow$ `,`
-  * `"question mark"` $\longrightarrow$ `?`
-  * `"exclamation mark"` $\longrightarrow$ `!`
-  * `"new line"` / `"new paragraph"` $\longrightarrow$ `\n` / `\n\n`
-  * `"colon"` $\longrightarrow$ `:`
-  * `"semicolon"` $\longrightarrow$ `;`
-  * `"quote"` / `"unquote"` $\longrightarrow$ `"` / `"`
-
-### Stage 2: Backtracking & Intent Correction
-Spoken thought patterns frequently involve mid-sentence corrections:
-* **Trigger Patterns**: `/(.+?)\s+(actually|wait no|scratch that|i mean)\s+(.+)/i`
-* **Resolution Rule**:
-  * Input: *"send the email to Sarah actually John"*
-  * Backtrack Detector matches: Antecedent: *"Sarah"*, Trigger: *"actually"*, Replacement: *"John"*.
-  * Result: *"Send the email to John."*
-  * Input: *"send the report tomorrow actually Friday"*
-  * Result: *"Send the report tomorrow—actually, Friday."* (Context-preserving dash when both temporal anchors are meaningful).
+* **Invocation**: Dedicated hotkey (e.g. `Ctrl + Shift + S`).
+* **Capture Pipeline**:
+  * Utilizes `Windows.Graphics.Capture` (Windows 10 Build 1803+ / Windows 11).
+  * Direct3D11 surface binding via `Direct3D11CaptureFramePool`.
+  * Renders a non-activating semi-transparent selection overlay across all active monitors with DPI scaling awareness.
+* **Data Minimization**: Only the user-selected rectangle is extracted into a Direct3D texture / bitmap. Full desktop contents outside the bounding box are immediately discarded.
+* **Vision & OCR**:
+  * Local: Windows native OCR (`Windows.Media.Ocr`) runs on-device in $< 50\text{ ms}$.
+  * Cloud: Complex reasoning (summarization, reply drafting) sends the cropped image to Amazon Bedrock.
 
 ---
 
-## 4. Content Lock Engine (Fidelity & The No-Invention Rule)
+## 6. Content Lock Engine (Fidelity & The No-Invention Rule)
 
-Content Lock is the primary technological differentiator of FLOW. It guards against accidental corruption or hallucination during AI transformations.
+Content Lock prevents AI hallucination or silent alteration of user requirements:
 
 ```
                           ┌──────────────────────────┐
-                          │     User Spoken Text     │
+                          │    Raw Transcribed Text  │
                           └────────────┬─────────────┘
                                        │
                         ┌──────────────▼──────────────┐
-                        │ Protected Entity Extraction │
-                        │  - Technical Term Lexicon   │
+                        │  Protected Entity Extractor │
+                        │  - Technical Identifiers    │
                         │  - Regex Entity Matchers    │
-                        │  - Negative Constraint Extr │
+                        │  - Negative Constraints     │
                         └──────────────┬──────────────┘
                                        │
                                        ├─────────────────────────────┐
-                                       │ [Entity & Constraint Graph] │
+                                       │ [Protected Entity Graph]    │
                                        │                             │
                         ┌──────────────▼──────────────┐              │
-                        │  AI Transformation Action   │              │
-                        │  (Local NLP or Bedrock)     │              │
+                        │    AI Transformation Action │              │
+                        │   (Local Rules or Bedrock)  │              │
                         └──────────────┬──────────────┘              │
                                        │                             │
                         ┌──────────────▼──────────────┐              │
-                        │   Content Lock Validator    │              │
+                        │    Content Lock Validator   │              │
                         │  - Bi-directional Match     │◄─────────────┘
                         │  - Negative Rule Inversion  │
-                        │  - No-Invention Audit       │
+                        │  - The No-Invention Audit   │
                         └──────────────┬──────────────┘
                                        │
                    ┌───────────────────┴───────────────────┐
@@ -174,175 +217,21 @@ Content Lock is the primary technological differentiator of FLOW. It guards agai
              [Passed: 100%]                      [Failed / Discrepancy]
                    │                                       │
                    ▼                                       ▼
-        [Direct Text Insertion]                 [Present Prompt Diff UI]
-                                                [Apply or Cancel Manual]
+        [Direct Text Insertion]                 [Display Prompt Diff UI]
+                                                [User Manually Resolves]
 ```
 
-### Entity Extraction Schema
-Protected categories:
-1. **Identifiers & Code**: CamelCase, snake_case, file extensions (`.ts`, `.py`, `.swift`), URLs, IP addresses, CLI flags (`--verbose`).
-2. **Quantities & Dates**: Integers, floating-point numbers, percentages, monetary amounts, days of the week, ISO dates.
-3. **Negative Directives**: Patterns matching `/(do not|don't|never|without|exclude|avoid)\s+([A-Za-z0-9_\-\.]+)/i`.
+### The No-Invention Rule
+If user input is:
+> *"Build an API in Python."*
 
-### Validation Contract
-* If user input specifies *"Do not use Firebase"*:
-  * Output containing *"Firebase"* without an explicit negative qualifier fails immediately.
-* If user input specifies *"Build a FastAPI backend"*:
-  * Output suggesting *"Express.js"* or dropping *"FastAPI"* fails immediately.
-* The **No-Invention Rule**: If the input does not specify a database, the transformed prompt must NOT arbitrarily add *"PostgreSQL"*. It may suggest a section: `Database: [Unspecified - please select]`.
+Content Lock rejects any transformed prompt that introduces unmentioned frameworks (`FastAPI`, `Flask`, `PostgreSQL`, `Docker`) unless marked as an unconfirmed clarification.
 
 ---
 
-## 5. Multilingual & Translation Engine
+## 7. Local Storage & Security Boundaries
 
-### Language Identification (LID)
-* Real-time audio LID evaluated during the first 500ms of speech using Whisper's multilingual head.
-* Detected language code emitted to the Floating HUD (e.g., `ta` for Tamil).
-
-### Tamil & Code-Switching Architecture
-* Special handling for Tamil $\longleftrightarrow$ English bilingual speech:
-  * Phonetic transcription retaining English technical loanwords (e.g., *“Database connect பண்ணு”* $\longrightarrow$ *"Connect to the database"*).
-  * Direct translation option: When the system detects Tamil, a non-intrusive HUD toggle presents: `Tamil detected. Translate to English? [Translate | Keep Original]`.
-  * Entity preservation ensures Tamil transliterated names, currency (₹ / Rupees), and technical terms are locked during translation.
-
----
-
-## 6. Prompt Engineer & Prompt Diff
-
-### Transformation Pipeline
-Unstructured spoken thoughts are converted into structured engineering prompts following a rigorous schema:
-```markdown
-# Objective
-[Core user goal distilled into a single imperative sentence]
-
-# Context
-[Background information provided in the utterance]
-
-# Requirements
-[Strict bulleted list of functional requirements stated by the user]
-
-# Constraints
-[Bulleted list of negative rules, dependencies, and boundaries]
-
-# Expected Output
-[Target format, schema, or language]
-```
-
-### Prompt Diff Engine
-Before applying a generated prompt, the client computes a character-level and semantic token diff:
-* Tokens added $\longrightarrow$ Highlighted green (audited against the No-Invention Rule).
-* Tokens removed $\longrightarrow$ Highlighted red (audited to verify no constraints were lost).
-* Visual modal displayed with `Apply (Enter)` or `Cancel (Esc)`.
-
----
-
-## 7. Screen AI Engine
-
-### Capture & Vision Workflow
-1. **Invocation**: Dedicated shortcut (`Cmd+Shift+S`).
-2. **Selection Overlay**: An unmanaged `NSWindow` covers the active screen with a semi-transparent dark scrim and crosshair cursor.
-3. **Crop Capture**: The user drags a rectangular region. Coordinates are passed to macOS `ScreenCaptureKit` to produce a high-resolution CoreGraphics bitmap (`CGImage`).
-4. **Local Processing**:
-   * Text extraction runs immediately on-device using Apple Vision `VNRecognizeTextRequest` ($< 50\text{ ms}$).
-   * If the user requests complex reasoning (*"Explain this error"*, *"Write a reply to this message"*), the compressed image and extracted OCR text are bundled into a payload for Amazon Bedrock.
-
-### Screenshot $\longrightarrow$ Reply Pipeline
-* Prevents context leakage by transmitting **only** the selected bounding box, never the full desktop.
-* Generated reply is staged in the Floating HUD with a preview.
-* Injected into the active application's reply field on confirmation.
-* **Inviolable Guarantee**: The engine NEVER clicks "Send" or simulates Enter.
-
----
-
-## 8. Developer Mode
-
-Developer Mode optimizes the pipeline for programming workflows:
-* **Spoken Casing Modes**:
-  * `"camel case"` $\longrightarrow$ Lower camelCase (`createUserService`)
-  * `"pascal case"` $\longrightarrow$ Upper CamelCase (`OrderRepository`)
-  * `"snake case"` $\longrightarrow$ Lower snake_case (`connection_pool_size`)
-  * `"screaming snake"` $\longrightarrow$ UPPER_SNAKE_CASE (`MAX_BUFFER_CAPACITY`)
-  * `"kebab case"` $\longrightarrow$ kebab-case (`api-gateway-route`)
-* **Terminal & CLI Awareness**: Automatically escapes shell arguments, quotes strings containing spaces, and formats commands (`git commit -m "..."`).
-* **Active App Detection**: Automatically enables Developer Mode when the active frontmost application is identified as an IDE or Terminal (`com.microsoft.VSCode`, `com.googlecode.iterm2`, `dev.zed.Zed`).
-
----
-
-## 9. macOS Integration & Text Insertion Engine
-
-### Native Integration Points
-* **Global Hotkeys**: Implemented via a low-level event tap (`CGEvent.tapCreate`) for global accessibility and sub-millisecond response, with fallback to `NSEvent.addGlobalMonitorForEventsMatchingMask`.
-* **Permissions Health Guard**: Dedicated `PermissionManager` tracking Accessibility, Microphone, and Screen Recording permissions. Displays deep links to System Settings on missing rights.
-* **Floating HUD**: An `NSPanel` styled with SwiftUI, configured with:
-  * `.nonactivatingPanel` (prevents stealing keyboard focus from the active document/text field).
-  * Level: `.floating` or `.popUpMenu` (visible above fullscreen applications).
-
-### Universal Text Insertion Strategy
-Reliable text insertion without clipboard clobbering:
-```
-┌──────────────────────────────────────────────────────────┐
-│             Request Text Insertion at Cursor             │
-└────────────────────────────┬─────────────────────────────┘
-                             │
-            ┌────────────────▼────────────────┐
-            │ Check Accessibility Element     │
-            │ (AXUIElementCopyAttributeValue) │
-            └────────────────┬────────────────┘
-                             │
-                 Can set AXValue / AXSelectedText?
-                 ┌───────────┴───────────┐
-                 │ YES                   │ NO (Electron / Non-AX Field)
-                 ▼                       ▼
-    ┌────────────────────────┐  ┌────────────────────────────────────┐
-    │  AXUIElementSetValue   │  │  Clipboard Inject Fallback         │
-    │  (Instant, No Clipbd)  │  │  1. Backup current NSPasteboard    │
-    └────────────────────────┘  │  2. Write text to NSPasteboard     │
-                                │  3. CGEventPost(Cmd + V)           │
-                                │  4. Sleep 100ms                    │
-                                │  5. Restore original NSPasteboard  │
-                                └────────────────────────────────────┘
-```
-
-* **Safety Isolation**: Keycode `0x24` (`kVK_Return`) is strictly filtered out from all programmatic event generation.
-
----
-
-## 10. Local Storage & Personal Intelligence
-
-* **Database**: Embedded SQLite 3 managed through `GRDB.swift` (zero external daemon, thread-safe, compile-time typed SQL).
-* **Location**: `~/Library/Application Support/com.flow.mac/flow.sqlite`.
-* **Data Schemas**:
-  * `UserDictionary`: Custom phonetic mappings and technical jargon.
-  * `Snippets`: Keyword trigger $\longrightarrow$ expanded text template.
-  * `DictationHistory`: Timestamp, raw transcript, clean text, word count, latency metrics (audio buffers are NEVER saved).
-  * `Preferences`: Hotkeys, silence timeout, cloud AI toggle, Developer Mode triggers.
-
----
-
-## 11. AWS Bedrock Cloud Architecture
-
-When explicit cloud operations are invoked, the request follows a secure, minimal serverless flow:
-
-```
-[FLOW macOS Client]
-        │
-        │ HTTPS / TLS 1.3 with AWS SigV4
-        ▼
-[Amazon API Gateway (REST API)]
-        │
-        │ Authorizer / Rate Limiter
-        ▼
-[AWS Lambda Function (Node.js/Python/Rust)]
-        │
-        │ Minimal Prompt Payload (No Audio)
-        ▼
-[Amazon Bedrock Runtime]
-  - Anthropic Claude 3.5 Sonnet / Haiku
-  - Amazon Nova Pro / Lite
-        │
-        ▼
-[Response Streamed Back to Client]
-```
-
-* **Zero Audio to Cloud**: The payload contains only the cleaned textual prompt or the selected screenshot crop.
-* **No Provider Training**: Bedrock enterprise terms guarantee customer inputs are never used to train base foundation models.
+* **Database**: Embedded SQLite via `Microsoft.Data.Sqlite`.
+* **Location**: `%LOCALAPPDATA%\Flow\flow.db`.
+* **Encryption**: Sensitive tables (user dictionary, personal snippets, dictation history) are encrypted using Windows Data Protection API (DPAPI) or SQLCipher.
+* **Audio Isolation**: Raw audio buffers exist solely in volatile memory and are zeroed immediately after transcription. No audio recordings are saved to persistent disk.

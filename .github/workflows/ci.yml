@@ -1,43 +1,48 @@
-name: FLOW CI
+name: FLOW Windows CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
 
 jobs:
-  validate-specs:
-    name: Validate Documentation & Governance
-    runs-on: ubuntu-latest
+  validate-windows-specs:
+    name: Validate Windows Specifications & Governance
+    runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Verify Core Documentation Exists
+      - name: Verify Core Windows Governance Documents
+        shell: pwsh
         run: |
-          test -f AGENTS.md || (echo "Missing AGENTS.md" && exit 1)
-          test -f PROJECT_PROFILE.md || (echo "Missing PROJECT_PROFILE.md" && exit 1)
-          test -f ARCHITECTURE.md || (echo "Missing ARCHITECTURE.md" && exit 1)
-          test -f ROADMAP.md || (echo "Missing ROADMAP.md" && exit 1)
-          test -f SECURITY.md || (echo "Missing SECURITY.md" && exit 1)
-          test -f THIRD_PARTY_NOTICES.md || (echo "Missing THIRD_PARTY_NOTICES.md" && exit 1)
-          test -f TESTING_STRATEGY.md || (echo "Missing TESTING_STRATEGY.md" && exit 1)
-          test -f DEPENDENCIES.md || (echo "Missing DEPENDENCIES.md" && exit 1)
-          test -f ACCEPTANCE_CRITERIA.md || (echo "Missing ACCEPTANCE_CRITERIA.md" && exit 1)
-          echo "All core governance documents verified."
-
-  macos-build-and-test:
-    name: Build & Test (macOS Apple Silicon)
-    runs-on: macos-14
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app
-
-      - name: Test FlowCore Package
-        run: |
-          cd packages/FlowCore
-          swift test --enable-code-coverage
+          $requiredDocs = @(
+              "MIGRATION_MATRIX.md",
+              "AGENTS.md",
+              "PROJECT_PROFILE.md",
+              "ARCHITECTURE.md",
+              "ROADMAP.md",
+              "SECURITY.md",
+              "THIRD_PARTY_NOTICES.md",
+              "TESTING_STRATEGY.md",
+              "DEPENDENCIES.md",
+              "ACCEPTANCE_CRITERIA.md",
+              "README.md"
+          )
+          
+          $missing = @()
+          foreach ($doc in $requiredDocs) {
+              if (-not (Test-Path $doc)) {
+                  $missing += $doc
+              } else {
+                  Write-Host " [PASS] $doc verified." -ForegroundColor Green
+              }
+          }
+          
+          if ($missing.Count -gt 0) {
+              Write-Error "Missing critical Windows governance documents: $($missing -join ', ')"
+              exit 1
+          }
+          
+          Write-Host "All Windows governance and architecture specifications validated." -ForegroundColor Cyan

@@ -1,153 +1,83 @@
-# PROJECT_PROFILE.md — Product Master Profile
+# PROJECT_PROFILE.md — Product Master Profile (Windows Native)
 
-# FLOW: AI Voice Productivity Platform for macOS
+# FLOW: AI Voice Productivity Platform for Windows
 
-> **Product Vision**: A system-wide, voice-native AI productivity layer for macOS that enables users to dictate naturally into any application, clean and format speech with strict fidelity, transform unstructured thoughts into structured prompts, reason over screen contents, and write code seamlessly—all grounded in local-first privacy and powered by AWS Bedrock for advanced cloud intelligence.
+> **Product Vision**: A system-wide, voice-native AI productivity layer for Windows 10 and Windows 11 that enables users to speak naturally and turn their voice, screen, or selected context into accurate text, replies, prompts, translations, code, and AI-assisted output—while strictly protecting the user's original intent through Content Lock.
 
 ---
 
 ## 1. Executive Summary & Market Positioning
 
 ### The Opportunity
-Current speech-to-text tools suffer from two extremes:
-1. **Dumb Dictation**: Legacy tools (Apple Dictation, Dragon) transcribe phonemes into literal text without context, leaving filler words ("um", "uh"), spoken corrections, broken capitalization, and zero syntax awareness.
-2. **Lossy / Hallucinatory Cloud AI Wrappers**: Emerging AI speech tools often pipe all microphone audio to remote servers, exhibit high latency (1–3 seconds), and rewrite user input indiscriminately—frequently inventing requirements, altering variable names, dropping negative constraints, or corrupting technical code.
+Windows desktop users represent the vast majority of global enterprise knowledge workers, software developers, and professionals. However, existing voice productivity on Windows is fragmented:
+1. **Legacy Windows Voice Typing (`Win + H`)**: Transcribes words into literal text with rudimentary punctuation, lacking contextual cleanup, intent-aware backtracking, developer casing, or entity validation.
+2. **Cloud-Tethered Wrappers**: Cloud-based tools stream private microphone audio across remote servers, incur high latency, and often hallucinate or alter critical technical constraints during text rewrites.
 
 ### The FLOW Advantage: Competitive Positioning vs. Wispr Flow
-FLOW competes directly with Wispr Flow while establishing deep technological differentiation:
+FLOW establishes a native Windows-first platform competing directly with Wispr Flow:
 
-| Dimension | Wispr Flow / Competitors | FLOW (This Product) |
+| Dimension | Wispr Flow / Cloud Competitors | FLOW (This Product) |
 | :--- | :--- | :--- |
-| **Privacy Architecture** | Audio streamed to cloud servers for transcription | **100% Local Voice Core**: Audio never leaves the machine for dictation. |
-| **Fidelity Guarantee** | Black-box LLM rewrites prone to hallucination | **Content Lock**: Formally verifies preservation of entities, numbers, code, and constraints before insertion. |
-| **Spoken Corrections** | Blindly concatenates speech or loses context | **Intent-Aware Backtracking**: Resolves phrases like *"send it tomorrow actually Friday"* into *"Send it tomorrow—actually, Friday."* |
-| **Developer Ergonomics** | Mangles code syntax, camelCase, and terminals | **Native Developer Mode**: Zero-friction case switching (`camelCase`, `snake_case`, `kebab-case`), terminal commands, and syntax awareness. |
-| **Multimodal Screen AI** | Text-only or cloud-tethered capture | **Native Screen AI**: High-performance region capture via `ScreenCaptureKit` + on-device OCR + Bedrock reasoning. |
-| **Cloud Intelligence** | Proprietary cloud lock-in | **Amazon Bedrock Orchestration**: Cloud power reserved exclusively for high-leverage generative tasks (Prompt Engineering, Screen Reasoning). |
-| **Multilingual Support** | Generalist models with poor regional fidelity | **Specialized Regional Fidelity**: Native support for code-switched speech (e.g., Tamil + English) and dialect translation. |
+| **Primary Platform** | Cloud-dependent, cross-platform wrappers | **Windows-Native Desktop** (WinUI 3, .NET 9, WASAPI, DirectML) |
+| **Privacy & Sovereignty**| Audio streamed to cloud servers | **100% Local Core**: Microphone audio never leaves the PC for dictation. |
+| **Fidelity Guarantee** | Black-box LLM rewrites prone to hallucination | **Content Lock**: Formally verifies preservation of entities, code, numbers, and negative constraints. |
+| **Spoken Corrections** | Appends both phrases or loses context | **Intent-Aware Backtracking**: Resolves phrases like *"send it tomorrow actually Friday"* $\rightarrow$ *"Send it tomorrow—actually, Friday."* |
+| **Developer Ergonomics** | Mangled casing, syntax, and terminals | **Native Developer Mode**: Zero-friction case transforms (`camelCase`, `snake_case`), PowerShell/CLI awareness. |
+| **Multimodal Screen AI** | Clunky screen recording or cloud tethering | **Windows Graphics Capture**: Hardware-accelerated GPU capture via Direct3D11 with user-defined crop. |
+| **Hardware Acceleration**| Proprietary server GPUs | **Heterogeneous DirectML Acceleration**: Runs across NVIDIA RTX, AMD Radeon, Intel Arc, and Copilot+ NPUs. |
+| **Insertion Safety** | Inconsistent across non-standard windows | **Deterministic Safety**: Strict filter dropping `VK_RETURN` (0x0D); safe clipboard fallback with 150ms restore. |
 
 ---
 
-## 2. The Three Core Philosophies
+## 2. The Three Inviolable Tenets
 
-### 1. LOCAL (Offline Sovereignty)
-* Core voice functionality is self-contained.
-* Global hotkey capture, Voice Activity Detection (VAD), Apple Silicon Neural Engine (ANE) / Metal speech recognition, rule-based formatting, and cursor text insertion operate with zero internet connectivity.
-* No microphone audio packets ever leave the user's computer.
+### 1. LOCAL FIRST (Offline Sovereignty)
+* Core voice functionality is self-contained and operates with zero internet connectivity.
+* Global hotkey capture, Windows Audio (WASAPI), Voice Activity Detection (VAD), speech recognition (DirectML / CPU fallback), and cursor text insertion require no cloud services.
+* Raw microphone audio is never transmitted across the network.
 
 ### 2. FAITHFUL (Content Lock & Intent Integrity)
-* AI transformations must clean presentation without distorting substance.
-* **Permitted Improvements**: Grammar, punctuation, capitalization, spelling, filler-word elimination, stutter removal, backtracking cleanup, and clean whitespace.
+* AI transformations must improve presentation without mutating substance.
+* **Permitted Cleanup**: Grammar, punctuation, capitalization, spelling, filler-word elimination ("um", "uh"), stutter collapse, and backtracking resolution.
 * **Protected Substance (Content Lock)**:
   * Entities: Names, email addresses, phone numbers, URLs, dates.
   * Quantitative Data: Numbers, metrics, pricing, units of measurement.
-  * Technical Artifacts: Programming languages, frameworks, libraries, variable names, functions, file paths, shell commands, SQL queries.
+  * Technical Artifacts: Programming languages, frameworks, libraries, variable names, functions, file paths (`C:\...`), PowerShell commands (`Get-ChildItem`), CLI flags (`--force`).
   * Logic & Intent: Negative instructions (*"Do not use Firebase"* $\rightarrow$ must NEVER use Firebase), architectural constraints, acceptance criteria.
 * **The No-Invention Rule**: The system never manufactures facts, dependencies, or specifications the user did not state.
 
-### 3. INTELLIGENT (Targeted Cloud Power)
-* Advanced generative operations leverage state-of-the-art foundation models (Amazon Bedrock: Claude 3.5 Sonnet, Claude 3.5 Haiku, Amazon Nova).
-* Cloud AI is strictly on-demand, initiated only when the user explicitly triggers features like Prompt Engineering, Reply Generation, Text Transformation, or Screen AI.
+### 3. USER CONTROL (No Accidental Actions)
+* The text insertion engine places characters at the active cursor position or replaces selected text.
+* It must **NEVER** simulate Enter (`VK_RETURN`, `0x0D`), Keypad Enter, `VK_SEPARATOR`, or trigger form submit/message send buttons. Dispatching messages or running commands remains strictly the user's manual action.
 
 ---
 
-## 3. Primary User Experience & Interaction Model
+## 3. Technology Evaluation & Approval Status
 
-FLOW lives as an unobtrusive native macOS menu bar utility with a floating, non-activating HUD overlay:
-
-```
-[User presses Global Hotkey: Fn / Option+Space / Custom]
-                         │
-                         ▼
-        [Floating HUD Appears (Recording)]
-                         │
-        [User Speaks into any Application]
-  (VS Code, Slack, Mail, Notion, Terminal, Chrome, etc.)
-                         │
-                         ▼
-  [Voice Activity Detection (VAD) detects end of speech]
-                         │
-                         ▼
-[Local ASR (WhisperKit on Apple Silicon) generates raw text]
-                         │
-                         ▼
-   [Language Engine cleans punctuation, fillers, & backtracks]
-                         │
-                         ▼
-     [Content Lock Engine verifies entity & constraint fidelity]
-                         │
-                         ▼
- [Text is Injected Directly at Active Cursor via AXUIElement]
-                         │
-                         ▼
-       [HUD disappears — Ready for next utterance]
-```
-
-### Critical Reliability Rules for Interaction
-* **No Manual Copy/Paste**: The application automatically places clean text into the active field.
-* **No Accidental Submissions**: The injection engine is strictly forbidden from simulating `Return` / `Enter` or triggering form submit actions. Message dispatching remains strictly under the user's manual physical control.
-* **Undo Fidelity**: Any inserted text can be undone with a single native `Cmd+Z` keystroke.
+| Subsystem | Candidate Technology | Status | Rationale |
+| :--- | :--- | :--- | :--- |
+| **Host Application Framework** | C# / .NET 9 + WinUI 3 (Windows App SDK) | **Proposed (Candidate 1)** | High development velocity, rich Windows 11 Fluent/Mica UX, robust Win32/WASAPI/UIA interop. |
+| **Host Application Framework (Alt)**| Pure C++20 + WinUI 3 (C++/WinRT) | **Evaluated (Rejected)** | Extreme development overhead, slow compilation, fragile XAML bindings, complex COM maintenance. |
+| **Audio Capture** | WASAPI (`IAudioClient3` / `IAudioCaptureClient`)| **Approved** | Low-latency Windows native audio interface for 16kHz Float32 mono capture. |
+| **Global Hotkey** | Win32 `RegisterHotKey` + `WH_KEYBOARD_LL` Hook | **Proposed** | Low-level hook required to capture push-to-talk keyup/keydown reliably. |
+| **Focused Target Detection** | Windows UI Automation (`IUIAutomation`) | **Approved** | Comprehensive accessibility interface for Win32, WinUI, WPF, Chromium, and Electron. |
+| **Text Insertion** | UIA `ValuePattern` / `TextPattern` + `SendInput`| **Proposed** | Direct programmatic insertion with safe clipboard fallback (`Ctrl+V`) and 150ms restore. |
+| **Local ASR Backend** | ONNX Runtime with DirectML | **Proposed (Primary)** | Accelerates Whisper on NVIDIA, AMD, Intel GPUs and Windows Copilot+ NPUs. |
+| **Local ASR Backend (Alt)** | `whisper.cpp` (DirectX 12 / AVX2 CPU) | **Proposed (Secondary)** | Lightweight, portable C++ inference with proven CPU fallback on older x64 hardware. |
+| **Voice Activity Detection** | Silero VAD (ONNX Runtime / DirectML) | **Proposed** | State-of-the-art chunk segmentation and silence detection ($< 150\text{ ms}$). |
+| **Screen AI Capture** | Windows Graphics Capture (`Direct3D11`) | **Proposed** | High-performance GPU surface capture with minimal latency and multi-monitor/DPI support. |
+| **Local Persistence** | SQLite via `Microsoft.Data.Sqlite` + DPAPI | **Approved** | Zero-service embedded database encrypted via Windows Data Protection API. |
+| **Cloud Intelligence** | Amazon Bedrock via API Gateway + Lambda | **Approved (Opt-in)**| On-demand generative AI (Claude 3.5 Sonnet, Amazon Nova) strictly for advanced operations. |
 
 ---
 
-## 4. Flagship Feature Modules
+## 4. Target Operating Environment & Hardware Matrix
 
-### Module A: Voice Core & Hardware Acceleration
-* Real-time audio streaming via `AVAudioEngine` / `CoreAudio` at 16kHz mono.
-* Hardware-accelerated Voice Activity Detection (Silero VAD) with dynamic energy thresholds and configurable silence windows (default: 450ms).
-* Local ASR using Apple Neural Engine (ANE) and Metal via `WhisperKit` and `whisper.cpp`.
-* Latency budget: Under 400ms end-to-end for a standard 3-second dictation.
-
-### Module B: Language Engine & Formatting
-* Rule-based and syntactic post-processing.
-* Spoken punctuation mapping (*"period"*, *"comma"*, *"new line"*, *"semicolon"*).
-* Spoken formatting (*"bullet point"*, *"all caps"*, *"quote unquote"*).
-* Contextual backtracking: Automatically replaces aborted thoughts when words like *"actually"*, *"I mean"*, *"scratch that"* are detected.
-
-### Module C: Multilingual & Code-Switched Speech
-* Initial focus: **Tamil $\longleftrightarrow$ English** code-switching.
-* Automatic language identification (LID).
-* Mode selection: Transcribe in native script, transliterate, or translate directly to English with technical entity preservation.
-
-### Module D: Content Lock Engine
-* Pre-extraction of named entities, numbers, code tokens, and negative constraints.
-* Post-transformation bi-directional verification.
-* Diff inspection modal whenever validation indicates an entity shift or ambiguity.
-
-### Module E: Prompt Engineer & Prompt Diff
-* Converts conversational spoken ideas into structured, battle-tested LLM prompts (Objective, Context, Constraints, Expected Output).
-* Strict enforcement of the No-Invention Rule.
-* Interactive visual Diff viewer showing exactly what was structured without additions.
-
-### Module F: Screen AI
-* Global shortcut (`Cmd+Shift+S`) triggers an interactive crosshair region selector via `ScreenCaptureKit`.
-* Extracted region undergoes on-device OCR (`VNRecognizeTextRequest`) or multimodal analysis via Bedrock.
-* Contextual actions: Generate Reply, Extract Code, Summarize, Explain Error, or Translate UI text.
-
-### Module G: Developer Mode
-* Voice-driven casing transformation:
-  * *"camel case get user profile"* $\longrightarrow$ `getUserProfile`
-  * *"snake case database pool timeout"* $\longrightarrow$ `database_pool_timeout`
-  * *"kebab case auth service endpoint"* $\longrightarrow$ `auth-service-endpoint`
-  * *"screaming snake max retry count"* $\longrightarrow$ `MAX_RETRY_COUNT`
-* Code formatting for Markdown, JSON, YAML, SQL queries, and Git workflows.
-
-### Module H: Personal Intelligence
-* Local SQLite database managed via `GRDB.swift`.
-* Custom user dictionary: phonetic and text replacements (e.g., *"fast api"* $\longrightarrow$ `FastAPI`).
-* Expansion snippets: Trigger phrases expand into structured boilerplate (e.g., *"my standard signature"*).
-
-### Module I: AWS Bedrock Cloud Intelligence
-* Scalable serverless bridge: macOS Client $\longrightarrow$ AWS API Gateway $\longrightarrow$ AWS Lambda $\longrightarrow$ Amazon Bedrock.
-* Support for Claude 3.5 Sonnet / Haiku and Amazon Nova models.
-* End-to-end encrypted transport, least-privilege IAM roles, zero storage of user prompt payloads by cloud providers.
-
----
-
-## 5. Target Operating Environment & Compatibility
-
-* **Target OS**: macOS 14.0 (Sonoma) and macOS 15.0+ (Sequoia).
-* **Target Hardware**:
-  * Primary: Apple Silicon (M1, M2, M3, M4 series) utilizing Apple Neural Engine (ANE) and Metal.
-  * Secondary / Fallback: Intel x86_64 utilizing AVX2/Metal CPU fallbacks.
-* **Development & Build System**: Swift 6, Swift Package Manager (SPM), Xcode 16+.
+* **Target OS**: Windows 10 (Version 21H2+ / Build 19044+) and Windows 11 (Build 22000+).
+* **Architecture**: x64 (Primary), with future roadmap support for ARM64 (Snapdragon X Elite).
+* **Target Applications for Text Insertion**:
+  * Development Environments: VS Code, Visual Studio, Cursor, JetBrains IDEs.
+  * Terminals: Windows Terminal, PowerShell, Git Bash, CMD.
+  * Office & Productivity: Microsoft Word, Excel, Outlook, OneNote, Notion.
+  * Web & Electron: Google Chrome, Microsoft Edge, Slack, Discord, WhatsApp Desktop.
+  * Built-in Windows Utilities: Notepad, Sticky Notes.

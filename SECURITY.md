@@ -1,126 +1,61 @@
-# SECURITY.md — Security & Privacy Architecture
+# SECURITY.md — Windows Security & Privacy Architecture
 
-> **Status**: Inviolable Policy  
-> **Classification**: Security Architecture Baseline  
-> **Project**: FLOW — AI Voice Productivity Platform for macOS  
+> **Status**: Windows Realignment Baseline  
+> **Target Platform**: Windows 10/11 x64 Native Desktop Application  
+> **Mandate**: End-to-end defense-in-depth, local audio isolation, Windows UIPI boundary respect, and zero automated submission.  
 
 ---
 
-## 1. Security Philosophy & Threat Model
+## 1. Windows Threat Model & Defense Matrix
 
-FLOW operates at the intersection of sensitive audio capture, system-wide Accessibility APIs, screen recording, and cloud AI reasoning. A compromise in any of these surfaces could expose private conversations, passwords, or intellectual property.
-
-### Threat Vectors & Mitigations Matrix
+FLOW operates across privileged Windows boundaries including global keyboard hooks, WASAPI audio capture, UI Automation, screen capture, and optional cloud AI.
 
 | Threat Vector | Severity | Attack Scenario | FLOW Defense Strategy |
 | :--- | :--- | :--- | :--- |
-| **Audio Snooping / Eavesdropping** | Critical | Malware or rogue network requests intercept microphone audio. | **Hard Local Quarantine**: Raw audio buffers are processed in volatile memory only and never written to persistent disk or transmitted across network interfaces. |
-| **Unintended Message Sending** | Critical | App accidentally simulates `Return`/`Enter` in Slack or Mail, sending an unreviewed draft. | **Strict Keycode Blacklist**: The text injection engine is strictly prohibited from emitting keycode `0x24` (`kVK_Return`) or Keypad Enter under any circumstance. |
-| **Screen Content Leakage** | High | Screen AI captures confidential credentials or adjacent private windows. | **User-Defined Bounding Box Only**: Capture is strictly limited to the user's manual rectangular selection via `ScreenCaptureKit`. Full-screen capture without explicit user crop is impossible. |
-| **Clipboard Data Corruption / Theft** | High | App reads or overwrites user's private passwords stored in clipboard. | **Pasteboard Isolation & Quick Restore**: Clipboard fallback backs up the existing pasteboard, posts `Cmd+V`, and restores the previous clipboard state within 150ms. Clipboard contents are never logged. |
-| **AWS Credential Compromise** | Critical | AWS API keys or Bedrock tokens exposed on disk or git. | **Secure Keychain Storage & SigV4**: Credentials are stored in the macOS Keychain (`kSecClassGenericPassword`). API requests use short-lived SigV4 signed tokens. |
-| **AI Intent Corruption (Hallucination)** | High | AI silently alters a negative constraint (*"Do not use Firebase"*) into an unwanted action. | **Content Lock Engine**: Mathematical and token-level bi-directional verification blocks insertion if protected constraints or entities are mutated. |
+| **Audio Snooping / Persistent Leakage** | Critical | Malware or rogue background threads intercept or exfiltrate microphone audio. | **Volatile RAM Quarantine**: Audio buffers reside exclusively in pre-allocated non-paged RAM and are zeroed immediately post-transcription. Zero audio files are written to disk. |
+| **Accidental Command Execution / Send** | Critical | FLOW simulates `Enter` in Slack, Word, or an elevated PowerShell terminal, sending unreviewed text or executing a command. | **Strict Virtual Keycode Blacklist**: The text insertion engine hard-filters `VK_RETURN` (`0x0D`), `VK_SEPARATOR`, and keypad enter. Text insertion places characters only; dispatching remains strictly manual. |
+| **UIPI & Privilege Elevation Boundary** | High | A standard-user FLOW instance attempts to inspect or inject into an elevated (Administrator) window, causing silent failure or shatter attacks. | **User Interface Privilege Isolation (UIPI) Guard**: FLOW detects the integrity level of the focused window. If the target is elevated, FLOW alerts the user rather than hanging or attempting unauthorized injection. |
+| **Clipboard Data Theft / Corruption** | High | FLOW overwrites the user's password or sensitive token currently stored on the Windows clipboard. | **Atomic Backup & Fast Restore**: The clipboard fallback backs up all formats via Win32 `OpenClipboard`, emits `Ctrl+V`, and restores the exact original clipboard state within 150ms. |
+| **Screen Content Privacy Overreach** | High | Screen AI captures confidential browser tabs, passwords, or background desktop windows. | **Strict Crop Bounding Box**: Uses `Windows.Graphics.Capture` to capture strictly the user's manual rectangular drag selection. Full desktop capture without explicit selection is architecturally prohibited. |
+| **Prompt Injection via Screen AI** | High | Malicious text in a screenshot attempts to hijack LLM system prompts. | **System Prompt Hardening & Content Lock**: Prompt templates encapsulate OCR text within strict XML delimiters (`<screen_content>...<screen_content>`). Content Lock verifies that no unauthorized commands are executed. |
+| **Local Database Exposure** | Medium | Another local application inspects the user's local dictionary, snippets, or history. | **Windows DPAPI Encryption**: SQLite databases stored in `%LOCALAPPDATA%\Flow` are encrypted using the Windows Data Protection API (DPAPI) keyed to the logged-in Windows user account. |
 
 ---
 
-## 2. macOS Permissions Architecture
+## 2. Windows Privacy & Permissions Model
 
-FLOW requires three privileged macOS system permissions. Each permission is audited and managed through a centralized `PermissionManager`:
+### Microphone Access
+* **Windows Settings**: FLOW monitors the Windows 10/11 microphone capability status (`HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone`).
+* **Graceful Degradation**: If microphone access is denied by Windows privacy settings or group policy, FLOW surfaces a non-blocking toast notification with a direct link to `ms-settings:privacy-microphone`.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    FLOW Permission Guard                    │
-├──────────────────────────┬──────────────────────────────────┤
-│ Permission               │ Purpose & Scope                  │
-├──────────────────────────┼──────────────────────────────────┤
-│ 1. Microphone Access     │ Capture local audio stream for   │
-│    (AVCaptureDevice)     │ local VAD and Whisper ASR.       │
-├──────────────────────────┼──────────────────────────────────┤
-│ 2. Accessibility         │ Read active cursor position and  │
-│    (AXUIElement)         │ inject text directly into fields.│
-├──────────────────────────┼──────────────────────────────────┤
-│ 3. Screen Recording      │ Capture user-selected rectangle  │
-│    (ScreenCaptureKit)    │ for Screen AI features.          │
-└──────────────────────────┴──────────────────────────────────┘
-```
-
-### Permission Handling Guidelines
-* **No Crashing on Missing Rights**: If a user revokes permissions, FLOW must gracefully display a clear status indicator in the menu bar and guide the user to the macOS System Settings pane (`x-apple.systempreferences:com.apple.preference.security`).
-* **Just-In-Time Prompts**: Screen recording permissions are never requested on initial app launch; they are only requested when the user triggers Screen AI for the first time.
+### User Interface Automation (UIA) Boundary
+* Standard user applications cannot inject keystrokes or inspect applications running at higher integrity levels (Integrity Levels: Low $\rightarrow$ Medium $\rightarrow$ High $\rightarrow$ System).
+* When FLOW encounters an elevated window (e.g. Administrator Command Prompt), it checks if `uiAccess="true"` is configured or prompts the user to launch FLOW with appropriate permissions.
 
 ---
 
-## 3. Local Audio Sovereignty & Data Minimization
+## 3. Data Minimization Principle: "Minimum Necessary Context"
 
-### Audio Buffer Quarantine
-1. **Volatile Memory Only**: Microphone audio captured via `AVAudioEngine` resides in pre-allocated circular RAM buffers (`AudioRingBuffer`).
-2. **Immediate Zeroing**: Audio memory is zeroed out as soon as Whisper ASR finishes processing the utterance.
-3. **No Audio Persistence**: FLOW does not offer an "audio playback" feature for dictation history. The SQLite database stores only the resulting cleaned text, word count, and latency metrics—never the audio waveforms.
-
-### Cloud Data Minimization
-When the user explicitly invokes an AWS Bedrock feature (Prompt Engineer, Reply Generator, Screen AI):
-* Audio is **NEVER** sent to AWS. Only the local transcribed text or the cropped screenshot is transmitted.
-* The API payload contains strictly the text necessary to fulfill the user's prompt.
-* Background system windows, unseen clipboard items, and surrounding screen contents are excluded.
+When utilizing Screen AI or Context Intelligence:
+1. **Never Scrape the Entire Desktop**: Capture is mathematically bounded to the bounding rectangle $R = [x, y, w, h]$ selected by the user.
+2. **Never Collect Unfocused Windows**: Context extraction queries solely `IUIAutomation::GetFocusedElement` and its immediate ancestors. Background application windows are never scanned.
+3. **Sensitive Field Detection**: If a target UI element exposes `UIA_IsPasswordPropertyId == true`, text inspection is automatically disabled.
 
 ---
 
-## 4. Text Injection Safety Protocol
+## 4. Cloud Security & AWS Bedrock Boundary
 
-Text injection is the mechanism by which FLOW inserts processed speech into external applications.
-
-### Inviolable Injection Rules:
-1. **Never Send**: Under no circumstance shall FLOW programmatically trigger an action that commits, sends, or executes text (e.g., `Return`, `Shift+Return` with auto-send triggers, or mouse clicks on UI buttons).
-2. **Focus Verification**: Prior to injecting text, FLOW verifies that the active target element is an editable text field (`kAXRoleAttribute == kAXTextAreaRole` or `kAXTextFieldRole`).
-3. **Clipboard Hygiene**:
-   * If `AXUIElementSetValue` fails, FLOW employs the clipboard injection fallback (`NSPasteboard`).
-   * The fallback immediately preserves existing pasteboard contents, types, and metadata.
-   * After emitting `Cmd+V`, FLOW restores the original pasteboard contents within 150ms.
+When the user explicitly invokes an Amazon Bedrock feature:
+* **Audio Is Never Sent**: Only local transcribed text or the cropped screenshot is transmitted.
+* **Encryption in Transit**: Strict TLS 1.3 with modern cipher suites.
+* **Credential Hygiene**: In developer/BYOK mode, AWS credentials are read from standard environment variables or `%USERPROFILE%\.aws\credentials`. No secrets are hardcoded in application binaries.
+* **Enterprise Model Privacy**: Amazon Bedrock guarantees that customer prompt payloads are never stored or used to train base foundation models.
 
 ---
 
-## 5. Cloud Security & AWS Integration
+## 5. Security Incident Reporting
 
-### Identity & Access Management (IAM)
-* AWS credentials for developers or enterprise clients must use IAM policies restricted strictly to `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`.
-* No `admin`, S3, DynamoDB, or unrestricted Bedrock access permissions are allowed.
-
-### Minimum Privilege Policy Example:
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowBedrockInferenceOnly",
-      "Effect": "Allow",
-      "Action": [
-        "bedrock:InvokeModel",
-        "bedrock:InvokeModelWithResponseStream"
-      ],
-      "Resource": [
-        "arn:aws:bedrock:*:*:foundation-model/anthropic.claude-3-5-sonnet-*",
-        "arn:aws:bedrock:*:*:foundation-model/anthropic.claude-3-5-haiku-*",
-        "arn:aws:bedrock:*:*:foundation-model/amazon.nova-*"
-      ]
-    }
-  ]
-}
-```
-
----
-
-## 6. Local Storage Security
-
-* **SQLite Database**: Stored in the application's sandboxed support directory (`~/Library/Application Support/com.flow.mac/flow.sqlite`).
-* **Database Encryption**: Sensitive tables (user history, dictionary, preferences) are encrypted at rest using AES-256 via SQLCipher, with the encryption key securely stored in the macOS Keychain.
-* **Full Data Wipe**: The application must provide a one-click **"Clear All History & Cache"** setting that purges the SQLite database and destroys all cached assets.
-
----
-
-## 7. Vulnerability Disclosure Policy
-
-If you discover a security or privacy vulnerability in FLOW:
-1. Do not open a public GitHub issue.
-2. Submit a confidential report to `security@flow.ai` (or repository maintainers).
-3. Include detailed reproduction steps, target macOS version, and impact analysis.
-4. Maintainers commit to acknowledging reports within 24 hours and providing a remediation timeline within 72 hours.
+If you identify a security or privacy vulnerability:
+1. Do not report it publicly via GitHub Issues.
+2. Email a detailed disclosure to `security@flow.ai` (or repository maintainers).
+3. Include target Windows build, reproduction steps, and impact assessment.
