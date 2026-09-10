@@ -36,6 +36,7 @@ It empowers users to speak naturally and turn their voice, screen, or selected c
 | **[TESTING_STRATEGY.md](TESTING_STRATEGY.md)** | Windows audio test matrix (WASAPI shared/exclusive, device switching), UI Automation target testing, and empirical latency benchmarking (P50/P95/P99). |
 | **[DEPENDENCIES.md](DEPENDENCIES.md)** | Windows dependency manifest (.NET 9, Windows App SDK, DirectML, whisper.cpp, Silero VAD, SQLite) with licensing and provenance. |
 | **[ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md)** | Strict quantifiable quality gates across Windows 11 target applications (Notepad, VS Code, Chrome, Edge, Word, Windows Terminal). |
+| **[WEBSITE_GUIDELINES.md](WEBSITE_GUIDELINES.md)** | Anti-AI-slop rules, visual quality standards, copy honesty, and pre-launch quality gates for public web presence. |
 
 ---
 
