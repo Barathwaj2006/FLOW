@@ -25,14 +25,23 @@ public class WasapiAudioCaptureTests
         capture.Start();
         Assert.True(capture.IsCapturing);
 
-        Thread.Sleep(250);
+        bool started = capture.WaitForStart(5000);
+        Assert.True(started, "WASAPI capture thread failed to signal start within 5000ms.");
+
+        Thread.Sleep(500);
 
         capture.Stop();
         Assert.False(capture.IsCapturing);
 
+        if (capture.LastError != null)
+        {
+            throw new Exception($"Capture loop failed: {capture.LastError.Message}", capture.LastError);
+        }
+
         lock (capturedChunks)
         {
-            Assert.NotEmpty(capturedChunks);
+            Assert.True(capturedChunks.Count > 0,
+                $"Expected captured chunks > 0, but got {capturedChunks.Count}. Diagnostics: Waits={capture.DiagnosticWaitCount}, Timeouts={capture.DiagnosticTimeoutCount}, Packets={capture.DiagnosticPacketsReceived}, Rate={capture.NativeSampleRate}, Ch={capture.NativeChannels}");
         }
     }
 }

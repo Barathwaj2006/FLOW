@@ -5,8 +5,8 @@ using System.Runtime.InteropServices;
 namespace Flow.Host.Windows.Native;
 
 /// <summary>
-/// Low-level Windows keyboard hook (WH_KEYBOARD_LL) for push-to-talk and global hotkey handling.
-/// Accurately differentiates KeyDown from KeyUp to support natural hold-to-speak interactions.
+/// Low-level Windows keyboard hook (WH_KEYBOARD_LL) for push-to-talk and hands-free double-tap mode.
+/// Accurately differentiates single hold-to-speak from double-tap hands-free toggling.
 /// </summary>
 public sealed class GlobalHotkeyHook : IDisposable
 {
@@ -14,20 +14,38 @@ public sealed class GlobalHotkeyHook : IDisposable
     private const int VK_ESCAPE = 0x1B;
 
     private readonly int _targetVk;
+    private readonly double _doubleTapThresholdMs;
+
     private IntPtr _hookId = IntPtr.Zero;
     private LowLevelKeyboardProc? _proc;
     private bool _isKeyDown;
+    private bool _isHandsFreeActive;
+    private long _lastKeyUpTimestamp;
     private bool _isDisposed;
 
-    public event Action? HotkeyDown;
+    /// <summary>
+    /// Fired when recording should begin (either via PTT hold or Hands-Free double-tap).
+    /// Parameter indicates whether Hands-Free mode is active.
+    /// </summary>
+    public event Action<bool>? HotkeyDown;
+
+    /// <summary>
+    /// Fired when recording should conclude.
+    /// </summary>
     public event Action? HotkeyUp;
+
+    /// <summary>
+    /// Fired when the active session is cancelled via Escape.
+    /// </summary>
     public event Action? HotkeyCancelled;
 
     public bool IsHooked => _hookId != IntPtr.Zero;
+    public bool IsHandsFreeActive => _isHandsFreeActive;
 
-    public GlobalHotkeyHook(int targetVk = DefaultHotkeyVk)
+    public GlobalHotkeyHook(int targetVk = DefaultHotkeyVk, double doubleTapThresholdMs = 350.0)
     {
         _targetVk = targetVk;
+        _doubleTapThresholdMs = doubleTapThresholdMs;
     }
 
     /// <summary>
@@ -56,6 +74,7 @@ public sealed class GlobalHotkeyHook : IDisposable
             _hookId = IntPtr.Zero;
         }
         _isKeyDown = false;
+        _isHandsFreeActive = false;
     }
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -65,26 +84,63 @@ public sealed class GlobalHotkeyHook : IDisposable
             int vkCode = Marshal.ReadInt32(lParam);
             int message = wParam.ToInt32();
 
-            // Cancel session on ESC key
+            // 1. Handle Escape key for immediate cancellation
             if (vkCode == VK_ESCAPE && (message == WM_KEYDOWN || message == WM_SYSKEYDOWN))
             {
-                if (_isKeyDown)
+                if (_isKeyDown || _isHandsFreeActive)
                 {
                     _isKeyDown = false;
+                    _isHandsFreeActive = false;
                     HotkeyCancelled?.Invoke();
                 }
             }
+            // 2. Handle configured hotkey (default: Right Alt)
             else if (vkCode == _targetVk)
             {
-                if ((message == WM_KEYDOWN || message == WM_SYSKEYDOWN) && !_isKeyDown)
+                if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
                 {
-                    _isKeyDown = true;
-                    HotkeyDown?.Invoke();
+                    if (!_isKeyDown)
+                    {
+                        _isKeyDown = true;
+
+                        // If already in Hands-Free mode, any subsequent press immediately stops recording
+                        if (_isHandsFreeActive)
+                        {
+                            _isHandsFreeActive = false;
+                            HotkeyUp?.Invoke();
+                            return CallNextHookEx(_hookId, nCode, wParam, lParam);
+                        }
+
+                        // Evaluate time since last key up for double-tap detection
+                        long now = Stopwatch.GetTimestamp();
+                        double elapsedMs = (double)(now - _lastKeyUpTimestamp) * 1000.0 / Stopwatch.Frequency;
+
+                        if (elapsedMs <= _doubleTapThresholdMs && _lastKeyUpTimestamp > 0)
+                        {
+                            // Double-tap confirmed -> Enter Hands-Free Mode
+                            _isHandsFreeActive = true;
+                            HotkeyDown?.Invoke(true);
+                        }
+                        else
+                        {
+                            // Standard Push-To-Talk KeyDown
+                            HotkeyDown?.Invoke(false);
+                        }
+                    }
                 }
-                else if ((message == WM_KEYUP || message == WM_SYSKEYUP) && _isKeyDown)
+                else if (message == WM_KEYUP || message == WM_SYSKEYUP)
                 {
-                    _isKeyDown = false;
-                    HotkeyUp?.Invoke();
+                    if (_isKeyDown)
+                    {
+                        _isKeyDown = false;
+                        _lastKeyUpTimestamp = Stopwatch.GetTimestamp();
+
+                        // If Hands-Free mode is active, releasing the key does NOT stop recording
+                        if (!_isHandsFreeActive)
+                        {
+                            HotkeyUp?.Invoke();
+                        }
+                    }
                 }
             }
         }

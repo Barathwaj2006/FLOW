@@ -8,36 +8,42 @@ using Flow.Core.Audio;
 namespace Flow.Core.ASR;
 
 /// <summary>
-/// Local Whisper ASR engine implementation supporting DirectML GPU acceleration and CPU fallback.
-/// Designed to interface with ONNX Runtime or native whisper.cpp shared library.
+/// Local Whisper ASR engine coordinator supporting DirectML GPU acceleration and CPU fallback.
+/// Bridges between the application core and native inference backends.
 /// </summary>
 public sealed class LocalWhisperEngine : IASREngine
 {
+    private readonly IASREngine? _nativeBackend;
     private readonly string? _modelPath;
-    private readonly bool _useDirectMl;
     private bool _isInitialized;
 
     public ASREngineInfo Info { get; }
 
-    public LocalWhisperEngine(string? modelPath = null, bool useDirectMl = true)
+    public LocalWhisperEngine(IASREngine? nativeBackend = null, string? modelPath = null)
     {
+        _nativeBackend = nativeBackend;
         _modelPath = modelPath;
-        _useDirectMl = useDirectMl;
 
         Info = new ASREngineInfo(
             Id: "local-whisper",
-            DisplayName: "Local Whisper (DirectML / CPU)",
+            DisplayName: "Local Whisper Native Engine",
             Version: "1.0.0",
-            IsAvailable: true,
+            IsAvailable: nativeBackend?.Info.IsAvailable ?? false,
             RequiresGpu: false,
-            ModelName: !string.IsNullOrEmpty(modelPath) ? Path.GetFileName(modelPath) : "whisper-base-en"
+            ModelName: !string.IsNullOrEmpty(modelPath) ? Path.GetFileName(modelPath) : "ggml-tiny.en.bin"
         );
     }
 
-    public Task<bool> InitializeAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> InitializeAsync(CancellationToken cancellationToken = default)
     {
-        _isInitialized = true;
-        return Task.FromResult(true);
+        if (_nativeBackend != null)
+        {
+            _isInitialized = await _nativeBackend.InitializeAsync(cancellationToken);
+            return _isInitialized;
+        }
+
+        _isInitialized = false;
+        return false;
     }
 
     public async Task<ASRResult> TranscribeAsync(
@@ -48,56 +54,25 @@ public sealed class LocalWhisperEngine : IASREngine
     {
         ArgumentNullException.ThrowIfNull(audio);
 
-        if (!_isInitialized)
-        {
-            await InitializeAsync(cancellationToken);
-        }
-
-        var stopwatch = Stopwatch.StartNew();
-
-        // In Phase 1 Voice Core, when no external weight file is loaded,
-        // this engine processes the audio buffer through energy validation
-        // and returns deterministic transcription or delegates to the inference session.
         if (audio.Samples.Length == 0)
         {
             return ASRResult.Empty(Info.Id);
         }
 
-        // Check if audio has sufficient energy to transcribe
-        double sumSquares = 0.0;
-        foreach (float s in audio.Samples)
+        if (_nativeBackend != null)
         {
-            sumSquares += s * s;
-        }
-        float rms = (float)Math.Sqrt(sumSquares / audio.Samples.Length);
-
-        if (rms < 0.005f)
-        {
-            return ASRResult.Empty(Info.Id);
+            return await _nativeBackend.TranscribeAsync(audio, options, segmentProgress, cancellationToken);
         }
 
-        // Non-blocking simulation yield if running without external ONNX model
-        await Task.Yield();
-
-        stopwatch.Stop();
-
-        string recognizedText = "Testing local voice dictation.";
-        var segment = new ASRSegment(recognizedText, 0.0, audio.DurationSeconds, 0.95f);
-        segmentProgress?.Report(segment);
-
-        return new ASRResult(
-            Text: recognizedText,
-            Confidence: 0.95f,
-            AudioDuration: TimeSpan.FromSeconds(audio.DurationSeconds),
-            InferenceDuration: stopwatch.Elapsed,
-            EngineId: Info.Id,
-            Segments: new[] { segment }
-        );
+        throw new ASRException(Info.Id, "Local Whisper native inference backend is not loaded. Model weights must be installed.");
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _isInitialized = false;
-        return ValueTask.CompletedTask;
+        if (_nativeBackend != null)
+        {
+            await _nativeBackend.DisposeAsync();
+        }
     }
 }

@@ -11,5 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Flow.Core\Flow.Core.csproj" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.19.2" />
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
   </ItemGroup>
 </Project>

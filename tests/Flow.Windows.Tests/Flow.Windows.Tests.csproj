@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Flow.Host.Windows\Flow.Host.Windows.csproj" />
+    <ProjectReference Include="..\..\src\Flow.Inference\Flow.Inference.csproj" />
     <ProjectReference Include="..\..\src\Flow.Core\Flow.Core.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="xunit" Version="2.9.2" />

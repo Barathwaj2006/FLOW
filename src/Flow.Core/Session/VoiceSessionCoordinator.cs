@@ -12,7 +12,8 @@ namespace Flow.Core.Session;
 
 /// <summary>
 /// Central coordinator managing the end-to-end voice dictation session lifecycle:
-/// Hotkey Press -> WASAPI Audio Stream -> Ring Buffer -> VAD -> Local ASR -> Language Sanitizer -> Safe Insertion.
+/// Hotkey Press / Double-Tap -> WASAPI Audio Stream -> Ring Buffer -> VAD -> Local ASR -> Language Sanitizer -> Safe Insertion.
+/// Enforces the desktop 20-minute continuous recording ceiling with 19-minute warning.
 /// </summary>
 public sealed class VoiceSessionCoordinator
 {
@@ -23,10 +24,17 @@ public sealed class VoiceSessionCoordinator
     private readonly ITextInsertionService _insertionService;
     private readonly ILogger<VoiceSessionCoordinator>? _logger;
 
+    private readonly double _maxRecordingDurationSeconds;
+    private readonly double _warningDurationSeconds;
+
     private readonly object _stateLock = new();
     private SessionState _currentState = SessionState.Idle;
     private CancellationTokenSource? _sessionCts;
     private bool _hasDetectedSpeechInSession;
+    private long _sessionStartTimestamp;
+    private bool _warningFired;
+    private bool _limitExceededFired;
+    private bool _isHandsFree;
 
     public SessionState CurrentState
     {
@@ -36,10 +44,19 @@ public sealed class VoiceSessionCoordinator
         }
     }
 
+    public bool IsHandsFree
+    {
+        get
+        {
+            lock (_stateLock) return _isHandsFree;
+        }
+    }
+
     public event Action<SessionState, string?>? StateChanged;
     public event Action<float>? AudioLevelChanged;
     public event Action<string>? PartialTranscriptReceived;
     public event Action<string>? FinalTextInserted;
+    public event Action<string>? SessionWarning;
 
     public VoiceSessionCoordinator(
         AudioRingBuffer ringBuffer,
@@ -47,7 +64,9 @@ public sealed class VoiceSessionCoordinator
         ASREngineRegistry asrRegistry,
         ILanguageEngine languageEngine,
         ITextInsertionService insertionService,
-        ILogger<VoiceSessionCoordinator>? logger = null)
+        ILogger<VoiceSessionCoordinator>? logger = null,
+        double maxRecordingSeconds = 1200.0, // 20 minutes
+        double warningThresholdSeconds = 1140.0) // 19 minutes
     {
         _ringBuffer = ringBuffer ?? throw new ArgumentNullException(nameof(ringBuffer));
         _vad = vad ?? throw new ArgumentNullException(nameof(vad));
@@ -55,6 +74,8 @@ public sealed class VoiceSessionCoordinator
         _languageEngine = languageEngine ?? throw new ArgumentNullException(nameof(languageEngine));
         _insertionService = insertionService ?? throw new ArgumentNullException(nameof(insertionService));
         _logger = logger;
+        _maxRecordingDurationSeconds = maxRecordingSeconds;
+        _warningDurationSeconds = warningThresholdSeconds;
     }
 
     private void SetState(SessionState newState, string? detail = null)
@@ -68,9 +89,11 @@ public sealed class VoiceSessionCoordinator
     }
 
     /// <summary>
-    /// Starts a new recording session (typically triggered on push-to-talk KeyDown).
+    /// Starts a new recording session.
     /// </summary>
-    public Task StartSessionAsync(CancellationToken cancellationToken = default)
+    /// <param name="isHandsFree">True if triggered via hands-free double-tap.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public Task StartSessionAsync(bool isHandsFree = false, CancellationToken cancellationToken = default)
     {
         lock (_stateLock)
         {
@@ -87,8 +110,13 @@ public sealed class VoiceSessionCoordinator
             _ringBuffer.Clear();
             _vad.Reset();
             _hasDetectedSpeechInSession = false;
+            _sessionStartTimestamp = Stopwatch.GetTimestamp();
+            _warningFired = false;
+            _limitExceededFired = false;
+            _isHandsFree = isHandsFree;
 
-            SetState(SessionState.Recording, "Listening");
+            string detail = isHandsFree ? "Hands-Free Listening" : "Listening";
+            SetState(SessionState.Recording, detail);
         }
 
         return Task.CompletedTask;
@@ -96,6 +124,7 @@ public sealed class VoiceSessionCoordinator
 
     /// <summary>
     /// Feeds incoming real-time audio chunk from WASAPI capture stream.
+    /// Monitors recording duration against the 20-minute desktop ceiling.
     /// </summary>
     public void ProcessAudioChunk(ReadOnlySpan<float> samples)
     {
@@ -104,23 +133,41 @@ public sealed class VoiceSessionCoordinator
             return;
         }
 
-        // 1. Process VAD
+        // 1. Duration & limit monitoring
+        long now = Stopwatch.GetTimestamp();
+        double elapsedSeconds = (double)(now - _sessionStartTimestamp) / Stopwatch.Frequency;
+
+        if (elapsedSeconds >= _warningDurationSeconds && !_warningFired)
+        {
+            _warningFired = true;
+            _logger?.LogWarning("Approaching 20-minute recording limit ({ElapsedSeconds:F1}s elapsed).", elapsedSeconds);
+            SessionWarning?.Invoke("Approaching 20-minute limit (1 minute remaining)");
+        }
+
+        if (elapsedSeconds >= _maxRecordingDurationSeconds && !_limitExceededFired)
+        {
+            _limitExceededFired = true;
+            _logger?.LogWarning("20-minute recording limit reached. Automatically concluding session.");
+            _ = Task.Run(async () => await EndSessionAsync());
+            return;
+        }
+
+        // 2. Process VAD
         var vadResult = _vad.ProcessChunk(samples);
         if (vadResult.IsSpeech)
         {
             _hasDetectedSpeechInSession = true;
         }
 
-        // 2. Report RMS audio energy level for HUD animation
+        // 3. Report RMS audio energy level for HUD animation
         AudioLevelChanged?.Invoke(vadResult.RmsEnergy);
 
-        // 3. Store into ring buffer
+        // 4. Store into ring buffer
         _ringBuffer.Write(samples);
     }
 
     /// <summary>
-    /// Ends the current recording session and executes the transcription/insertion pipeline
-    /// (typically triggered on push-to-talk KeyUp).
+    /// Ends the current recording session and executes the transcription/insertion pipeline.
     /// </summary>
     public async Task<bool> EndSessionAsync(CancellationToken cancellationToken = default)
     {
@@ -130,6 +177,7 @@ public sealed class VoiceSessionCoordinator
             {
                 return false;
             }
+            _isHandsFree = false;
         }
 
         var ct = _sessionCts?.Token ?? cancellationToken;
@@ -155,7 +203,7 @@ public sealed class VoiceSessionCoordinator
                 PartialTranscriptReceived?.Invoke(seg.Text);
             });
 
-            // 1. Transcribe via ASR engine registry
+            // 1. Transcribe via ASR engine registry (executing real local Whisper backend)
             var asrResult = await _asrRegistry.TranscribeWithFallbackAsync(audioBuffer, progress: progress, cancellationToken: ct);
 
             if (string.IsNullOrWhiteSpace(asrResult.Text))
@@ -223,6 +271,11 @@ public sealed class VoiceSessionCoordinator
     /// </summary>
     public Task CancelSessionAsync(string reason = "Cancelled")
     {
+        lock (_stateLock)
+        {
+            _isHandsFree = false;
+        }
+
         _sessionCts?.Cancel();
         _ringBuffer.Clear();
         _vad.Reset();
