@@ -37,6 +37,7 @@ Every artifact currently residing in the FLOW repository has been audited and as
 | `DEPENDENCIES.md` | **Class B** | Dependency manifest. Pinned to Swift Package Manager packages (WhisperKit, GRDB.swift). | Realign for NuGet / native C++ dependencies (.NET 9, Windows App SDK, Microsoft.Data.Sqlite, ONNX Runtime). | **Realign** |
 | `ACCEPTANCE_CRITERIA.md` | **Class B** | Phase-by-phase exit gates. References TextEdit, Apple Silicon latency budgets. | Realign with Windows test targets: Windows 11, Notepad, VS Code, Chrome, Edge, Word, Windows Terminal. | **Realign** |
 | `README.md` | **Class B** | Repository entry point. Mentions macOS badges, Swift, Apple Silicon. | Realign for Windows 10/11, .NET, WinUI 3, DirectML. | **Realign** |
+| `APP_DESIGN_GUIDELINES.md` | **Class A** | Anti-vibecode desktop standards, native Windows UX rules, Segoe UI design system. | Native Windows Desktop application UX and design system standard. | **Active Baseline** |
 
 ---
 

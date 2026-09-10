@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Flow.Inference</RootNamespace>
+    <AssemblyName>Flow.Inference</AssemblyName>
+    <Description>FLOW Native Inference Engine: DirectML ONNX Runtime and whisper.cpp AVX2 Interop</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Flow.Core\Flow.Core.csproj" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.19.2" />
+  </ItemGroup>
+</Project>
