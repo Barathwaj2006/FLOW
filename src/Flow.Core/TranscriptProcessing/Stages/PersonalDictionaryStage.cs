@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Flow.Core.Personalization.Dictionary;
 
 namespace Flow.Core.TranscriptProcessing.Stages;
@@ -24,6 +24,6 @@ public sealed class PersonalDictionaryStage : ITranscriptStage
             return text;
         }
 
-        return _engine.Apply(text);
+        return _engine.Apply(text, context.TargetApplication, context.Language);
     }
 }

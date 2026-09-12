@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,7 +26,7 @@ public sealed class SqliteStyleRepository : IStyleRepository
         await using var cmd = conn.CreateCommand();
 
         cmd.CommandText = @"
-            SELECT Id, Name, Description, ContractionPolicy, FormalityLevel, UseBulletPoints, CreatedAt, UpdatedAt
+            SELECT Id, Name, Description, ContractionPolicy, FormalityLevel, UseBulletPoints, CreatedAt, UpdatedAt, IsEnabled, LanguageScope
             FROM StyleProfiles
             ORDER BY Name ASC;
         ";
@@ -48,7 +48,7 @@ public sealed class SqliteStyleRepository : IStyleRepository
         await using var cmd = conn.CreateCommand();
 
         cmd.CommandText = @"
-            SELECT Id, Name, Description, ContractionPolicy, FormalityLevel, UseBulletPoints, CreatedAt, UpdatedAt
+            SELECT Id, Name, Description, ContractionPolicy, FormalityLevel, UseBulletPoints, CreatedAt, UpdatedAt, IsEnabled, LanguageScope
             FROM StyleProfiles
             WHERE Id = @id;
         ";
@@ -71,7 +71,7 @@ public sealed class SqliteStyleRepository : IStyleRepository
         await using var cmd = conn.CreateCommand();
 
         cmd.CommandText = @"
-            SELECT Id, Name, Description, ContractionPolicy, FormalityLevel, UseBulletPoints, CreatedAt, UpdatedAt
+            SELECT Id, Name, Description, ContractionPolicy, FormalityLevel, UseBulletPoints, CreatedAt, UpdatedAt, IsEnabled, LanguageScope
             FROM StyleProfiles
             WHERE Name = @name COLLATE NOCASE;
         ";
@@ -85,6 +85,9 @@ public sealed class SqliteStyleRepository : IStyleRepository
 
         return null;
     }
+
+    public Task AddProfileAsync(StyleProfile profile, CancellationToken ct = default) => SaveProfileAsync(profile, ct);
+    public Task UpdateProfileAsync(StyleProfile profile, CancellationToken ct = default) => SaveProfileAsync(profile, ct);
 
     public async Task SaveProfileAsync(StyleProfile profile, CancellationToken ct = default)
     {
@@ -100,14 +103,16 @@ public sealed class SqliteStyleRepository : IStyleRepository
         await using var cmd = conn.CreateCommand();
 
         cmd.CommandText = @"
-            INSERT INTO StyleProfiles (Id, Name, Description, ContractionPolicy, FormalityLevel, UseBulletPoints, CreatedAt, UpdatedAt)
-            VALUES (@id, @name, @desc, @contractions, @formality, @bullets, @createdAt, @updatedAt)
+            INSERT INTO StyleProfiles (Id, Name, Description, ContractionPolicy, FormalityLevel, UseBulletPoints, IsEnabled, LanguageScope, CreatedAt, UpdatedAt)
+            VALUES (@id, @name, @desc, @contractions, @formality, @bullets, @isEnabled, @langScope, @createdAt, @updatedAt)
             ON CONFLICT(Id) DO UPDATE SET
                 Name = excluded.Name,
                 Description = excluded.Description,
                 ContractionPolicy = excluded.ContractionPolicy,
                 FormalityLevel = excluded.FormalityLevel,
                 UseBulletPoints = excluded.UseBulletPoints,
+                IsEnabled = excluded.IsEnabled,
+                LanguageScope = excluded.LanguageScope,
                 UpdatedAt = excluded.UpdatedAt;
         ";
         cmd.Parameters.AddWithValue("@id", profile.Id);
@@ -116,6 +121,8 @@ public sealed class SqliteStyleRepository : IStyleRepository
         cmd.Parameters.AddWithValue("@contractions", (int)profile.ContractionPolicy);
         cmd.Parameters.AddWithValue("@formality", (int)profile.FormalityLevel);
         cmd.Parameters.AddWithValue("@bullets", profile.UseBulletPoints ? 1 : 0);
+        cmd.Parameters.AddWithValue("@isEnabled", profile.IsEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@langScope", (object?)profile.LanguageScope ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@createdAt", profile.CreatedAt.ToString("O"));
         cmd.Parameters.AddWithValue("@updatedAt", profile.UpdatedAt.ToString("O"));
 
@@ -201,7 +208,7 @@ public sealed class SqliteStyleRepository : IStyleRepository
 
     private static StyleProfile ReadProfile(SqliteDataReader reader)
     {
-        return new StyleProfile
+        var profile = new StyleProfile
         {
             Id = reader.GetString(0),
             Name = reader.GetString(1),
@@ -212,5 +219,10 @@ public sealed class SqliteStyleRepository : IStyleRepository
             CreatedAt = DateTime.Parse(reader.GetString(6)),
             UpdatedAt = DateTime.Parse(reader.GetString(7))
         };
+
+        if (reader.FieldCount > 8 && !reader.IsDBNull(8)) profile.IsEnabled = reader.GetInt32(8) == 1;
+        if (reader.FieldCount > 9 && !reader.IsDBNull(9)) profile.LanguageScope = reader.GetString(9);
+
+        return profile;
     }
 }

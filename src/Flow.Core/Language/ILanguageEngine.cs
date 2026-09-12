@@ -11,7 +11,8 @@ public sealed record FormattingOptions(
     bool RemoveFillerWords = true,
     bool ReplaceSpokenPunctuation = true,
     bool FormatNumberedLists = true,
-    LanguageInfo? Language = null
+    LanguageInfo? Language = null,
+    string? TargetApplication = null
 );
 
 /// <summary>

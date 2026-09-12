@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
@@ -27,7 +27,7 @@ public sealed class SqliteSnippetRepository : ISnippetRepository
         await using var cmd = conn.CreateCommand();
 
         cmd.CommandText = @"
-            SELECT Id, TriggerPhrase, ExpansionText, IsEnabled, Category, CreatedAt, UpdatedAt
+            SELECT Id, TriggerPhrase, ExpansionText, IsEnabled, Category, CreatedAt, UpdatedAt, Description, Language, ApplicationScope
             FROM Snippets
             ORDER BY TriggerPhrase ASC;
         ";
@@ -49,7 +49,7 @@ public sealed class SqliteSnippetRepository : ISnippetRepository
         await using var cmd = conn.CreateCommand();
 
         cmd.CommandText = @"
-            SELECT Id, TriggerPhrase, ExpansionText, IsEnabled, Category, CreatedAt, UpdatedAt
+            SELECT Id, TriggerPhrase, ExpansionText, IsEnabled, Category, CreatedAt, UpdatedAt, Description, Language, ApplicationScope
             FROM Snippets
             WHERE Id = @id;
         ";
@@ -72,7 +72,7 @@ public sealed class SqliteSnippetRepository : ISnippetRepository
         await using var cmd = conn.CreateCommand();
 
         cmd.CommandText = @"
-            SELECT Id, TriggerPhrase, ExpansionText, IsEnabled, Category, CreatedAt, UpdatedAt
+            SELECT Id, TriggerPhrase, ExpansionText, IsEnabled, Category, CreatedAt, UpdatedAt, Description, Language, ApplicationScope
             FROM Snippets
             WHERE TriggerPhrase = @trigger COLLATE NOCASE;
         ";
@@ -94,6 +94,10 @@ public sealed class SqliteSnippetRepository : ISnippetRepository
         {
             throw new ArgumentException("Trigger phrase cannot be empty.", nameof(snippet));
         }
+        if (snippet.TriggerPhrase.Length > 200)
+        {
+            throw new ArgumentException("Trigger phrase cannot exceed 200 characters.", nameof(snippet));
+        }
         if (snippet.ExpansionText.Length > 4000)
         {
             throw new ArgumentException("Expansion text cannot exceed 4,000 characters.", nameof(snippet));
@@ -103,8 +107,8 @@ public sealed class SqliteSnippetRepository : ISnippetRepository
         await using var cmd = conn.CreateCommand();
 
         cmd.CommandText = @"
-            INSERT INTO Snippets (Id, TriggerPhrase, ExpansionText, IsEnabled, Category, CreatedAt, UpdatedAt)
-            VALUES (@id, @triggerPhrase, @expansionText, @isEnabled, @category, @createdAt, @updatedAt);
+            INSERT INTO Snippets (Id, TriggerPhrase, ExpansionText, IsEnabled, Category, Description, Language, ApplicationScope, CreatedAt, UpdatedAt)
+            VALUES (@id, @triggerPhrase, @expansionText, @isEnabled, @category, @description, @language, @applicationScope, @createdAt, @updatedAt);
         ";
         BindSnippetParameters(cmd, snippet);
 
@@ -117,6 +121,10 @@ public sealed class SqliteSnippetRepository : ISnippetRepository
         if (string.IsNullOrWhiteSpace(snippet.TriggerPhrase))
         {
             throw new ArgumentException("Trigger phrase cannot be empty.", nameof(snippet));
+        }
+        if (snippet.TriggerPhrase.Length > 200)
+        {
+            throw new ArgumentException("Trigger phrase cannot exceed 200 characters.", nameof(snippet));
         }
         if (snippet.ExpansionText.Length > 4000)
         {
@@ -134,6 +142,9 @@ public sealed class SqliteSnippetRepository : ISnippetRepository
                 ExpansionText = @expansionText,
                 IsEnabled = @isEnabled,
                 Category = @category,
+                Description = @description,
+                Language = @language,
+                ApplicationScope = @applicationScope,
                 UpdatedAt = @updatedAt
             WHERE Id = @id;
         ";
@@ -158,7 +169,11 @@ public sealed class SqliteSnippetRepository : ISnippetRepository
     public async Task<string> ExportToJsonAsync(CancellationToken ct = default)
     {
         var snippets = await GetAllAsync(ct);
-        var options = new JsonSerializerOptions { WriteIndented = true };
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
         return JsonSerializer.Serialize(snippets, options);
     }
 
@@ -169,31 +184,59 @@ public sealed class SqliteSnippetRepository : ISnippetRepository
         var snippets = JsonSerializer.Deserialize<List<SnippetEntry>>(json);
         if (snippets == null || snippets.Count == 0) return;
 
-        foreach (var s in snippets)
-        {
-            if (string.IsNullOrWhiteSpace(s.TriggerPhrase)) continue;
+        await using var conn = _database.CreateConnection();
+        await using var tx = conn.BeginTransaction();
 
-            var existing = await GetByTriggerAsync(s.TriggerPhrase, ct);
-            if (existing != null)
+        try
+        {
+            foreach (var s in snippets)
             {
+                if (string.IsNullOrWhiteSpace(s.TriggerPhrase) || s.TriggerPhrase.Length > 200) continue;
+                if (s.ExpansionText.Length > 4000) continue;
+
+                await using var cmd = conn.CreateCommand();
+                cmd.Transaction = tx;
+
                 if (overwrite)
                 {
-                    existing.ExpansionText = s.ExpansionText;
-                    existing.IsEnabled = s.IsEnabled;
-                    existing.Category = s.Category;
-                    await UpdateAsync(existing, ct);
+                    cmd.CommandText = @"
+                        INSERT INTO Snippets (Id, TriggerPhrase, ExpansionText, IsEnabled, Category, Description, Language, ApplicationScope, CreatedAt, UpdatedAt)
+                        VALUES (@id, @triggerPhrase, @expansionText, @isEnabled, @category, @description, @language, @applicationScope, @createdAt, @updatedAt)
+                        ON CONFLICT(TriggerPhrase COLLATE NOCASE) DO UPDATE SET
+                            ExpansionText = excluded.ExpansionText,
+                            IsEnabled = excluded.IsEnabled,
+                            Category = excluded.Category,
+                            Description = excluded.Description,
+                            Language = excluded.Language,
+                            ApplicationScope = excluded.ApplicationScope,
+                            UpdatedAt = excluded.UpdatedAt;
+                    ";
                 }
+                else
+                {
+                    cmd.CommandText = @"
+                        INSERT INTO Snippets (Id, TriggerPhrase, ExpansionText, IsEnabled, Category, Description, Language, ApplicationScope, CreatedAt, UpdatedAt)
+                        VALUES (@id, @triggerPhrase, @expansionText, @isEnabled, @category, @description, @language, @applicationScope, @createdAt, @updatedAt)
+                        ON CONFLICT(TriggerPhrase COLLATE NOCASE) DO NOTHING;
+                    ";
+                }
+
+                BindSnippetParameters(cmd, s);
+                await cmd.ExecuteNonQueryAsync(ct);
             }
-            else
-            {
-                await AddAsync(s, ct);
-            }
+
+            await tx.CommitAsync(ct);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ct);
+            throw;
         }
     }
 
     private static SnippetEntry ReadSnippet(SqliteDataReader reader)
     {
-        return new SnippetEntry
+        var snippet = new SnippetEntry
         {
             Id = reader.GetString(0),
             TriggerPhrase = reader.GetString(1),
@@ -203,6 +246,12 @@ public sealed class SqliteSnippetRepository : ISnippetRepository
             CreatedAt = DateTime.Parse(reader.GetString(5)),
             UpdatedAt = DateTime.Parse(reader.GetString(6))
         };
+
+        if (reader.FieldCount > 7 && !reader.IsDBNull(7)) snippet.Description = reader.GetString(7);
+        if (reader.FieldCount > 8 && !reader.IsDBNull(8)) snippet.Language = reader.GetString(8);
+        if (reader.FieldCount > 9 && !reader.IsDBNull(9)) snippet.ApplicationScope = reader.GetString(9);
+
+        return snippet;
     }
 
     private static void BindSnippetParameters(SqliteCommand cmd, SnippetEntry snippet)
@@ -212,6 +261,9 @@ public sealed class SqliteSnippetRepository : ISnippetRepository
         cmd.Parameters.AddWithValue("@expansionText", snippet.ExpansionText);
         cmd.Parameters.AddWithValue("@isEnabled", snippet.IsEnabled ? 1 : 0);
         cmd.Parameters.AddWithValue("@category", (object?)snippet.Category ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@description", (object?)snippet.Description ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@language", (object?)snippet.Language ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@applicationScope", (object?)snippet.ApplicationScope ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@createdAt", snippet.CreatedAt.ToString("O"));
         cmd.Parameters.AddWithValue("@updatedAt", snippet.UpdatedAt.ToString("O"));
     }

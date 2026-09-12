@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -29,7 +29,7 @@ public sealed class SqlitePersonalDictionaryRepository : IPersonalDictionaryRepo
         await using var cmd = conn.CreateCommand();
 
         cmd.CommandText = @"
-            SELECT Id, Term, Replacement, IsStarred, Category, CaseSensitive, CreatedAt, UpdatedAt
+            SELECT Id, Term, Replacement, IsStarred, Category, CaseSensitive, CreatedAt, UpdatedAt, IsEnabled, Language, ApplicationScope
             FROM DictionaryEntries
             ORDER BY IsStarred DESC, Term ASC;
         ";
@@ -51,7 +51,7 @@ public sealed class SqlitePersonalDictionaryRepository : IPersonalDictionaryRepo
         await using var cmd = conn.CreateCommand();
 
         cmd.CommandText = @"
-            SELECT Id, Term, Replacement, IsStarred, Category, CaseSensitive, CreatedAt, UpdatedAt
+            SELECT Id, Term, Replacement, IsStarred, Category, CaseSensitive, CreatedAt, UpdatedAt, IsEnabled, Language, ApplicationScope
             FROM DictionaryEntries
             WHERE Id = @id;
         ";
@@ -74,11 +74,11 @@ public sealed class SqlitePersonalDictionaryRepository : IPersonalDictionaryRepo
         await using var cmd = conn.CreateCommand();
 
         cmd.CommandText = @"
-            SELECT Id, Term, Replacement, IsStarred, Category, CaseSensitive, CreatedAt, UpdatedAt
+            SELECT Id, Term, Replacement, IsStarred, Category, CaseSensitive, CreatedAt, UpdatedAt, IsEnabled, Language, ApplicationScope
             FROM DictionaryEntries
             WHERE Term = @term COLLATE NOCASE;
         ";
-        cmd.Parameters.AddWithValue("@term", term);
+        cmd.Parameters.AddWithValue("@term", term.Trim());
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (await reader.ReadAsync(ct))
@@ -96,13 +96,37 @@ public sealed class SqlitePersonalDictionaryRepository : IPersonalDictionaryRepo
         {
             throw new ArgumentException("Term cannot be empty.", nameof(entry));
         }
+        if (entry.Term.Length > 500)
+        {
+            throw new ArgumentException("Term cannot exceed 500 characters.", nameof(entry));
+        }
+        if (entry.Replacement != null)
+        {
+            if (string.IsNullOrWhiteSpace(entry.Replacement))
+            {
+                throw new ArgumentException("Replacement cannot be whitespace-only.", nameof(entry));
+            }
+            if (entry.Replacement.Length > 1000)
+            {
+                throw new ArgumentException("Replacement cannot exceed 1000 characters.", nameof(entry));
+            }
+        }
 
         await using var conn = _database.CreateConnection();
         await using var cmd = conn.CreateCommand();
 
         cmd.CommandText = @"
-            INSERT INTO DictionaryEntries (Id, Term, Replacement, IsStarred, Category, CaseSensitive, CreatedAt, UpdatedAt)
-            VALUES (@id, @term, @replacement, @isStarred, @category, @caseSensitive, @createdAt, @updatedAt);
+            INSERT INTO DictionaryEntries (Id, Term, Replacement, IsStarred, Category, CaseSensitive, IsEnabled, Language, ApplicationScope, CreatedAt, UpdatedAt)
+            VALUES (@id, @term, @replacement, @isStarred, @category, @caseSensitive, @isEnabled, @language, @applicationScope, @createdAt, @updatedAt)
+            ON CONFLICT(Term COLLATE NOCASE) DO UPDATE SET
+                Replacement = excluded.Replacement,
+                IsStarred = excluded.IsStarred,
+                Category = excluded.Category,
+                CaseSensitive = excluded.CaseSensitive,
+                IsEnabled = excluded.IsEnabled,
+                Language = excluded.Language,
+                ApplicationScope = excluded.ApplicationScope,
+                UpdatedAt = excluded.UpdatedAt;
         ";
         BindEntryParameters(cmd, entry);
 
@@ -112,6 +136,18 @@ public sealed class SqlitePersonalDictionaryRepository : IPersonalDictionaryRepo
     public async Task UpdateAsync(DictionaryEntry entry, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        if (string.IsNullOrWhiteSpace(entry.Term))
+        {
+            throw new ArgumentException("Term cannot be empty.", nameof(entry));
+        }
+        if (entry.Term.Length > 500)
+        {
+            throw new ArgumentException("Term cannot exceed 500 characters.", nameof(entry));
+        }
+        if (entry.Replacement != null && entry.Replacement.Length > 1000)
+        {
+            throw new ArgumentException("Replacement cannot exceed 1000 characters.", nameof(entry));
+        }
 
         await using var conn = _database.CreateConnection();
         await using var cmd = conn.CreateCommand();
@@ -125,6 +161,9 @@ public sealed class SqlitePersonalDictionaryRepository : IPersonalDictionaryRepo
                 IsStarred = @isStarred,
                 Category = @category,
                 CaseSensitive = @caseSensitive,
+                IsEnabled = @isEnabled,
+                Language = @language,
+                ApplicationScope = @applicationScope,
                 UpdatedAt = @updatedAt
             WHERE Id = @id;
         ";
@@ -149,7 +188,11 @@ public sealed class SqlitePersonalDictionaryRepository : IPersonalDictionaryRepo
     public async Task<string> ExportToJsonAsync(CancellationToken ct = default)
     {
         var entries = await GetAllAsync(ct);
-        var options = new JsonSerializerOptions { WriteIndented = true };
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
         return JsonSerializer.Serialize(entries, options);
     }
 
@@ -160,26 +203,54 @@ public sealed class SqlitePersonalDictionaryRepository : IPersonalDictionaryRepo
         var entries = JsonSerializer.Deserialize<List<DictionaryEntry>>(json);
         if (entries == null || entries.Count == 0) return;
 
-        foreach (var entry in entries)
-        {
-            if (string.IsNullOrWhiteSpace(entry.Term)) continue;
+        await using var conn = _database.CreateConnection();
+        await using var tx = conn.BeginTransaction();
 
-            var existing = await GetByTermAsync(entry.Term, ct);
-            if (existing != null)
+        try
+        {
+            foreach (var entry in entries)
             {
+                if (string.IsNullOrWhiteSpace(entry.Term) || entry.Term.Length > 500) continue;
+                if (entry.Replacement != null && entry.Replacement.Length > 1000) continue;
+
+                await using var cmd = conn.CreateCommand();
+                cmd.Transaction = tx;
+
                 if (overwrite)
                 {
-                    existing.Replacement = entry.Replacement;
-                    existing.IsStarred = entry.IsStarred;
-                    existing.Category = entry.Category;
-                    existing.CaseSensitive = entry.CaseSensitive;
-                    await UpdateAsync(existing, ct);
+                    cmd.CommandText = @"
+                        INSERT INTO DictionaryEntries (Id, Term, Replacement, IsStarred, Category, CaseSensitive, IsEnabled, Language, ApplicationScope, CreatedAt, UpdatedAt)
+                        VALUES (@id, @term, @replacement, @isStarred, @category, @caseSensitive, @isEnabled, @language, @applicationScope, @createdAt, @updatedAt)
+                        ON CONFLICT(Term COLLATE NOCASE) DO UPDATE SET
+                            Replacement = excluded.Replacement,
+                            IsStarred = excluded.IsStarred,
+                            Category = excluded.Category,
+                            CaseSensitive = excluded.CaseSensitive,
+                            IsEnabled = excluded.IsEnabled,
+                            Language = excluded.Language,
+                            ApplicationScope = excluded.ApplicationScope,
+                            UpdatedAt = excluded.UpdatedAt;
+                    ";
                 }
+                else
+                {
+                    cmd.CommandText = @"
+                        INSERT INTO DictionaryEntries (Id, Term, Replacement, IsStarred, Category, CaseSensitive, IsEnabled, Language, ApplicationScope, CreatedAt, UpdatedAt)
+                        VALUES (@id, @term, @replacement, @isStarred, @category, @caseSensitive, @isEnabled, @language, @applicationScope, @createdAt, @updatedAt)
+                        ON CONFLICT(Term COLLATE NOCASE) DO NOTHING;
+                    ";
+                }
+
+                BindEntryParameters(cmd, entry);
+                await cmd.ExecuteNonQueryAsync(ct);
             }
-            else
-            {
-                await AddAsync(entry, ct);
-            }
+
+            await tx.CommitAsync(ct);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ct);
+            throw;
         }
     }
 
@@ -187,14 +258,14 @@ public sealed class SqlitePersonalDictionaryRepository : IPersonalDictionaryRepo
     {
         var entries = await GetAllAsync(ct);
         var sb = new StringBuilder();
-        sb.AppendLine("Term,Replacement,IsStarred,Category,CaseSensitive");
+        sb.AppendLine("Term,Replacement,IsStarred,Category,CaseSensitive,IsEnabled,Language,ApplicationScope");
 
         foreach (var e in entries)
         {
             string escapeCsv(string? val) =>
                 val == null ? "" : $"\"{val.Replace("\"", "\"\"")}\"";
 
-            sb.AppendLine($"{escapeCsv(e.Term)},{escapeCsv(e.Replacement)},{e.IsStarred},{escapeCsv(e.Category)},{e.CaseSensitive}");
+            sb.AppendLine($"{escapeCsv(e.Term)},{escapeCsv(e.Replacement)},{e.IsStarred},{escapeCsv(e.Category)},{e.CaseSensitive},{e.IsEnabled},{escapeCsv(e.Language)},{escapeCsv(e.ApplicationScope)}");
         }
 
         return sb.ToString();
@@ -208,42 +279,85 @@ public sealed class SqlitePersonalDictionaryRepository : IPersonalDictionaryRepo
         string? header = await reader.ReadLineAsync(ct);
         if (header == null) return;
 
-        string? line;
-        while ((line = await reader.ReadLineAsync(ct)) != null)
+        var headerParts = ParseCsvLine(header);
+        if (headerParts.Count < 2 || !headerParts[0].Contains("Term", StringComparison.OrdinalIgnoreCase))
         {
-            if (string.IsNullOrWhiteSpace(line)) continue;
-            var parts = ParseCsvLine(line);
-            if (parts.Count < 1 || string.IsNullOrWhiteSpace(parts[0])) continue;
+            throw new FormatException("Malformed CSV: Expected at least 'Term' and 'Replacement' columns in header.");
+        }
 
-            string term = parts[0];
-            string? replacement = parts.Count > 1 && !string.IsNullOrWhiteSpace(parts[1]) ? parts[1] : null;
-            bool isStarred = parts.Count > 2 && bool.TryParse(parts[2], out bool s) && s;
-            string? category = parts.Count > 3 && !string.IsNullOrWhiteSpace(parts[3]) ? parts[3] : null;
-            bool caseSensitive = parts.Count > 4 && bool.TryParse(parts[4], out bool cs) && cs;
+        await using var conn = _database.CreateConnection();
+        await using var tx = conn.BeginTransaction();
 
-            var existing = await GetByTermAsync(term, ct);
-            if (existing != null)
+        try
+        {
+            string? line;
+            while ((line = await reader.ReadLineAsync(ct)) != null)
             {
-                if (overwrite)
-                {
-                    existing.Replacement = replacement;
-                    existing.IsStarred = isStarred;
-                    existing.Category = category;
-                    existing.CaseSensitive = caseSensitive;
-                    await UpdateAsync(existing, ct);
-                }
-            }
-            else
-            {
-                await AddAsync(new DictionaryEntry
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var parts = ParseCsvLine(line);
+                if (parts.Count < 1 || string.IsNullOrWhiteSpace(parts[0])) continue;
+
+                string term = parts[0].Trim();
+                if (term.Length > 500) continue;
+                string? replacement = parts.Count > 1 && !string.IsNullOrWhiteSpace(parts[1]) ? parts[1] : null;
+                if (replacement != null && replacement.Length > 1000) continue;
+                bool isStarred = parts.Count > 2 && bool.TryParse(parts[2], out bool s) && s;
+                string? category = parts.Count > 3 && !string.IsNullOrWhiteSpace(parts[3]) ? parts[3] : null;
+                bool caseSensitive = parts.Count > 4 && bool.TryParse(parts[4], out bool cs) && cs;
+                bool isEnabled = parts.Count <= 5 || !bool.TryParse(parts[5], out bool en) || en;
+                string? language = parts.Count > 6 && !string.IsNullOrWhiteSpace(parts[6]) ? parts[6] : null;
+                string? appScope = parts.Count > 7 && !string.IsNullOrWhiteSpace(parts[7]) ? parts[7] : null;
+
+                var entry = new DictionaryEntry
                 {
                     Term = term,
                     Replacement = replacement,
                     IsStarred = isStarred,
                     Category = category,
-                    CaseSensitive = caseSensitive
-                }, ct);
+                    CaseSensitive = caseSensitive,
+                    IsEnabled = isEnabled,
+                    Language = language,
+                    ApplicationScope = appScope
+                };
+
+                await using var cmd = conn.CreateCommand();
+                cmd.Transaction = tx;
+
+                if (overwrite)
+                {
+                    cmd.CommandText = @"
+                        INSERT INTO DictionaryEntries (Id, Term, Replacement, IsStarred, Category, CaseSensitive, IsEnabled, Language, ApplicationScope, CreatedAt, UpdatedAt)
+                        VALUES (@id, @term, @replacement, @isStarred, @category, @caseSensitive, @isEnabled, @language, @applicationScope, @createdAt, @updatedAt)
+                        ON CONFLICT(Term COLLATE NOCASE) DO UPDATE SET
+                            Replacement = excluded.Replacement,
+                            IsStarred = excluded.IsStarred,
+                            Category = excluded.Category,
+                            CaseSensitive = excluded.CaseSensitive,
+                            IsEnabled = excluded.IsEnabled,
+                            Language = excluded.Language,
+                            ApplicationScope = excluded.ApplicationScope,
+                            UpdatedAt = excluded.UpdatedAt;
+                    ";
+                }
+                else
+                {
+                    cmd.CommandText = @"
+                        INSERT INTO DictionaryEntries (Id, Term, Replacement, IsStarred, Category, CaseSensitive, IsEnabled, Language, ApplicationScope, CreatedAt, UpdatedAt)
+                        VALUES (@id, @term, @replacement, @isStarred, @category, @caseSensitive, @isEnabled, @language, @applicationScope, @createdAt, @updatedAt)
+                        ON CONFLICT(Term COLLATE NOCASE) DO NOTHING;
+                    ";
+                }
+
+                BindEntryParameters(cmd, entry);
+                await cmd.ExecuteNonQueryAsync(ct);
             }
+
+            await tx.CommitAsync(ct);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ct);
+            throw;
         }
     }
 
@@ -285,7 +399,7 @@ public sealed class SqlitePersonalDictionaryRepository : IPersonalDictionaryRepo
 
     private static DictionaryEntry ReadEntry(SqliteDataReader reader)
     {
-        return new DictionaryEntry
+        var entry = new DictionaryEntry
         {
             Id = reader.GetString(0),
             Term = reader.GetString(1),
@@ -296,6 +410,12 @@ public sealed class SqlitePersonalDictionaryRepository : IPersonalDictionaryRepo
             CreatedAt = DateTime.Parse(reader.GetString(6)),
             UpdatedAt = DateTime.Parse(reader.GetString(7))
         };
+
+        if (reader.FieldCount > 8 && !reader.IsDBNull(8)) entry.IsEnabled = reader.GetInt32(8) == 1;
+        if (reader.FieldCount > 9 && !reader.IsDBNull(9)) entry.Language = reader.GetString(9);
+        if (reader.FieldCount > 10 && !reader.IsDBNull(10)) entry.ApplicationScope = reader.GetString(10);
+
+        return entry;
     }
 
     private static void BindEntryParameters(SqliteCommand cmd, DictionaryEntry entry)
@@ -306,6 +426,9 @@ public sealed class SqlitePersonalDictionaryRepository : IPersonalDictionaryRepo
         cmd.Parameters.AddWithValue("@isStarred", entry.IsStarred ? 1 : 0);
         cmd.Parameters.AddWithValue("@category", (object?)entry.Category ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@caseSensitive", entry.CaseSensitive ? 1 : 0);
+        cmd.Parameters.AddWithValue("@isEnabled", entry.IsEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@language", (object?)entry.Language ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@applicationScope", (object?)entry.ApplicationScope ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@createdAt", entry.CreatedAt.ToString("O"));
         cmd.Parameters.AddWithValue("@updatedAt", entry.UpdatedAt.ToString("O"));
     }

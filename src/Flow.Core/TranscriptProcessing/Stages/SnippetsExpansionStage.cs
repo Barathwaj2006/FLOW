@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Flow.Core.Personalization.Snippets;
 
 namespace Flow.Core.TranscriptProcessing.Stages;
@@ -24,6 +24,6 @@ public sealed class SnippetsExpansionStage : ITranscriptStage
             return text;
         }
 
-        return _engine.Expand(text);
+        return _engine.Expand(text, context.TargetApplication, context.Language);
     }
 }

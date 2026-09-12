@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Flow.Core.Personalization.Styles;
 
@@ -33,6 +33,8 @@ public sealed class StyleProfile
     public ContractionPolicy ContractionPolicy { get; set; } = ContractionPolicy.Preserve;
     public FormalityLevel FormalityLevel { get; set; } = FormalityLevel.Balanced;
     public bool UseBulletPoints { get; set; }
+    public bool IsEnabled { get; set; } = true;
+    public string? LanguageScope { get; set; }
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
@@ -44,5 +46,6 @@ public sealed class AppStyleMapping
 {
     public string ProcessName { get; init; } = string.Empty;
     public string StyleProfileId { get; set; } = string.Empty;
+    public string ProfileId { get => StyleProfileId; set => StyleProfileId = value; }
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
 }

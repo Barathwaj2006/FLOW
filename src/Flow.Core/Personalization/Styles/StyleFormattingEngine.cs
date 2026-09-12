@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -89,6 +89,22 @@ public sealed class StyleFormattingEngine
         };
     }
 
+    public StyleFormattingEngine(IEnumerable<StyleProfile> profiles, IEnumerable<AppStyleMapping>? mappings = null, StyleProfile? defaultProfile = null)
+    {
+        _profiles = profiles.ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
+        if (mappings != null)
+        {
+            _appMappings = mappings.ToDictionary(m => m.ProcessName, m => m.StyleProfileId, StringComparer.OrdinalIgnoreCase);
+        }
+        _activeProfile = defaultProfile ?? _profiles.Values.FirstOrDefault() ?? new StyleProfile
+        {
+            Id = "style_default",
+            Name = "Default",
+            ContractionPolicy = ContractionPolicy.Preserve,
+            FormalityLevel = FormalityLevel.Balanced
+        };
+    }
+
     public async Task ReloadAsync(CancellationToken ct = default)
     {
         if (_repository == null) return;
@@ -111,7 +127,21 @@ public sealed class StyleFormattingEngine
     /// <summary>
     /// Resolves the effective style profile for a target application or returns the active profile.
     /// </summary>
-    public StyleProfile ResolveProfile(string? targetApplication)
+    public StyleProfile ResolveProfile(string? targetApplication) => ResolveProfile(targetApplication, (Flow.Core.Language.LanguageInfo?)null);
+
+    /// <summary>
+    /// Resolves the effective style profile considering target application and language code.
+    /// </summary>
+    public StyleProfile ResolveProfile(string? targetApplication, string? languageCode)
+    {
+        var lang = !string.IsNullOrWhiteSpace(languageCode) ? Flow.Core.Language.LanguageCatalog.GetLanguageOrDefault(languageCode) : null;
+        return ResolveProfile(targetApplication, lang);
+    }
+
+    /// <summary>
+    /// Resolves the effective style profile considering target application and active language.
+    /// </summary>
+    public StyleProfile ResolveProfile(string? targetApplication, Flow.Core.Language.LanguageInfo? language = null)
     {
         lock (_lock)
         {
@@ -127,12 +157,45 @@ public sealed class StyleFormattingEngine
                 if (_appMappings.TryGetValue(cleanApp, out var styleId) &&
                     _profiles.TryGetValue(styleId, out var mappedProfile))
                 {
-                    return mappedProfile;
+                    if (mappedProfile.IsEnabled && IsLanguageCompatible(mappedProfile, language))
+                    {
+                        return mappedProfile;
+                    }
                 }
             }
 
-            return _activeProfile;
+            if (language != null)
+            {
+                var langMatch = _profiles.Values.FirstOrDefault(p => p.IsEnabled && !string.IsNullOrWhiteSpace(p.LanguageScope) && IsLanguageCompatible(p, language));
+                if (langMatch != null)
+                {
+                    return langMatch;
+                }
+            }
+
+            if (_activeProfile.IsEnabled && IsLanguageCompatible(_activeProfile, language))
+            {
+                return _activeProfile;
+            }
+
+            // Return neutral fallback if disabled or incompatible
+            return new StyleProfile
+            {
+                Id = "neutral",
+                Name = "Neutral",
+                ContractionPolicy = ContractionPolicy.Preserve,
+                FormalityLevel = FormalityLevel.Balanced,
+                IsEnabled = false
+            };
         }
+    }
+
+    private static bool IsLanguageCompatible(StyleProfile profile, Flow.Core.Language.LanguageInfo? language)
+    {
+        if (string.IsNullOrWhiteSpace(profile.LanguageScope)) return true;
+        if (language == null) return false;
+        return string.Equals(profile.LanguageScope, language.Code.Value, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(profile.LanguageScope, language.WhisperCode, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -143,6 +206,7 @@ public sealed class StyleFormattingEngine
         if (string.IsNullOrWhiteSpace(text)) return text;
 
         var effective = profile ?? ActiveProfile;
+        if (!effective.IsEnabled) return text;
         string result = text;
 
         // 1. Contraction policy
@@ -194,6 +258,22 @@ public sealed class StyleFormattingEngine
                         return char.ToUpper(formal[0]) + formal[1..];
                     }
                     return formal;
+                }, RegexOptions.IgnoreCase);
+            }
+        }
+        else if (effective.FormalityLevel == FormalityLevel.Casual)
+        {
+            foreach (var (casual, formal) in FormalitySubstitutions)
+            {
+                string pattern = $@"(?<!\w){Regex.Escape(formal)}(?!\w)";
+                result = Regex.Replace(result, pattern, m =>
+                {
+                    bool isUpper = char.IsUpper(m.Value[0]);
+                    if (isUpper && casual.Length > 0)
+                    {
+                        return char.ToUpper(casual[0]) + casual[1..];
+                    }
+                    return casual;
                 }, RegexOptions.IgnoreCase);
             }
         }

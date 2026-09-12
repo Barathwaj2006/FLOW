@@ -27,7 +27,7 @@ public sealed class TranscriptProcessingContext
     public TranscriptProcessingContext(FormattingOptions? options = null, string? targetApplication = null, LanguageInfo? language = null)
     {
         Options = options ?? new FormattingOptions();
-        TargetApplication = targetApplication;
+        TargetApplication = targetApplication ?? Options.TargetApplication;
         Language = language ?? Options.Language ?? LanguageCatalog.English;
     }
 }

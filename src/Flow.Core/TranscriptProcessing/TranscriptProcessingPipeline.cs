@@ -29,9 +29,9 @@ public sealed class TranscriptProcessingPipeline : ILanguageEngine
     }
 
     public TranscriptProcessingPipeline(
-        PersonalDictionaryEngine? dictionaryEngine,
-        SnippetExpansionEngine? snippetEngine,
-        StyleFormattingEngine? styleEngine)
+        PersonalDictionaryEngine dictionaryEngine,
+        SnippetExpansionEngine? snippetEngine = null,
+        StyleFormattingEngine? styleEngine = null)
     {
         _stages = CreateDefaultStages(dictionaryEngine, snippetEngine, styleEngine);
     }
@@ -61,7 +61,7 @@ public sealed class TranscriptProcessingPipeline : ILanguageEngine
     /// <inheritdoc />
     public string Format(string rawText, FormattingOptions? options = null)
     {
-        return Format(rawText, options, targetApplication: null);
+        return Format(rawText, options, targetApplication: options?.TargetApplication);
     }
 
     /// <summary>

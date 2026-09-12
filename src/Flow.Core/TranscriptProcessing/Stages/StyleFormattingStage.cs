@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Flow.Core.Personalization.Styles;
 
 namespace Flow.Core.TranscriptProcessing.Stages;
@@ -24,7 +24,7 @@ public sealed class StyleFormattingStage : ITranscriptStage
             return text;
         }
 
-        var profile = _engine.ResolveProfile(context.TargetApplication);
+        var profile = _engine.ResolveProfile(context.TargetApplication, context.Language);
         return _engine.Format(text, profile);
     }
 }

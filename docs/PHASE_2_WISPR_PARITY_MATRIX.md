@@ -87,13 +87,13 @@ Phase Allocation:
 | **WF-021** | Multilingual | Manual Multi-Language Selection | Standard | Mandatory | Level 5 | Phase 3 | P1 | Strongly typed ISO 639-1 LanguageCatalog, session isolation, physical ggml-tiny.bin multilingual inference verified (en, ta, hi) |
 | **WF-022** | Multilingual | Automatic Language Detection | Standard | Mandatory | Level 5 | Phase 3 | P1 | Whisper LID auto-detection pipeline verified with LanguageDetected event and confidence scoring (en verified at 0.16x RTF) |
 | **WF-023** | Multilingual | Code-Switching & Bilingual Audio | Standard | Mandatory | Level 5 | Phase 3 | P2 | Whisper prompt biasing + Indic-aware entity shielding verified protecting mixed vocabulary and scripts |
-| **WF-024A** | Personalization| Personal Dictionary Engine | Standard | Mandatory | Level 4 | Phase 2D | P0 | SQLite storage & regex replacement tested |
+| **WF-024A** | Personalization| Personal Dictionary Engine | Standard | Mandatory | Level 5 | Phase 4 | P0 | SQLite schema v2, regex replacement, application/language scoping, Whisper ASR prompt biasing, CSV import/export, and physical Whisper validation verified |
 | **WF-024B** | Personalization| Personal Dictionary Hub GUI | Standard | Mandatory | Level 0 | Phase 2H | P1 | WinUI 3 management table pending |
-| **WF-025A** | Personalization| Custom Corrections Engine | Standard | Mandatory | Level 4 | Phase 2D | P0 | SQLite phonetic replacement rules tested |
+| **WF-025A** | Personalization| Custom Corrections Engine | Standard | Mandatory | Level 5 | Phase 4 | P0 | Spoken-to-written phonetic corrections, case preservation, app/language scoping, and physical validation verified |
 | **WF-025B** | Personalization| Custom Corrections Hub GUI | Standard | Mandatory | Level 0 | Phase 2H | P1 | WinUI 3 corrections editor pending |
-| **WF-026A** | Personalization| Voice Snippets Engine | Standard | Mandatory | Level 5 | Phase 2D | P0 | 4k template expansion & Zero-Enter verified |
+| **WF-026A** | Personalization| Voice Snippets Engine | Standard | Mandatory | Level 5 | Phase 4 | P0 | 4k template expansion, Zero-Enter flattening for dictation, multiline clipboard support, and physical validation verified |
 | **WF-026B** | Personalization| Voice Snippets Hub GUI | Standard | Mandatory | Level 0 | Phase 2H | P1 | WinUI 3 snippets editor pending |
-| **WF-027A** | Personalization| Writing Styles Engine | Standard | Mandatory | Level 4 | Phase 2D | P1 | Contraction & formality engine tested |
+| **WF-027A** | Personalization| Writing Styles Engine | Standard | Mandatory | Level 5 | Phase 4 | P1 | Formality (formal/casual) transforms, contraction expansion/contraction, app-specific mappings, language-scoped style resolution verified |
 | **WF-027B** | Personalization| Writing Styles Hub GUI | Standard | Mandatory | Level 0 | Phase 2H | P1 | WinUI 3 profile editor & app mapping pending |
 | **WF-028** | Personalization| Auto-Learned Vocabulary | Beta | Optional | Level 0 | Phase 2G | P2 | User correction frequency tracker mapped |
 | **WF-029** | Context | Active App Detection (HWND/PID) | Standard | Mandatory | Level 4 | Phase 2C | P0 | HWND, PID, and process name tested |

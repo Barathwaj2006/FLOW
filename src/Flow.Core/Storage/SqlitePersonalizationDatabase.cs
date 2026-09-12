@@ -17,6 +17,8 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
     private bool _disposed;
 
     public string DatabasePath => _databasePath;
+    public bool IsLocalOnly => true;
+    public bool RequiresNetwork => false;
 
     public SqlitePersonalizationDatabase(string? dbPath = null)
     {
@@ -51,7 +53,56 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
             _memoryKeepAliveConnection.Open();
         }
 
-        InitializeSchema();
+        try
+        {
+            InitializeSchema();
+        }
+        catch (SqliteException ex) when (ex.SqliteErrorCode is 11 or 26 ||
+                                       ex.Message.Contains("corrupt", StringComparison.OrdinalIgnoreCase) ||
+                                       ex.Message.Contains("not a database", StringComparison.OrdinalIgnoreCase))
+        {
+            // Fail-closed safe recovery: backup corrupted file and initialize fresh database
+            if (!_isMemory && File.Exists(_databasePath))
+            {
+                try
+                {
+                    string backupPath = $"{_databasePath}.corrupt.{DateTime.UtcNow:yyyyMMddHHmmss}.bak";
+                    File.Move(_databasePath, backupPath);
+                }
+                catch
+                {
+                    // Fallback to in-memory mode if file operations fail
+                    _databasePath = $"mem_{Guid.NewGuid():N}";
+                    _isMemory = true;
+                    _memoryKeepAliveConnection = new SqliteConnection($"Data Source={_databasePath};Mode=Memory;Cache=Shared");
+                    _memoryKeepAliveConnection.Open();
+                }
+            }
+            InitializeSchema();
+        }
+    }
+
+    /// <summary>
+    /// Gets current schema version.
+    /// </summary>
+    public int GetSchemaVersion()
+    {
+        using var conn = CreateConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "PRAGMA user_version;";
+        var val = cmd.ExecuteScalar();
+        return val != null ? Convert.ToInt32(val) : 0;
+    }
+
+    /// <summary>
+    /// Executes a non-query SQL command directly on a new connection.
+    /// </summary>
+    public async Task<int> ExecuteNonQueryAsync(string sql, System.Threading.CancellationToken ct = default)
+    {
+        await using var conn = CreateConnection();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        return await cmd.ExecuteNonQueryAsync(ct);
     }
 
     /// <summary>
@@ -84,7 +135,7 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
     }
 
     /// <summary>
-    /// Initializes tables, indices, and baseline default profiles.
+    /// Initializes tables, indices, migrations, and baseline default profiles.
     /// </summary>
     public void InitializeSchema()
     {
@@ -99,6 +150,9 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
                 IsStarred INTEGER NOT NULL DEFAULT 0,
                 Category TEXT,
                 CaseSensitive INTEGER NOT NULL DEFAULT 0,
+                IsEnabled INTEGER NOT NULL DEFAULT 1,
+                Language TEXT,
+                ApplicationScope TEXT,
                 CreatedAt TEXT NOT NULL,
                 UpdatedAt TEXT NOT NULL
             );
@@ -110,7 +164,10 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
                 TriggerPhrase TEXT NOT NULL,
                 ExpansionText TEXT NOT NULL,
                 IsEnabled INTEGER NOT NULL DEFAULT 1,
+                Description TEXT,
                 Category TEXT,
+                Language TEXT,
+                ApplicationScope TEXT,
                 CreatedAt TEXT NOT NULL,
                 UpdatedAt TEXT NOT NULL
             );
@@ -124,6 +181,8 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
                 ContractionPolicy INTEGER NOT NULL DEFAULT 0,
                 FormalityLevel INTEGER NOT NULL DEFAULT 1,
                 UseBulletPoints INTEGER NOT NULL DEFAULT 0,
+                IsEnabled INTEGER NOT NULL DEFAULT 1,
+                LanguageScope TEXT,
                 CreatedAt TEXT NOT NULL,
                 UpdatedAt TEXT NOT NULL
             );
@@ -137,7 +196,66 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
         ";
         cmd.ExecuteNonQuery();
 
+        // Perform schema migration if needed
+        ApplyMigrations(conn);
+
         SeedDefaultStyleProfiles(conn);
+    }
+
+    private static void ApplyMigrations(SqliteConnection conn)
+    {
+        int version = 0;
+        using (var vCmd = conn.CreateCommand())
+        {
+            vCmd.CommandText = "PRAGMA user_version;";
+            var vObj = vCmd.ExecuteScalar();
+            if (vObj != null) version = Convert.ToInt32(vObj);
+        }
+
+        if (version < 2)
+        {
+            // Version 2 Migration: Add new columns if migrating from v1
+            EnsureColumnExists(conn, "DictionaryEntries", "IsEnabled", "INTEGER NOT NULL DEFAULT 1");
+            EnsureColumnExists(conn, "DictionaryEntries", "Language", "TEXT");
+            EnsureColumnExists(conn, "DictionaryEntries", "ApplicationScope", "TEXT");
+
+            EnsureColumnExists(conn, "Snippets", "Description", "TEXT");
+            EnsureColumnExists(conn, "Snippets", "Language", "TEXT");
+            EnsureColumnExists(conn, "Snippets", "ApplicationScope", "TEXT");
+
+            EnsureColumnExists(conn, "StyleProfiles", "IsEnabled", "INTEGER NOT NULL DEFAULT 1");
+            EnsureColumnExists(conn, "StyleProfiles", "LanguageScope", "TEXT");
+
+            using var setVerCmd = conn.CreateCommand();
+            setVerCmd.CommandText = "PRAGMA user_version = 2;";
+            setVerCmd.ExecuteNonQuery();
+        }
+    }
+
+    private static void EnsureColumnExists(SqliteConnection conn, string table, string column, string definition)
+    {
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = $"PRAGMA table_info({table});";
+        bool exists = false;
+        using (var reader = checkCmd.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                string colName = reader.GetString(1);
+                if (colName.Equals(column, StringComparison.OrdinalIgnoreCase))
+                {
+                    exists = true;
+                    break;
+                }
+            }
+        }
+
+        if (!exists)
+        {
+            using var alterCmd = conn.CreateCommand();
+            alterCmd.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition};";
+            alterCmd.ExecuteNonQuery();
+        }
     }
 
     private static void SeedDefaultStyleProfiles(SqliteConnection conn)
@@ -157,8 +275,8 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = @"
-                INSERT OR IGNORE INTO StyleProfiles (Id, Name, Description, ContractionPolicy, FormalityLevel, UseBulletPoints, CreatedAt, UpdatedAt)
-                VALUES (@id, @name, @desc, @contractions, @formality, @bullets, @now, @now);
+                INSERT OR IGNORE INTO StyleProfiles (Id, Name, Description, ContractionPolicy, FormalityLevel, UseBulletPoints, IsEnabled, LanguageScope, CreatedAt, UpdatedAt)
+                VALUES (@id, @name, @desc, @contractions, @formality, @bullets, 1, NULL, @now, @now);
             ";
             cmd.Parameters.AddWithValue("@id", id);
             cmd.Parameters.AddWithValue("@name", name);

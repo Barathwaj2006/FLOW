@@ -39,13 +39,13 @@ FLOW tracks exactly 75 atomic capabilities across 12 functional domains and 1 ou
 | **WF-021** | Multilingual | Manual Multi-Language Selection | Mandatory | **Level 5** | `LanguageCatalog.cs`, `LanguageSessionService.cs`, `WhisperModelManager.cs` (`ggml-tiny.bin`) |
 | **WF-022** | Multilingual | Automatic Language Detection | Mandatory | **Level 5** | Whisper LID token auto-detection & `LanguageDetected` event |
 | **WF-023** | Multilingual | Code-Switching & Bilingual Audio | Mandatory | **Level 5** | Whisper prompt biasing + Indic-aware technical entity shielding |
-| **WF-024A** | Personalization| Personal Dictionary Engine | Mandatory | **Level 4** | `SqlitePersonalDictionaryRepository.cs` |
+| **WF-024A** | Personalization| Personal Dictionary Engine | Mandatory | **Level 5** | `SqlitePersonalDictionaryRepository.cs` (schema v2, scoping, ASR biasing) |
 | **WF-024B** | Personalization| Personal Dictionary Hub GUI | Mandatory | **Level 0** | WinUI 3 management table pending |
-| **WF-025A** | Personalization| Custom Corrections Engine | Mandatory | **Level 4** | `PersonalDictionaryEngine.cs` |
+| **WF-025A** | Personalization| Custom Corrections Engine | Mandatory | **Level 5** | `PersonalDictionaryEngine.cs` (phonetic mapping, casing, app/language scope) |
 | **WF-025B** | Personalization| Custom Corrections Hub GUI | Mandatory | **Level 0** | WinUI 3 corrections editor pending |
-| **WF-026A** | Personalization| Voice Snippets Engine | Mandatory | **Level 5** | `SqliteSnippetRepository.cs` |
+| **WF-026A** | Personalization| Voice Snippets Engine | Mandatory | **Level 5** | `SqliteSnippetRepository.cs` (4k templates, Zero-Enter safe, scoping) |
 | **WF-026B** | Personalization| Voice Snippets Hub GUI | Mandatory | **Level 0** | WinUI 3 snippets editor pending |
-| **WF-027A** | Personalization| Writing Styles Engine | Mandatory | **Level 4** | `SqliteStyleRepository.cs` |
+| **WF-027A** | Personalization| Writing Styles Engine | Mandatory | **Level 5** | `SqliteStyleRepository.cs` (formality, contractions, app/language scope) |
 | **WF-027B** | Personalization| Writing Styles Hub GUI | Mandatory | **Level 0** | WinUI 3 profile editor pending |
 | **WF-028** | Personalization| Auto-Learned Vocabulary | Optional/Beta | **Level 0** | User correction frequency tracker |
 | **WF-029** | Context | Active App Detection (HWND/PID) | Mandatory | **Level 4** | `WindowsTextInsertionService.cs` |

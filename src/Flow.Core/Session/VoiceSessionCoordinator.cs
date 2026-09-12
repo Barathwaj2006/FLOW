@@ -8,6 +8,7 @@ using Flow.Core.Backtrack;
 using Flow.Core.Commands;
 using Flow.Core.Context;
 using Flow.Core.Language;
+using Flow.Core.Personalization;
 using Flow.Core.TextInsertion;
 using Microsoft.Extensions.Logging;
 
@@ -44,6 +45,7 @@ public sealed class VoiceSessionCoordinator
     private readonly ICommandSafetyPolicy _safetyPolicy;
     private readonly ITextTransformEngine _transformEngine;
     private readonly ILanguageSessionService _languageSessionService;
+    private readonly IASRBiasingService? _biasingService;
     private readonly ILogger<VoiceSessionCoordinator>? _logger;
 
     private readonly double _maxRecordingDurationSeconds;
@@ -144,6 +146,11 @@ public sealed class VoiceSessionCoordinator
     /// </summary>
     public string? CodeSwitchingBiasingPrompt { get; set; }
 
+    /// <summary>
+    /// Personalized ASR prompt biasing service for vocabulary and application adaptation (WF-023, Phase 4).
+    /// </summary>
+    public IASRBiasingService? BiasingService => _biasingService;
+
     public event Action<SessionState, string?>? StateChanged;
     public event Action<float>? AudioLevelChanged;
     public event Action<string>? PartialTranscriptReceived;
@@ -170,7 +177,8 @@ public sealed class VoiceSessionCoordinator
         ICommandParser? commandParser = null,
         ICommandSafetyPolicy? safetyPolicy = null,
         ITextTransformEngine? transformEngine = null,
-        ILanguageSessionService? languageSessionService = null)
+        ILanguageSessionService? languageSessionService = null,
+        IASRBiasingService? biasingService = null)
     {
         _ringBuffer = ringBuffer ?? throw new ArgumentNullException(nameof(ringBuffer));
         _vad = vad ?? throw new ArgumentNullException(nameof(vad));
@@ -183,6 +191,7 @@ public sealed class VoiceSessionCoordinator
         _safetyPolicy = safetyPolicy ?? new DeterministicCommandSafetyPolicy();
         _transformEngine = transformEngine ?? new DeterministicTextTransformEngine();
         _languageSessionService = languageSessionService ?? new LanguageSessionService();
+        _biasingService = biasingService;
         _logger = logger;
         _maxRecordingDurationSeconds = maxRecordingSeconds;
         _warningDurationSeconds = warningThresholdSeconds;
@@ -385,9 +394,15 @@ public sealed class VoiceSessionCoordinator
             });
 
             // 1. Transcribe via ASR engine registry (executing real local Whisper backend)
+            string? biasingPrompt = _biasingService?.BuildPrompt(
+                _languageSessionService.ActiveLanguage.WhisperCode,
+                ActiveTarget?.ProcessName,
+                CodeSwitchingBiasingPrompt
+            ) ?? CodeSwitchingBiasingPrompt;
+
             var asrOptions = new ASROptions(
                 Language: _languageSessionService.ActiveLanguage.WhisperCode,
-                Prompt: CodeSwitchingBiasingPrompt
+                Prompt: biasingPrompt
             );
             var asrResult = await _asrRegistry.TranscribeWithFallbackAsync(audioBuffer, options: asrOptions, progress: progress, cancellationToken: ct);
 
@@ -503,7 +518,10 @@ public sealed class VoiceSessionCoordinator
 
             // Standard Voice Dictation Processing Branch (Permanently inert text-only)
             // 2. Deterministic sanitization & Zero-Enter guarantee
-            var formattingOptions = new FormattingOptions(Language: _languageSessionService.ActiveLanguage);
+            var formattingOptions = new FormattingOptions(
+                Language: _languageSessionService.ActiveLanguage,
+                TargetApplication: ActiveTarget?.ProcessName
+            );
             string cleanText = _languageEngine.Format(asrResult.Text, formattingOptions);
 
             if (string.IsNullOrWhiteSpace(cleanText))

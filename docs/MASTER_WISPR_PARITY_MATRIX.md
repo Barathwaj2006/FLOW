@@ -68,11 +68,10 @@
 ### D. Personalization (Phase 2D Focus)
 
 | ID | Capability | Wispr Windows Behavior | FLOW Level | FLOW Architecture & Module | Phase | Verification Status |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **WF-024** | **Personal Dictionary** | User adds specialized terms, names, and team jargon to prevent misrecognition. | **Target Level 4/5** | `SqlitePersonalDictionaryRepository.cs` + `PersonalDictionaryStage.cs` | Phase 2D | In implementation |
-| **WF-025** | **Custom Corrections** | Exact mapping rules: replaces misrecognized word A with preferred word B. | **Target Level 4/5** | `PersonalDictionaryEngine.cs` regex/word boundary replacement | Phase 2D | In implementation |
-| **WF-026** | **Voice Snippets** | Voice cue expands to rich boilerplate text template (up to 4,000 chars). | **Target Level 4/5** | `SqliteSnippetRepository.cs` + `SnippetsExpansionStage.cs` | Phase 2D | In implementation |
-| **WF-027** | **Styles System** | Categories (Personal, Work, Email, Technical, Casual); Tones and Formality. | **Target Level 4/5** | `StyleFormattingStage.cs` + `StyleRuleSet.cs` | Phase 2D | In implementation |
+| **WF-024** | **Personal Dictionary** | User adds specialized terms, names, and team jargon to prevent misrecognition. | **Level 5** | `SqlitePersonalDictionaryRepository.cs` + `PersonalDictionaryStage.cs` | Phase 4 | Fully verified; SQLite schema v2, ASR biasing, application/language scoping |
+| **WF-025** | **Custom Corrections** | Exact mapping rules: replaces misrecognized word A with preferred word B. | **Level 5** | `PersonalDictionaryEngine.cs` regex/word boundary replacement | Phase 4 | Fully verified; phonetic mappings, casing preservation, app/language scope |
+| **WF-026** | **Voice Snippets** | Voice cue expands to rich boilerplate text template (up to 4,000 chars). | **Level 5** | `SqliteSnippetRepository.cs` + `SnippetsExpansionStage.cs` | Phase 4 | Fully verified; 4k template expansion, Zero-Enter safe, clipboard support |
+| **WF-027** | **Styles System** | Categories (Personal, Work, Email, Technical, Casual); Tones and Formality. | **Level 5** | `StyleFormattingStage.cs` + `StyleRuleSet.cs` | Phase 4 | Fully verified; formality (formal/casual), contractions, app/language scope |
 | **WF-028** | **Auto-Learned Vocabulary** | Automatically identifies and suggests frequently corrected proper nouns. | **Level 0** | Vocabulary frequency tracker in local SQLite | Phase 2G | Scheduled |
 
 ---
