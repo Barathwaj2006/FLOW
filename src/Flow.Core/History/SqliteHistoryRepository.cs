@@ -444,11 +444,21 @@ public sealed class SqliteHistoryRepository : IHistoryRepository, IHistorySearch
 
         if (!string.IsNullOrWhiteSpace(filter.SearchQuery))
         {
-            // Parameterized search safe against SQL injection
+            // Parameterized search safe against SQL injection with FTS5 acceleration
             string query = filter.SearchQuery.Trim();
             string clean = query.Replace("*", "");
-            clauses.Add("(Text LIKE @search OR Application LIKE @search OR Language LIKE @search)");
-            parameters["@search"] = $"%{clean}%";
+            string? fts = BuildFtsQuery(query);
+
+            if (!string.IsNullOrWhiteSpace(fts))
+            {
+                clauses.Add("rowid IN (SELECT rowid FROM DictationHistoryFts WHERE DictationHistoryFts MATCH @fts)");
+                parameters["@fts"] = fts;
+            }
+            else
+            {
+                clauses.Add("(Text LIKE @search OR Application LIKE @search OR Language LIKE @search)");
+                parameters["@search"] = $"%{clean}%";
+            }
         }
 
         string whereSql = clauses.Count > 0 ? "WHERE " + string.Join(" AND ", clauses) : "";
@@ -484,5 +494,41 @@ public sealed class SqliteHistoryRepository : IHistoryRepository, IHistorySearch
         if (text == null) return null;
         byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(text));
         return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private static string? BuildFtsQuery(string rawQuery)
+    {
+        if (string.IsNullOrWhiteSpace(rawQuery)) return null;
+        var tokens = new List<string>();
+        var sb = new StringBuilder();
+        bool hasWildcard = false;
+
+        foreach (char ch in rawQuery)
+        {
+            if (char.IsLetterOrDigit(ch) || ch == '_' || ch == '-')
+            {
+                sb.Append(ch);
+            }
+            else if (ch == '*')
+            {
+                hasWildcard = true;
+            }
+            else
+            {
+                if (sb.Length > 0)
+                {
+                    tokens.Add(hasWildcard ? $"\"{sb}\"*" : $"\"{sb}\"");
+                    sb.Clear();
+                    hasWildcard = false;
+                }
+            }
+        }
+
+        if (sb.Length > 0)
+        {
+            tokens.Add(hasWildcard ? $"\"{sb}\"*" : $"\"{sb}\"");
+        }
+
+        return tokens.Count > 0 ? string.Join(" AND ", tokens) : null;
     }
 }

@@ -278,6 +278,10 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
                 CREATE INDEX IF NOT EXISTS idx_history_mode ON DictationHistory(Mode);
                 CREATE INDEX IF NOT EXISTS idx_history_state ON DictationHistory(State);
                 CREATE INDEX IF NOT EXISTS idx_history_deleted ON DictationHistory(IsDeleted);
+                CREATE INDEX IF NOT EXISTS idx_history_deleted_created ON DictationHistory(IsDeleted, CreatedAt DESC);
+                CREATE INDEX IF NOT EXISTS idx_history_app_lang_fav ON DictationHistory(Application, Language, IsFavorite, CreatedAt DESC);
+                CREATE INDEX IF NOT EXISTS idx_history_fav_created ON DictationHistory(IsFavorite, CreatedAt DESC);
+                CREATE INDEX IF NOT EXISTS idx_history_stats ON DictationHistory(IsDeleted, State, CreatedAt ASC);
 
                 CREATE TABLE IF NOT EXISTS HistorySettings (
                     Key TEXT PRIMARY KEY,

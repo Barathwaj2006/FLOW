@@ -20,6 +20,11 @@ public sealed class HistoryPrivacyService : IHistoryPrivacyService
             return false;
         }
 
+        if (context.Category == ApplicationCategory.Sensitive)
+        {
+            return false;
+        }
+
         if (context.FocusedControl.IsPassword)
         {
             return false;
@@ -27,7 +32,12 @@ public sealed class HistoryPrivacyService : IHistoryPrivacyService
 
         // Additional credential check
         string app = context.TargetInfo?.ProcessName?.ToLowerInvariant() ?? "";
-        if (app is "keepass" or "1password" or "bitwarden" or "credentialui" or "credwiz" or "consent")
+        if (app.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            app = app[..^4];
+        }
+
+        if (app is "keepass" or "1password" or "bitwarden" or "credentialui" or "credwiz" or "consent" or "lastpass" or "dashlane" or "enpass" or "authy")
         {
             return false;
         }
