@@ -13,29 +13,36 @@ namespace Flow.Core.TranscriptProcessing.Stages;
 public sealed class DeveloperSyntaxStage : ITranscriptStage
 {
     private static readonly Regex FunctionRegex = new(
-        @"(?<!\b(?:a|an|the|this|that|their|its|studied|analyzed|every|what|which|is|was)\s+)\b(?<prefix>async\s+)?(?:function|method)\s+(?<name>[a-zA-Z0-9_\-]+(?:\s+[a-zA-Z0-9_\-]+){0,5})(?:\s+(?<async>async))?(?=\s*[,;:\.\?!]|\s*[\uE000\uE001]|\s+(?:and|then|with|or|which|to|return|called|named|class|interface|struct|record|enum|git|dotnet|npm)\b|$)",
+        @"(?<!\b(?:a|an|the|this|that|these|those|my|your|our|their|his|her|its|studied|analyzed|every|what|which|is|was|each|some|one|new|old|such|same)\s+)" +
+        @"\b(?<prefix>async\s+)?(?:function|method)\s+(?<name>[a-zA-Z0-9_\-]+(?:\s+[a-zA-Z0-9_\-]+){0,5})(?:\s+(?<async>async))?" +
+        @"(?=\s*[,;:\.\?!]|\s*[\uE000\uE001]|\s+[\u0B80-\u0BFF\u0900-\u097F]|\s+(?:and|then|with|or|which|to|return|called|named|class|interface|struct|record|enum|git|dotnet|npm)\b|$)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase
     );
 
     private static readonly Regex ClassRegex = new(
-        @"(?<!\b(?:a|an|the|this|that|their|its|first|world|middle|working|upper|in|during|attend|taking)\s+)\b(?:class|struct|record|enum)\s+(?<name>[a-zA-Z0-9_\-]+(?:\s+[a-zA-Z0-9_\-]+){0,5})(?=\s*[,;:\.\?!]|\s*[\uE000\uE001]|\s+(?:and|then|with|or|which|to|return|called|named|implements|extends|function|method|interface|class|git|dotnet|npm)\b|$)",
+        @"(?<!\b(?:a|an|the|this|that|these|those|my|your|our|their|his|her|its|first|world|middle|working|upper|in|during|attend|attending|taking|every|each|some|new|old|same)\s+)" +
+        @"\b(?:class|struct|record|enum)\s+(?<name>[a-zA-Z0-9_\-]+(?:\s+[a-zA-Z0-9_\-]+){0,5})" +
+        @"(?=\s*[,;:\.\?!]|\s*[\uE000\uE001]|\s+[\u0B80-\u0BFF\u0900-\u097F]|\s+(?:and|then|with|or|which|to|return|called|named|implements|extends|function|method|interface|class|git|dotnet|npm)\b|$)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase
     );
 
     private static readonly Regex InterfaceRegex = new(
-        @"(?<!\b(?:a|an|the|this|that|their|its|user|graphic|hardware|audio|network)\s+)\b(?:interface)\s+(?<name>[a-zA-Z0-9_\-]+(?:\s+[a-zA-Z0-9_\-]+){0,5})(?=\s*[,;:\.\?!]|\s*[\uE000\uE001]|\s+(?:and|then|with|or|which|to|return|called|named|implements|extends|function|method|interface|class|git|dotnet|npm)\b|$)",
+        @"(?<!\b(?:a|an|the|this|that|these|those|my|your|our|their|his|her|its|user|graphic|hardware|audio|network|between|every|each|some|new|old)\s+)" +
+        @"\b(?:interface)\s+(?<name>[a-zA-Z0-9_\-]+(?:\s+[a-zA-Z0-9_\-]+){0,5})" +
+        @"(?=\s*[,;:\.\?!]|\s*[\uE000\uE001]|\s+[\u0B80-\u0BFF\u0900-\u097F]|\s+(?:and|then|with|or|which|to|return|called|named|implements|extends|function|method|interface|class|git|dotnet|npm)\b|$)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase
     );
 
     private static readonly Regex ThinArrowRegex = new(@"\s*\bthin\s+arrow\b\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex FatArrowRegex = new(@"(?<!thin\s+)\s*\b(?:fat\s+arrow|arrow)\b\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex FatArrowRegex = new(@"(?<!thin\s+)\s*\bfat\s+arrow\b\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ExplicitArrowRegex = new(@"(?<!\b(?:the|a|an|this|that|red|green|blue)\s+)\s*\barrow\b\s*(?!\s*(?:points|pointing|pointed|upward|downward|left|right)\b)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex DoubleEqualsRegex = new(@"\s*\bdouble\s+equals\b\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex NotEqualsRegex = new(@"\s*\bnot\s+equals\b\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex BacktickWordRegex = new(@"\bbacktick\s*([^\s`]+)\s*backtick\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex BacktickWordRegex = new(@"\bbacktick\s*([^`]+?)\s*backtick\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex StandaloneBacktickRegex = new(@"\bbacktick\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex EqualsCodeRegex = new(@"(?<=[a-zA-Z0-9_\)])\s+\b(?:equals|equal\s+sign)\b\s+(?=[a-zA-Z0-9_\(""])", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex DotCodeRegex = new(@"(?<=[a-zA-Z0-9_])\s+dot\s+(?=[a-zA-Z0-9_])", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex UnderscoreCodeRegex = new(@"(?<=[a-zA-Z0-9])\s+underscore\s+(?=[a-zA-Z0-9])", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex EqualsCodeRegex = new(@"(?<!\b(?:the|this|that|which)\s+[a-zA-Z0-9_]+\s+)(?<=[a-zA-Z0-9_\)])\s+\b(?:equals|equal\s+sign)\b\s+(?=[a-zA-Z0-9_\(""])", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex DotCodeRegex = new(@"(?<!\b(?:a|an|the|this|that)\s+)(?<=[a-zA-Z0-9_])\s+dot\s+(?=[a-zA-Z0-9_])(?!\s+(?:after|at|in|on|of|before|over|under)\b)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex UnderscoreCodeRegex = new(@"(?<!\b(?:a|an|the|this|that)\s+)(?<=[a-zA-Z0-9])\s+underscore\s+(?=[a-zA-Z0-9])", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public string Process(string text, TranscriptProcessingContext context)
     {
@@ -127,6 +134,7 @@ public sealed class DeveloperSyntaxStage : ITranscriptStage
         {
             result = ThinArrowRegex.Replace(result, " -> ");
             result = FatArrowRegex.Replace(result, " => ");
+            result = ExplicitArrowRegex.Replace(result, " -> ");
             result = DoubleEqualsRegex.Replace(result, " == ");
             result = NotEqualsRegex.Replace(result, " != ");
             result = BacktickWordRegex.Replace(result, "`$1`");
@@ -150,18 +158,37 @@ public sealed class DeveloperSyntaxStage : ITranscriptStage
     {
         string lower = phrase.ToLowerInvariant();
         return lower.StartsWith("of ") ||
+               lower.StartsWith("used by") ||
                lower.StartsWith("action ") ||
                lower.StartsWith("today ") ||
+               lower.StartsWith("yesterday") ||
+               lower.StartsWith("starts ") ||
+               lower.StartsWith("schedule") ||
+               lower.StartsWith("project is") ||
+               lower.StartsWith("status is") ||
+               lower.StartsWith("between ") ||
+               lower.StartsWith("held ") ||
+               lower.StartsWith("attended") ||
                lower.StartsWith("students") ||
                lower.StartsWith("flight") ||
                lower.StartsWith("ticket") ||
                lower.StartsWith("room") ||
-               lower.Contains(" of this ") ||
-               lower.Contains(" of the ") ||
+               lower.StartsWith("was deleted") ||
+               lower.Contains("was deleted") ||
+               lower.Contains("starts at") ||
+               lower.Contains("is pending") ||
+               lower.Contains("of this ") ||
+               lower.Contains("of the ") ||
+               lower.Contains("of my ") ||
+               lower.Contains("of our ") ||
+               lower.Contains("of a ") ||
+               lower.Contains("between the") ||
+               lower.Contains("between teams") ||
                lower == "of" ||
                lower == "action" ||
                lower == "room" ||
                lower == "flight" ||
-               lower == "meeting";
+               lower == "meeting" ||
+               lower == "lecture";
     }
 }

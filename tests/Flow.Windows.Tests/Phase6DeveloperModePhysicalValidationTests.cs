@@ -393,4 +393,73 @@ public class Phase6DeveloperModePhysicalValidationTests
 
         Assert.True(avgTotalPipelineMs < 5.0, $"Developer pipeline latency too high: {avgTotalPipelineMs:F2} ms (Target < 5.0 ms)");
     }
+
+    // =========================================================================
+    // SCENARIO I — HOST APPLICATION INVENTORY AUDIT (LEVEL-5 INTEGRITY)
+    // =========================================================================
+
+    [Fact]
+    public void Physical_ScenarioI_HostApplicationInventory_ExplicitAudit()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        var system32 = Environment.GetFolderPath(Environment.SpecialFolder.System);
+
+        var appInventory = new (string AppName, string ExeName, string[] CandidatePaths, ApplicationCategory ExpectedCategory)[]
+        {
+            ("Notepad", "notepad.exe", new[] { Path.Combine(system32, "notepad.exe") }, ApplicationCategory.GeneralProse),
+            ("PowerShell", "powershell.exe", new[] { Path.Combine(system32, @"WindowsPowerShell\v1.0\powershell.exe") }, ApplicationCategory.Terminal),
+            ("Command Prompt", "cmd.exe", new[] { Path.Combine(system32, "cmd.exe") }, ApplicationCategory.Terminal),
+            ("Windows Terminal", "wt.exe", new[] { Path.Combine(localAppData, @"Microsoft\WindowsApps\wt.exe") }, ApplicationCategory.Terminal),
+            ("Visual Studio Code", "Code.exe", new[] { Path.Combine(localAppData, @"Programs\Microsoft VS Code\Code.exe"), Path.Combine(programFiles, @"Microsoft VS Code\Code.exe") }, ApplicationCategory.Code),
+            ("Cursor", "cursor.exe", new[] { Path.Combine(localAppData, @"Programs\cursor\Cursor.exe") }, ApplicationCategory.Code),
+            ("Visual Studio IDE", "devenv.exe", new[] { Path.Combine(programFiles, @"Microsoft Visual Studio\2022\Community\Common7\IDE\devenv.exe") }, ApplicationCategory.Code),
+            ("Windsurf", "windsurf.exe", new[] { Path.Combine(localAppData, @"Programs\windsurf\Windsurf.exe") }, ApplicationCategory.Code),
+            ("JetBrains Rider", "rider64.exe", new[] { Path.Combine(programFiles, @"JetBrains\JetBrains Rider\bin\rider64.exe") }, ApplicationCategory.Code)
+        };
+
+        var classifier = new RuleBasedApplicationClassifier();
+
+        _output.WriteLine("=================================================================");
+        _output.WriteLine("FLOW Phase 6 Hardening — Physical Application Inventory Audit");
+        _output.WriteLine("=================================================================");
+
+        foreach (var (appName, exeName, candidatePaths, expectedCat) in appInventory)
+        {
+            bool isInstalled = candidatePaths.Any(File.Exists);
+            string status = isInstalled ? "AVAILABLE (Physical)" : "NOT AVAILABLE (Simulated only)";
+
+            var targetInfo = new ForegroundTargetInfo(IntPtr.Zero, 1234, exeName, $"{appName} - Main Window");
+            var classifiedCategory = classifier.Classify(targetInfo);
+
+            Assert.Equal(expectedCat, classifiedCategory);
+            _output.WriteLine($"{appName,-22} | Exe: {exeName,-14} | Status: {status,-30} | Category: {classifiedCategory}");
+        }
+    }
+
+    // =========================================================================
+    // SCENARIO J — LIVE EXECUTABLE VALIDATION FOR AVAILABLE APPS
+    // =========================================================================
+
+    [Fact]
+    public void Physical_ScenarioJ_LiveExecutablePathVerification_ForAvailableApps()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var system32 = Environment.GetFolderPath(Environment.SpecialFolder.System);
+
+        string notepadPath = Path.Combine(system32, "notepad.exe");
+        string powershellPath = Path.Combine(system32, @"WindowsPowerShell\v1.0\powershell.exe");
+        string cmdPath = Path.Combine(system32, "cmd.exe");
+        string vsCodePath = Path.Combine(localAppData, @"Programs\Microsoft VS Code\Code.exe");
+
+        Assert.True(File.Exists(notepadPath), $"Notepad not found at {notepadPath}");
+        Assert.True(File.Exists(powershellPath), $"PowerShell not found at {powershellPath}");
+        Assert.True(File.Exists(cmdPath), $"CMD not found at {cmdPath}");
+        Assert.True(File.Exists(vsCodePath), $"VS Code not found at {vsCodePath}");
+
+        _output.WriteLine($"[Scenario J] Verified physical presence of Notepad:    {notepadPath}");
+        _output.WriteLine($"[Scenario J] Verified physical presence of PowerShell: {powershellPath}");
+        _output.WriteLine($"[Scenario J] Verified physical presence of CMD:        {cmdPath}");
+        _output.WriteLine($"[Scenario J] Verified physical presence of VS Code:    {vsCodePath}");
+    }
 }

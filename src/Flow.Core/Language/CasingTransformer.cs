@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Flow.Core.Language;
 
@@ -9,6 +10,7 @@ namespace Flow.Core.Language;
 /// Text casing transformation utilities for dictation cleanup (WF-032A).
 /// Deterministically handles camelCase, PascalCase, snake_case, kebab-case, and SCREAMING_SNAKE_CASE
 /// while safely preserving acronyms (API, HTTP, JSON), numbers (v2, utf8), and technical terminology.
+/// Guaranteed idempotent: ToCamelCase(ToCamelCase(x)) == ToCamelCase(x).
 /// </summary>
 public static class CasingTransformer
 {
@@ -19,6 +21,10 @@ public static class CasingTransformer
         "HWND", "PID", "VAD", "ASR", "UTF8", "ASCII", "JWT", "SSH", "SSL", "TLS",
         "DNS", "TCP", "UDP", "FIFO", "LRU", "RAM", "CPU", "GPU", "WAV", "PCM"
     };
+
+    private static readonly Regex DelimiterRegex = new(@"[\t_.\-,;:!?/\\()\[\]{}]+|\s+", RegexOptions.Compiled);
+    private static readonly Regex CamelBoundaryRegex = new(@"(?<=[a-z0-9])(?=[A-Z])", RegexOptions.Compiled);
+    private static readonly Regex AcronymBoundaryRegex = new(@"(?<=[A-Z])(?=[A-Z][a-z])", RegexOptions.Compiled);
 
     public static string ToTitleCase(string text)
     {
@@ -145,8 +151,19 @@ public static class CasingTransformer
 
     private static string[] ExtractWords(string text)
     {
-        var rawWords = text.Split(new[] { ' ', '	', '_', '-', '.', ',', ';', ':', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
-        var result = new List<string>();
+        if (string.IsNullOrWhiteSpace(text)) return Array.Empty<string>();
+
+        // 1. Replace delimiters with space
+        string s = DelimiterRegex.Replace(text, " ");
+
+        // 2. Split on camelCase and digit boundaries e.g. "getUser" -> "get User", "v2Api" -> "v2 Api"
+        s = CamelBoundaryRegex.Replace(s, " ");
+
+        // 3. Split on acronym transitions e.g. "APIClient" -> "API Client", "HTTPServer" -> "HTTP Server"
+        s = AcronymBoundaryRegex.Replace(s, " ");
+
+        var rawWords = s.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var result = new List<string>(rawWords.Length);
         foreach (var w in rawWords)
         {
             string clean = w.Trim();

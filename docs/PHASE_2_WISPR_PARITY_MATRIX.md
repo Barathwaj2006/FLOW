@@ -100,11 +100,11 @@ Phase Allocation:
 | **WF-030** | Context | Password Field Exclusion | Standard | Mandatory | Level 5 | Phase 2E | P0 | Physical WPF PasswordBox UIA IsPasswordProperty verified; fails closed, blocks dictation, zeroes audio |
 | **WF-031A** | Context | Nearby Context Extraction | Standard | Mandatory | Level 5 | Phase 2E | P1 | Physical WPF TextBox UIA TextPattern verified; bounded to 200 chars, Unicode preserved, caret unmoved |
 | **WF-031B** | Context | Contextual Routing | Standard | Mandatory | Level 5 | Phase 2B | P0 | Injects directly into focused control |
-| **WF-032A** | Developer Mode | Programmatic Casing Transforms | Standard | Mandatory | Level 5 | Phase 6 | P1 | camelCase, snake_case, PascalCase, kebab, SCREAMING_SNAKE tested |
-| **WF-032B** | Developer Mode | Spoken Casing Triggers | Standard | Mandatory | Level 5 | Phase 6 | P1 | SpokenCasingStage + multi-word lookahead tested |
-| **WF-033** | Developer Mode | Technical Identifier Shield | Standard | Mandatory | Level 5 | Phase 6 | P0 | Content Lock shields variables, frameworks, flags, paths |
-| **WF-034** | Developer Mode | Voice File Tagging (@filename) | Standard | Mandatory | Level 5 | Phase 6 | P1 | VoiceFileTaggingStage + @file.ext, Windows & relative paths verified |
-| **WF-035** | Developer Mode | IDE & Terminal Compatibility | Standard | Mandatory | Level 5 | Phase 6 | P0 | Safe insertion, terminal inert plain text, zero command execution |
+| **WF-032A** | Developer Mode | Programmatic Casing Transforms | Standard | Mandatory | Level 5 | Phase 6 | P1 | Hardened & Certified; idempotent camelCase, snake_case, PascalCase, kebab, SCREAMING_SNAKE |
+| **WF-032B** | Developer Mode | Spoken Casing Triggers | Standard | Mandatory | Level 5 | Phase 6 | P1 | Hardened & Certified; spoken casing triggers with prose negative lookbehinds/lookaheads |
+| **WF-033** | Developer Mode | Technical Identifier Shield | Standard | Mandatory | Level 5 | Phase 6 | P0 | Hardened & Certified; Content Lock shields 10+ languages, 20+ frameworks, paths, URLs, CLI flags |
+| **WF-034** | Developer Mode | Voice File Tagging (@filename) | Standard | Mandatory | Level 5 | Phase 6 | P1 | Hardened & Certified; @file.ext, Windows paths with spaces, relative paths verified |
+| **WF-035** | Developer Mode | IDE & Terminal Compatibility | Standard | Mandatory | Level 5 | Phase 6 | P0 | Hardened & Certified; safe insertion, terminal inert plain text, zero command execution, honest physical host inventory audited |
 | **WF-036** | Command Mode | Dedicated Shortcut Activation | Standard | Mandatory | Level 4 | Phase 2F | P0 | Secondary global hotkey hook (`Ctrl + Right Alt`) verified via STA hook integration; physical live multi-app pending Tier 6 |
 | **WF-037A** | Command Mode | Selection-Aware Voice Transform | Standard | Mandatory | Level 4 | Phase 2F | P0 | UIA selection extraction + bullets/casing transform verified on real STA WPF Window; live external app mic dictation pending Tier 6 |
 | **WF-037B** | Command Mode | Flow Bar Transforms Widget | Beta | Optional | Level 4 | Phase 2F | P2 | HUD floating transform wand `🪄` and state transitions verified; interactive Hub widget belongs to Phase 2H |

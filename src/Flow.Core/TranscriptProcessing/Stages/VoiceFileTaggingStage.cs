@@ -50,10 +50,22 @@ public sealed class VoiceFileTaggingStage : ITranscriptStage
             var cleanSegments = new List<string>();
             foreach (var seg in segments)
             {
-                string s = seg.Trim().Replace(" ", "");
-                if (!string.IsNullOrEmpty(s))
+                string trimmed = seg.Trim();
+                if (trimmed.Equals("program files", StringComparison.OrdinalIgnoreCase))
                 {
-                    cleanSegments.Add(s);
+                    cleanSegments.Add("Program Files");
+                }
+                else if (trimmed.Equals("program files (x86)", StringComparison.OrdinalIgnoreCase))
+                {
+                    cleanSegments.Add("Program Files (x86)");
+                }
+                else
+                {
+                    string s = trimmed.Replace(" ", "");
+                    if (!string.IsNullOrEmpty(s))
+                    {
+                        cleanSegments.Add(s);
+                    }
                 }
             }
 

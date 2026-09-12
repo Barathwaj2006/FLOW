@@ -81,8 +81,8 @@
 | ID | Capability | Wispr Windows Behavior | FLOW Level | FLOW Architecture & Module | Phase | Verification Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **WF-029** | **Active App Detection** | Identifies foreground process name and window title at dictation start. | **Level 5** | `WindowsUIAutomationContextService.cs` + `RuleBasedApplicationClassifier.cs` | Phase 5 | Passing; HWND, PID, classification, and physical validation verified |
-| **WF-030** | **Password Field Exclusion** | Automatically detects password fields via UIA and refuses audio capture / logging. | **Level 1** | `IUIAutomationElement::CurrentIsPassword` COM check | Phase 2E | Architecture mapped |
-| **WF-031** | **Nearby Context Extraction**| Reads surrounding text in focused text field via UIA `TextPattern` to bias formatting. | **Level 1** | UIA `IUIAutomationTextPattern` integration | Phase 2E | Architecture mapped |
+| **WF-030** | **Password Field Exclusion** | Automatically detects password fields via UIA and refuses audio capture / logging. | **Level 5** | `WindowsUIAutomationContextService.cs` (`CurrentIsPassword` COM check) | Phase 5 | Passing; physical WPF PasswordBox UIA verified; fails closed, blocks dictation, zeroes audio |
+| **WF-031** | **Nearby Context Extraction**| Reads surrounding text in focused text field via UIA `TextPattern` to bias formatting. | **Level 5** | `WindowsUIAutomationContextService.cs` (`IUIAutomationTextPattern`) | Phase 5 | Passing; physical WPF TextBox UIA TextPattern verified; bounded to 200 chars, caret unmoved |
 
 ---
 
@@ -90,10 +90,10 @@
 
 | ID | Capability | Wispr Windows Behavior | FLOW Level | FLOW Architecture & Module | Phase | Verification Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **WF-032** | **Casing Transformations** | Converts spoken commands to `camelCase`, `snake_case`, `PascalCase`, `kebab-case`, `SCREAMING_SNAKE_CASE`. | **Level 5** | `CasingTransformer.cs`, `SpokenCasingStage.cs` | Phase 6 | Verified; programmatic + spoken casing with acronyms/digits |
-| **WF-033** | **Technical Identifier Shield**| Guarantees symbols (`_`, `-`, `.`), code variables, and paths are not mangled. | **Level 5** | `TechnicalEntityProtectionStage.cs` | Phase 6 | Verified; file paths, URLs, CLI commands, frameworks shielded |
-| **WF-034** | **Voice File Tagging** | Speaking *"at filename dot ts"* outputs `@filename.ts` in IDE chat/editors. | **Level 5** | `VoiceFileTaggingStage.cs` | Phase 6 | Verified; `@file.ext`, Windows paths `C:\...`, relative `src/...` |
-| **WF-035** | **IDE Terminal Compatibility**| Safe text injection directly into VS Code, Cursor, and Windows Terminal. | **Level 5** | `DeveloperSyntaxStage.cs`, `WindowsTextInsertionService.cs` | Phase 6 | Verified; terminal inert plain text, zero command execution |
+| **WF-032** | **Casing Transformations** | Converts spoken commands to `camelCase`, `snake_case`, `PascalCase`, `kebab-case`, `SCREAMING_SNAKE_CASE`. | **Level 5** | `CasingTransformer.cs`, `SpokenCasingStage.cs` | Phase 6 | Hardened & Certified; idempotent regex transforms + spoken commands tested against 105 prose & 107 developer corpora |
+| **WF-033** | **Technical Identifier Shield**| Guarantees symbols (`_`, `-`, `.`), code variables, and paths are not mangled. | **Level 5** | `TechnicalEntityProtectionStage.cs` | Phase 6 | Hardened & Certified; protects 10+ languages, 20+ frameworks, paths, URLs, CLI flags; 0 corruptions |
+| **WF-034** | **Voice File Tagging** | Speaking *"at filename dot ts"* outputs `@filename.ts` in IDE chat/editors. | **Level 5** | `VoiceFileTaggingStage.cs` | Phase 6 | Hardened & Certified; `@file.ext`, Windows paths with spaces (`C:\Program Files\...`), relative paths |
+| **WF-035** | **IDE Terminal Compatibility**| Safe text injection directly into VS Code, Cursor, and Windows Terminal. | **Level 5** | `DeveloperSyntaxStage.cs`, `WindowsTextInsertionService.cs` | Phase 6 | Hardened & Certified; terminal inert plain text, zero command execution, honest physical host inventory audited |
 
 ---
 

@@ -13,7 +13,10 @@ namespace Flow.Core.TranscriptProcessing.Stages;
 public sealed class SpokenCasingStage : ITranscriptStage
 {
     private static readonly Regex SpokenCasingRegex = new(
-        @"(?<!\b(?:the|a|an|this|that|their|its|studied|analyzed|every)\s+)\b(?<trigger>camel\s+case|snake\s+case|pascal\s+case|kebab\s+case|constant\s+case|screaming\s+snake\s+case|upper\s+snake\s+case)\s+(?!(?:in|of|for|about|at|by|from|with|between)\b)(?<phrase>[a-zA-Z0-9_\-]+(?:\s+(?!(?:camel|snake|pascal|kebab|constant|screaming|upper)\s+case\b|\b(?:and|then|with|or|which|to|return)\b)[a-zA-Z0-9_\-]+){0,7})",
+        @"(?<!\b(?:the|a|an|this|that|these|those|my|your|our|their|his|her|its|studied|analyzed|discussed|mentioned|learned|every|some|any|all|use|uses|using|prefer|prefers|preferring|support|supports|into|in)\s+)" +
+        @"\b(?<trigger>(?:camel|snake|pascal|kebab|constant|screaming\s+snake|screaming-snake|upper\s+snake|upper-snake)[-\s]+case)\b\s+" +
+        @"(?!(?:is|are|was|were|will|should|would|can|could|may|might|must|refers|means|represents|indicates|describes|used|when|where|while|because|although|since|if|unless|until|in|of|for|about|at|by|from|with|between|into|through|during|before|after|above|below|to|upon|yesterday|today|tomorrow|now|always|never|often|sometimes|formatting|style)\b)" +
+        @"(?<phrase>[a-zA-Z0-9_\-]+(?:\s+(?!(?:camel|snake|pascal|kebab|constant|screaming|upper)[-\s]+case\b|\b(?:and|then|with|or|which|to|return|is|was|are|were|in|of|for|at|by|from|into|when|where)\b)[a-zA-Z0-9_\-]+){0,6})",
         RegexOptions.Compiled | RegexOptions.IgnoreCase
     );
 
@@ -23,7 +26,7 @@ public sealed class SpokenCasingStage : ITranscriptStage
 
         return SpokenCasingRegex.Replace(text, match =>
         {
-            string trigger = match.Groups["trigger"].Value.ToLowerInvariant().Replace(" ", "");
+            string trigger = match.Groups["trigger"].Value.ToLowerInvariant().Replace(" ", "").Replace("-", "");
             string phrase = match.Groups["phrase"].Value.Trim();
 
             // Do not alter if empty
