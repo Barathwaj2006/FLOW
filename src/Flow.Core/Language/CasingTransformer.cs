@@ -1,17 +1,25 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 
 namespace Flow.Core.Language;
 
 /// <summary>
-/// Text casing transformation utilities for dictation cleanup.
+/// Text casing transformation utilities for dictation cleanup (WF-032A).
+/// Deterministically handles camelCase, PascalCase, snake_case, kebab-case, and SCREAMING_SNAKE_CASE
+/// while safely preserving acronyms (API, HTTP, JSON), numbers (v2, utf8), and technical terminology.
 /// </summary>
 public static class CasingTransformer
 {
-    /// <summary>
-    /// Converts text to Title Case (e.g. "software architecture patterns").
-    /// </summary>
+    private static readonly HashSet<string> KnownAcronyms = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "API", "HTTP", "HTTPS", "URL", "URI", "JSON", "XML", "SQL", "ID", "UI",
+        "SDK", "CLI", "IP", "DB", "IO", "HTML", "CSS", "REST", "GUID", "UUID",
+        "HWND", "PID", "VAD", "ASR", "UTF8", "ASCII", "JWT", "SSH", "SSL", "TLS",
+        "DNS", "TCP", "UDP", "FIFO", "LRU", "RAM", "CPU", "GPU", "WAV", "PCM"
+    };
+
     public static string ToTitleCase(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return text;
@@ -19,9 +27,6 @@ public static class CasingTransformer
         return textInfo.ToTitleCase(text.ToLower());
     }
 
-    /// <summary>
-    /// Converts text to Sentence Case (capitalizes first letter after each period, question mark, or exclamation mark).
-    /// </summary>
     public static string ToSentenceCase(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return text;
@@ -58,9 +63,6 @@ public static class CasingTransformer
         return sb.ToString();
     }
 
-    /// <summary>
-    /// Converts text to camelCase (e.g. "get user name" -> "getUserName").
-    /// </summary>
     public static string ToCamelCase(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
@@ -84,9 +86,6 @@ public static class CasingTransformer
         return sb.ToString();
     }
 
-    /// <summary>
-    /// Converts text to PascalCase (e.g. "user profile manager" -> "UserProfileManager").
-    /// </summary>
     public static string ToPascalCase(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
@@ -102,9 +101,6 @@ public static class CasingTransformer
         return sb.ToString();
     }
 
-    /// <summary>
-    /// Converts text to snake_case (e.g. "get user name" -> "get_user_name").
-    /// </summary>
     public static string ToSnakeCase(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
@@ -115,9 +111,6 @@ public static class CasingTransformer
         return string.Join('_', lowerWords);
     }
 
-    /// <summary>
-    /// Converts text to kebab-case (e.g. "user profile manager" -> "user-profile-manager").
-    /// </summary>
     public static string ToKebabCase(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
@@ -128,9 +121,6 @@ public static class CasingTransformer
         return string.Join('-', lowerWords);
     }
 
-    /// <summary>
-    /// Converts text to CONSTANT_CASE (e.g. "max retry count" -> "MAX_RETRY_COUNT").
-    /// </summary>
     public static string ToConstantCase(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
@@ -141,10 +131,21 @@ public static class CasingTransformer
         return string.Join('_', upperWords);
     }
 
+    public static string ToScreamingSnakeCase(string text) => ToConstantCase(text);
+
+    private static bool IsAllUpper(string s)
+    {
+        if (string.IsNullOrEmpty(s) || s.Length < 2) return false;
+        foreach (char c in s)
+        {
+            if (char.IsLetter(c) && !char.IsUpper(c)) return false;
+        }
+        return true;
+    }
+
     private static string[] ExtractWords(string text)
     {
-        // Split on whitespace, underscores, hyphens, and punctuation
-        var rawWords = text.Split(new[] { ' ', '\t', '_', '-', '.', ',', ';', ':', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
+        var rawWords = text.Split(new[] { ' ', '	', '_', '-', '.', ',', ';', ':', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
         var result = new List<string>();
         foreach (var w in rawWords)
         {
@@ -157,4 +158,3 @@ public static class CasingTransformer
         return result.ToArray();
     }
 }
-

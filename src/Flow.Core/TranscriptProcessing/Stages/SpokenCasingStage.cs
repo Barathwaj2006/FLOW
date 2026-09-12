@@ -7,13 +7,13 @@ namespace Flow.Core.TranscriptProcessing.Stages;
 /// <summary>
 /// Pipeline stage for detecting and executing explicit spoken casing commands (WF-032B).
 /// Recognizes triggers like "camel case <words>", "snake case <words>", "pascal case <words>",
-/// and "kebab case <words>" and deterministically transforms only the target phrase into
-/// programming language identifiers without modifying surrounding text or executing commands.
+/// "kebab case <words>", and "screaming snake case <words>" and deterministically transforms
+/// only the target phrase into programming language identifiers without modifying surrounding text.
 /// </summary>
 public sealed class SpokenCasingStage : ITranscriptStage
 {
     private static readonly Regex SpokenCasingRegex = new(
-        @"(?<!\b(?:the|a|an|this|that|their|its|studied|analyzed)\s+)\b(?<trigger>camel\s+case|snake\s+case|pascal\s+case|kebab\s+case|constant\s+case)\s+(?!(?:in|of|for|about|at|by|from|with|between)\b)(?<phrase>[a-zA-Z0-9_\-]+(?:\s+(?!(?:camel|snake|pascal|kebab|constant)\s+case\b|\b(?:and|then|with|or|which|to|return)\b)[a-zA-Z0-9_\-]+){0,7})",
+        @"(?<!\b(?:the|a|an|this|that|their|its|studied|analyzed|every)\s+)\b(?<trigger>camel\s+case|snake\s+case|pascal\s+case|kebab\s+case|constant\s+case|screaming\s+snake\s+case|upper\s+snake\s+case)\s+(?!(?:in|of|for|about|at|by|from|with|between)\b)(?<phrase>[a-zA-Z0-9_\-]+(?:\s+(?!(?:camel|snake|pascal|kebab|constant|screaming|upper)\s+case\b|\b(?:and|then|with|or|which|to|return)\b)[a-zA-Z0-9_\-]+){0,7})",
         RegexOptions.Compiled | RegexOptions.IgnoreCase
     );
 
@@ -32,7 +32,7 @@ public sealed class SpokenCasingStage : ITranscriptStage
                 return match.Value;
             }
 
-            // Technical token guard: If phrase contains protected entity tokens (e.g. \uE0000\uE001), preserve them
+            // Technical token guard: If phrase contains protected entity tokens, preserve them
             if (phrase.Contains('\uE000') || phrase.Contains("__TECH_ENT_"))
             {
                 return match.Value;
@@ -45,6 +45,8 @@ public sealed class SpokenCasingStage : ITranscriptStage
                 "pascalcase" => CasingTransformer.ToPascalCase(phrase),
                 "kebabcase" => CasingTransformer.ToKebabCase(phrase),
                 "constantcase" => CasingTransformer.ToConstantCase(phrase),
+                "screamingsnakecase" => CasingTransformer.ToConstantCase(phrase),
+                "uppersnakecase" => CasingTransformer.ToConstantCase(phrase),
                 _ => match.Value
             };
         });

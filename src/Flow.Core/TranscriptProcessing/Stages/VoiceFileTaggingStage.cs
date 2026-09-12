@@ -6,11 +6,7 @@ using Flow.Core.Language;
 namespace Flow.Core.TranscriptProcessing.Stages;
 
 /// <summary>
-/// Pipeline stage for detecting explicit spoken file tagging syntax (WF-034).
-/// Transforms patterns like "open at app dot ts" -> "open @app.ts",
-/// "at user underscore profile dot cs" -> "@user_profile.cs",
-/// and "at config dot json" -> "@config.json" for IDE chat and code editors.
-/// Strictly protects ordinary prose containing "at".
+/// Pipeline stage for detecting explicit spoken file tagging syntax and file paths (WF-034).
 /// </summary>
 public sealed class VoiceFileTaggingStage : ITranscriptStage
 {
@@ -23,7 +19,12 @@ public sealed class VoiceFileTaggingStage : ITranscriptStage
     };
 
     private static readonly Regex FileTagRegex = new(
-        @"(?i)\b(?:at|@)\s+(?<filename>[a-zA-Z0-9_\-\s]+?)\s+(?:dot|\.)\s+(?<ext>[a-zA-Z0-9]{1,10})\b",
+        @"(?i)\b(?:at|@)\s+(?<filename>[a-zA-Z0-9_\-\s\/\\]+?)(?:\s+dot\s+|\s*\.\s*)(?<ext>[a-zA-Z0-9]{1,10})\b",
+        RegexOptions.Compiled
+    );
+
+    private static readonly Regex SpokenWindowsPathRegex = new(
+        @"(?i)\b(?<drive>[a-zA-Z])\s*(?:colon|:)\s*(?:backslash|slash|\/|\\)\s*(?<rest>[a-zA-Z0-9_\-\s\/\\]+)\b",
         RegexOptions.Compiled
     );
 
@@ -31,34 +32,58 @@ public sealed class VoiceFileTaggingStage : ITranscriptStage
     {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
 
-        return FileTagRegex.Replace(text, match =>
+        // 1. Spoken Windows paths
+        string result = SpokenWindowsPathRegex.Replace(text, match =>
+        {
+            string drive = match.Groups["drive"].Value.ToUpperInvariant();
+            string rawRest = match.Groups["rest"].Value.Trim();
+
+            if (rawRest.Contains("__TECH_ENT_")) return match.Value;
+
+            string processed = Regex.Replace(rawRest, @"(?i)\b(?:backslash)\b", "\\");
+            processed = Regex.Replace(processed, @"(?i)\b(?:slash)\b", "\\");
+            processed = Regex.Replace(processed, @"\s*\\\s*", "\\");
+
+            var segments = processed.Split(new[] { "\\" }, StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0) return match.Value;
+
+            var cleanSegments = new List<string>();
+            foreach (var seg in segments)
+            {
+                string s = seg.Trim().Replace(" ", "");
+                if (!string.IsNullOrEmpty(s))
+                {
+                    cleanSegments.Add(s);
+                }
+            }
+
+            return $"{drive}:\\{string.Join("\\", cleanSegments)}";
+        });
+
+        // 2. Spoken file tagging: "at app dot ts" -> "@app.ts", "at src slash flow dot cs" -> "@src/flow.cs"
+        result = FileTagRegex.Replace(result, match =>
         {
             string ext = match.Groups["ext"].Value.ToLowerInvariant();
 
-            // Validate against recognized file extensions
             if (!RecognizedExtensions.Contains(ext))
             {
-                return match.Value; // Not a file tag (e.g. "at two dot five")
+                return match.Value;
             }
 
             string rawFilename = match.Groups["filename"].Value.Trim();
 
-            // Guard against protected technical tokens
             if (rawFilename.Contains("__TECH_ENT_"))
             {
                 return match.Value;
             }
 
-            // Transform spoken connectors
             string processed = Regex.Replace(rawFilename, @"(?i)\b(?:underscore)\b", "_");
             processed = Regex.Replace(processed, @"(?i)\b(?:hyphen|dash)\b", "-");
             processed = Regex.Replace(processed, @"(?i)\b(?:slash)\b", "/");
             processed = Regex.Replace(processed, @"(?i)\b(?:backslash)\b", "\\");
 
-            // Clean up whitespace around connectors: e.g. "user _ profile" -> "user_profile"
             processed = Regex.Replace(processed, @"\s*([_\-\/\\])\s*", "$1");
 
-            // If there are still remaining spaces between words (e.g. "my component"), convert to camelCase or compact
             var words = processed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             string finalFilename;
             if (words.Length == 1)
@@ -71,7 +96,6 @@ public sealed class VoiceFileTaggingStage : ITranscriptStage
             }
             else
             {
-                // Plain multiple words like "app component" -> "appComponent"
                 finalFilename = CasingTransformer.ToCamelCase(processed);
             }
 
@@ -82,5 +106,7 @@ public sealed class VoiceFileTaggingStage : ITranscriptStage
 
             return $"@{finalFilename}.{ext}";
         });
+
+        return result;
     }
 }

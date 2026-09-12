@@ -15,7 +15,8 @@ public sealed record FormattingOptions(
     LanguageInfo? Language = null,
     string? TargetApplication = null,
     ApplicationCategory Category = ApplicationCategory.Unknown,
-    string? NearbyContext = null
+    string? NearbyContext = null,
+    DeveloperContext? DeveloperContext = null
 );
 
 /// <summary>

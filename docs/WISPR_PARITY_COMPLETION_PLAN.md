@@ -52,11 +52,11 @@ FLOW tracks exactly 75 atomic capabilities across 12 functional domains and 1 ou
 | **WF-030** | Context | Password Field Exclusion | Mandatory | **Level 5** | `WindowsUIAutomationContextService.cs` |
 | **WF-031A** | Context | Nearby Context Extraction | Mandatory | **Level 5** | `WindowsUIAutomationContextService.cs` |
 | **WF-031B** | Context | Contextual Routing | Mandatory | **Level 5** | `WindowsTextInsertionService.cs` |
-| **WF-032A** | Developer Mode | Programmatic Casing Transforms | Mandatory | **Level 4** | `CasingTransformer.cs` |
-| **WF-032B** | Developer Mode | Spoken Casing Triggers | Mandatory | **Level 4** | `SpokenCasingStage.cs` |
+| **WF-032A** | Developer Mode | Programmatic Casing Transforms | Mandatory | **Level 5** | `CasingTransformer.cs`, `IdentifierCasingStyle.cs` |
+| **WF-032B** | Developer Mode | Spoken Casing Triggers | Mandatory | **Level 5** | `SpokenCasingStage.cs` |
 | **WF-033** | Developer Mode | Technical Identifier Shield | Mandatory | **Level 5** | `TechnicalEntityProtectionStage.cs` |
-| **WF-034** | Developer Mode | Voice File Tagging (@filename) | Mandatory | **Level 4** | `VoiceFileTaggingStage.cs` |
-| **WF-035** | Developer Mode | IDE & Terminal Compatibility | Mandatory | **Level 5** | `WindowsTextInsertionService.cs` |
+| **WF-034** | Developer Mode | Voice File Tagging (@filename) | Mandatory | **Level 5** | `VoiceFileTaggingStage.cs` |
+| **WF-035** | Developer Mode | IDE & Terminal Compatibility | Mandatory | **Level 5** | `WindowsTextInsertionService.cs`, `DeveloperSyntaxStage.cs` |
 | **WF-036** | Command Mode | Dedicated Shortcut Activation | Mandatory | **Level 4** | `GlobalHotkeyHook.cs` (`Ctrl+Right Alt`) |
 | **WF-037A** | Command Mode | Selection-Aware Voice Transform | Mandatory | **Level 4** | `DeterministicTextTransformEngine.cs` |
 | **WF-037B** | Command Mode | Flow Bar Transforms Widget | Optional/Beta | **Level 4** | `FloatingHudController.cs` |

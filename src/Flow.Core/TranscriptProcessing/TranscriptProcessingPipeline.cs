@@ -11,8 +11,8 @@ namespace Flow.Core.TranscriptProcessing;
 /// <summary>
 /// Production multi-pass transcript processing pipeline.
 /// Orchestrates deterministic stages for whitespace normalization, entity protection,
-/// spoken punctuation, snippets expansion, personal dictionary & corrections, filler removal,
-/// numbered lists, style formatting, smart capitalization, and entity restoration.
+/// voice file tagging, developer syntax & punctuation, snippets expansion, personal dictionary & corrections,
+/// filler removal, numbered lists, spoken casing, style formatting, smart capitalization, and entity restoration.
 /// 
 /// Strictly guarantees the ZERO-ENTER invariant:
 /// No \r, \n, or Enter simulation will ever be emitted.
@@ -44,6 +44,8 @@ public sealed class TranscriptProcessingPipeline : ILanguageEngine
         return new ITranscriptStage[]
         {
             new WhitespaceAndZeroEnterStage(),
+            new VoiceFileTaggingStage(),
+            new DeveloperSyntaxStage(),
             new TechnicalEntityProtectionStage(),
             new SpokenPunctuationStage(),
             new SnippetsExpansionStage(snippetEngine),
@@ -51,7 +53,6 @@ public sealed class TranscriptProcessingPipeline : ILanguageEngine
             new ConservativeFillerRemovalStage(),
             new NumberedListStage(),
             new SpokenCasingStage(),
-            new VoiceFileTaggingStage(),
             new StyleFormattingStage(styleEngine),
             new SmartCapitalizationStage(),
             new EntityRestorationStage()

@@ -67,9 +67,10 @@ public sealed class SpokenPunctuationStage : ITranscriptStage
             .Replace(" .", ".")
             .Replace(" ,", ",")
             .Replace(" ?", "?")
-            .Replace(" !", "!")
             .Replace(" :", ":")
-            .Replace(" ;", ";")
+            .Replace(" ;", ";");
+        result = Regex.Replace(result, @"\s+!(?!=)", "!");
+        result = result
             .Replace("( ", "(")
             .Replace(" )", ")")
             .Replace("[ ", "[")

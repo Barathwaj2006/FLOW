@@ -88,11 +88,11 @@ The objective is to implement the complete set of applicable capabilities curren
 * **Styles**: Persona/tone formatting (Personal, Work, Email, Other / Formal, Casual, Excited).
 * **App-specific Behavior**: Contextual style switches per active process.
 
-#### 2D — Developer Mode
-* Casing transformations: `camelCase`, `snake_case`, `PascalCase`, `kebab-case`, `SCREAMING_SNAKE`.
+#### 2D — Developer Mode (Completed — Phase 6)
+* Casing transformations: `camelCase`, `snake_case`, `PascalCase`, `kebab-case`, `SCREAMING_SNAKE_CASE`.
 * Code syntax recognition: Acronyms, variables, functions, classes, CLI/PowerShell commands.
 * Paths (`C:\...`, relative), URLs, JSON, YAML, Markdown formatting.
-* IDE integration: VS Code, Cursor, Windsurf, integrated terminals, and voice file tagging.
+* IDE integration: VS Code, Cursor, Windsurf, integrated terminals, and voice file tagging (`@file.ext`).
 
 #### 2E — Command Mode
 * Dedicated command shortcut / state.

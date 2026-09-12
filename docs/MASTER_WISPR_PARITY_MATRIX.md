@@ -90,10 +90,10 @@
 
 | ID | Capability | Wispr Windows Behavior | FLOW Level | FLOW Architecture & Module | Phase | Verification Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **WF-032** | **Casing Transformations** | Converts spoken commands to `camelCase`, `snake_case`, `PascalCase`, `kebab-case`. | **Level 4** | `CasingTransformer.cs` | Phase 2C | Passing; casing transforms verified |
-| **WF-033** | **Technical Identifier Shield**| Guarantees symbols (`_`, `-`, `.`), code variables, and paths are not mangled. | **Level 5** | `TechnicalEntityProtectionStage.cs` | Phase 2C | Passing; file paths, URLs, CLI commands protected |
-| **WF-034** | **Voice File Tagging** | Speaking *"at filename dot ts"* outputs `@filename.ts` in IDE chat/editors. | **Level 1** | `DeveloperSyntaxFilter.cs` | Phase 2E | Architecture mapped |
-| **WF-035** | **IDE Terminal Compatibility**| Safe text injection directly into VS Code, Cursor, and Windows Terminal. | **Level 5** | `WindowsTextInsertionService.cs` (Zero-Enter SendInput) | Phase 2B/2C | Passing; terminal injection verified |
+| **WF-032** | **Casing Transformations** | Converts spoken commands to `camelCase`, `snake_case`, `PascalCase`, `kebab-case`, `SCREAMING_SNAKE_CASE`. | **Level 5** | `CasingTransformer.cs`, `SpokenCasingStage.cs` | Phase 6 | Verified; programmatic + spoken casing with acronyms/digits |
+| **WF-033** | **Technical Identifier Shield**| Guarantees symbols (`_`, `-`, `.`), code variables, and paths are not mangled. | **Level 5** | `TechnicalEntityProtectionStage.cs` | Phase 6 | Verified; file paths, URLs, CLI commands, frameworks shielded |
+| **WF-034** | **Voice File Tagging** | Speaking *"at filename dot ts"* outputs `@filename.ts` in IDE chat/editors. | **Level 5** | `VoiceFileTaggingStage.cs` | Phase 6 | Verified; `@file.ext`, Windows paths `C:\...`, relative `src/...` |
+| **WF-035** | **IDE Terminal Compatibility**| Safe text injection directly into VS Code, Cursor, and Windows Terminal. | **Level 5** | `DeveloperSyntaxStage.cs`, `WindowsTextInsertionService.cs` | Phase 6 | Verified; terminal inert plain text, zero command execution |
 
 ---
 
