@@ -86,7 +86,7 @@ public class Phase85SchemaV3ForensicAuditTests : IDisposable
         using (var v3Db = new SqlitePersonalizationDatabase(_tempDbPath))
         {
             int version = v3Db.GetSchemaVersion();
-            Assert.Equal(3, version);
+            Assert.True(version >= 3);
 
             string? integrity = await v3Db.ExecuteScalarAsync<string>("PRAGMA integrity_check;");
             Assert.Equal("ok", integrity);

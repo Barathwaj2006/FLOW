@@ -13,7 +13,9 @@ using Flow.Core.Personalization.Styles;
 using Flow.Core.Storage;
 using Flow.Core.TranscriptProcessing;
 using Flow.Core.History;
+using Flow.Core.Scratchpad;
 using Flow.Host.Windows.History;
+using Flow.Host.Windows.Scratchpad;
 using Flow.Host.Windows.Native;
 using Flow.Host.Windows.Tray;
 using Flow.Host.Windows.UI;
@@ -87,6 +89,11 @@ public static class Program
             privacyService
         );
 
+        // Scratchpad & Quick Capture Services (Phase 9)
+        var scratchpadRepo = new SqliteScratchpadRepository(personalizationDb);
+        var scratchpadExportService = new ScratchpadExportService();
+        var scratchpadService = new ScratchpadService(scratchpadRepo, scratchpadRepo, scratchpadExportService);
+
         // Production Multi-Pass Formatting Pipeline: Whitespace normalization, entity protection,
         // spoken punctuation, snippets expansion, personal dictionary, conservative filler removal,
         // numbered lists, style formatting, smart capitalization, and Zero-Enter invariant.
@@ -115,6 +122,12 @@ public static class Program
         _tray = new TrayIconManager(_hud.Handle);
         _hud.WindowMessageReceived += (msg, lParam) => _tray.ProcessMessage(msg, lParam);
         _tray.Install("FLOW — Local Voice Dictation (Right-Alt to speak, double-tap for hands-free, Shift+Right-Alt to backtrack)");
+
+        _tray.ScratchpadRequested += () =>
+        {
+            logger.LogInformation("Scratchpad & Quick Capture window requested.");
+            ScratchpadWindowManager.ShowWindow(scratchpadService);
+        };
 
         _tray.HistoryRequested += () =>
         {

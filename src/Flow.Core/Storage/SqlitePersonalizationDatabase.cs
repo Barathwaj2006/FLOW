@@ -332,6 +332,71 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
             using var setVer3Cmd = conn.CreateCommand();
             setVer3Cmd.CommandText = "PRAGMA user_version = 3;";
             setVer3Cmd.ExecuteNonQuery();
+            version = 3;
+        }
+
+        if (version < 4)
+        {
+            // Version 4 Migration (Phase 9: Scratchpad & Quick Capture)
+            using var v4Cmd = conn.CreateCommand();
+            v4Cmd.CommandText = @"
+                CREATE TABLE IF NOT EXISTS Scratchpads (
+                    Id TEXT PRIMARY KEY,
+                    Title TEXT NOT NULL,
+                    Content TEXT NOT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    UpdatedAt TEXT NOT NULL,
+                    IsPinned INTEGER NOT NULL DEFAULT 0,
+                    IsDeleted INTEGER NOT NULL DEFAULT 0,
+                    DeletedAt TEXT,
+                    WordCount INTEGER NOT NULL DEFAULT 0,
+                    CharacterCount INTEGER NOT NULL DEFAULT 0
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_scratchpad_updated ON Scratchpads(IsDeleted, IsPinned DESC, UpdatedAt DESC);
+                CREATE INDEX IF NOT EXISTS idx_scratchpad_created ON Scratchpads(IsDeleted, CreatedAt DESC);
+                CREATE INDEX IF NOT EXISTS idx_scratchpad_pinned ON Scratchpads(IsDeleted, IsPinned, UpdatedAt DESC);
+                CREATE INDEX IF NOT EXISTS idx_scratchpad_title ON Scratchpads(IsDeleted, Title COLLATE NOCASE);
+            ";
+            v4Cmd.ExecuteNonQuery();
+
+            // Setup FTS5 virtual table with content-sync triggers for Scratchpads
+            try
+            {
+                using var ftsCmd = conn.CreateCommand();
+                ftsCmd.CommandText = @"
+                    CREATE VIRTUAL TABLE IF NOT EXISTS ScratchpadsFts USING fts5(
+                        Id UNINDEXED,
+                        Title,
+                        Content,
+                        content='Scratchpads',
+                        content_rowid='rowid'
+                    );
+
+                    CREATE TRIGGER IF NOT EXISTS trg_scratchpad_ai AFTER INSERT ON Scratchpads BEGIN
+                        INSERT INTO ScratchpadsFts(rowid, Id, Title, Content) VALUES (new.rowid, new.Id, new.Title, new.Content);
+                    END;
+
+                    CREATE TRIGGER IF NOT EXISTS trg_scratchpad_ad AFTER DELETE ON Scratchpads BEGIN
+                        INSERT INTO ScratchpadsFts(ScratchpadsFts, rowid, Id, Title, Content) VALUES('delete', old.rowid, old.Id, old.Title, old.Content);
+                    END;
+
+                    CREATE TRIGGER IF NOT EXISTS trg_scratchpad_au AFTER UPDATE ON Scratchpads BEGIN
+                        INSERT INTO ScratchpadsFts(ScratchpadsFts, rowid, Id, Title, Content) VALUES('delete', old.rowid, old.Id, old.Title, old.Content);
+                        INSERT INTO ScratchpadsFts(rowid, Id, Title, Content) VALUES (new.rowid, new.Id, new.Title, new.Content);
+                    END;
+                ";
+                ftsCmd.ExecuteNonQuery();
+            }
+            catch (SqliteException)
+            {
+                // Fallback to indexed search when FTS5 virtual table module is unavailable
+            }
+
+            using var setVer4Cmd = conn.CreateCommand();
+            setVer4Cmd.CommandText = "PRAGMA user_version = 4;";
+            setVer4Cmd.ExecuteNonQuery();
+            version = 4;
         }
     }
 

@@ -16,6 +16,7 @@ public sealed class TrayIconManager : IDisposable
     private bool _isDisposed;
 
     public event Action? TrayClicked;
+    public event Action? ScratchpadRequested;
     public event Action? HistoryRequested;
     public event Action? ExitRequested;
 
@@ -64,9 +65,11 @@ public sealed class TrayIconManager : IDisposable
             const uint TPM_RETURNCMD = 0x0100;
             const uint TPM_RIGHTBUTTON = 0x0002;
 
-            const uint CMD_HISTORY = 101;
-            const uint CMD_EXIT = 102;
+            const uint CMD_SCRATCHPAD = 101;
+            const uint CMD_HISTORY = 102;
+            const uint CMD_EXIT = 103;
 
+            AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_SCRATCHPAD, "Scratchpad & Quick Capture");
             AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_HISTORY, "History & Productivity");
             AppendMenu(hMenu, MF_SEPARATOR, UIntPtr.Zero, string.Empty);
             AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_EXIT, "Exit FLOW");
@@ -78,7 +81,11 @@ public sealed class TrayIconManager : IDisposable
             }
 
             uint selected = TrackPopupMenuEx(hMenu, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.X, pt.Y, _hwnd, IntPtr.Zero);
-            if (selected == CMD_HISTORY)
+            if (selected == CMD_SCRATCHPAD)
+            {
+                ScratchpadRequested?.Invoke();
+            }
+            else if (selected == CMD_HISTORY)
             {
                 HistoryRequested?.Invoke();
             }
