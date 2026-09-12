@@ -26,15 +26,20 @@ public sealed class TechnicalEntityProtectionStage : ITranscriptStage
 
     // 4. Programming Languages & Frameworks
     private static readonly Regex LangFrameworkRegex = new(
-        @"(?:\bC#\b|\bC\+\+\b|\.NET\b|\bPython\b|\bTypeScript\b|\bJavaScript\b|\bRust\b|\bGolang\b|\bReact\b|\bFlutter\b|\bWinUI\b|\bWPF\b|\bWin32\b)",
+        @"(?:\bC#\b|\bC\+\+\b|\.NET\b|\bPython\b|\bTypeScript\b|\bJavaScript\b|\bRust\b|\bGolang\b|\bReact\b|\bFlutter\b|\bWinUI\b|\bWPF\b|\bWin32\b|\bFastAPI\b|\bNext\.js\b|\bWebSocket\b|\bWebSockets\b|\bGitHub\b|\bDocker\b|\bnpm\b|\bKubernetes\b|\bFastify\b)",
         RegexOptions.Compiled);
 
-    // 5. Code identifiers: dotted symbols (Flow.Core), camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case
+    // 5. Code identifiers with optional Indic postposition/case suffixes (Tamil \u0B80-\u0BFF, Devanagari \u0900-\u097F)
+    private static readonly Regex CodeSwitchedIndicSuffixRegex = new(
+        @"\b[A-Za-z0-9_]+(?=-?[\u0900-\u097F\u0B80-\u0BFF]+)",
+        RegexOptions.Compiled);
+
+    // 6. Code identifiers: dotted symbols (Flow.Core), camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case
     private static readonly Regex CodeIdentifierRegex = new(
         @"\b[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_.]*\b|\b[a-z]+[A-Z][A-Za-z0-9]*\b|\b[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]*)+\b|\b[a-z0-9]+_[a-z0-9_]+\b|\b[A-Z0-9]+_[A-Z0-9_]+\b|\b[a-z0-9]+(?:-[a-z0-9]+)+\b",
         RegexOptions.Compiled);
 
-    // 6. Common Technical Acronyms
+    // 7. Common Technical Acronyms
     private static readonly Regex AcronymRegex = new(
         @"\b(HTTP|HTTPS|JSON|API|ASR|WASAPI|VAD|UIA|CLI|GPU|CPU|AVX2|DPAPI|REST|SDK|URL|RAM|WAV|PCM|HTML|CSS|SQL|XML|UUID|GUID|HWND|PID|IDE)\b",
         RegexOptions.Compiled);
@@ -53,11 +58,12 @@ public sealed class TechnicalEntityProtectionStage : ITranscriptStage
             return placeholder;
         }
 
-        // Apply in priority order: URLs -> File Paths -> CLI Commands -> Languages -> Code Identifiers -> Acronyms
+        // Apply in priority order: URLs -> File Paths -> CLI Commands -> Languages -> Indic Code-Switched -> Code Identifiers -> Acronyms
         string protectedText = UrlRegex.Replace(text, Mask);
         protectedText = FilePathRegex.Replace(protectedText, Mask);
         protectedText = CliCommandRegex.Replace(protectedText, Mask);
         protectedText = LangFrameworkRegex.Replace(protectedText, Mask);
+        protectedText = CodeSwitchedIndicSuffixRegex.Replace(protectedText, Mask);
         protectedText = CodeIdentifierRegex.Replace(protectedText, Mask);
         protectedText = AcronymRegex.Replace(protectedText, Mask);
 

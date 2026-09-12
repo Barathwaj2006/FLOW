@@ -57,5 +57,5 @@ public sealed class EntityRestorationStage : ITranscriptStage
     }
 
     private static bool IsTerminalPunctuation(char c) =>
-        c is '.' or '!' or '?' or ':' or ';' or '"' or '\'' or '`';
+        c is '.' or '!' or '?' or ':' or ';' or '"' or '\'' or '`' or '\u0964' or '\u0965';
 }

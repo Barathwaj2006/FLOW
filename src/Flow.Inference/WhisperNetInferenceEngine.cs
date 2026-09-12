@@ -98,6 +98,11 @@ public sealed class WhisperNetInferenceEngine : IASREngine
         }
 
         string language = options?.Language ?? "en";
+        if (!string.Equals(language, "auto", StringComparison.OrdinalIgnoreCase) && !Flow.Core.Language.LanguageCatalog.IsSupported(language))
+        {
+            _logger?.LogWarning("Requested language '{Language}' is not recognized in LanguageCatalog. Falling back to English.", language);
+            language = "en";
+        }
 
         // Resolve required model for language ("auto", "ta", "en")
         string requiredModelPath = await _modelManager.EnsureModelForLanguageAsync(language, null, cancellationToken);
@@ -183,7 +188,21 @@ public sealed class WhisperNetInferenceEngine : IASREngine
         stopwatch.Stop();
 
         string finalText = fullTextBuilder.ToString();
-        float avgConfidence = segments.Count > 0 ? 0.92f : 1.0f;
+        float avgConfidence = 0.0f;
+        if (segments.Count > 0)
+        {
+            float sum = 0f;
+            int counted = 0;
+            foreach (var s in segments)
+            {
+                if (s.Confidence > 0f)
+                {
+                    sum += s.Confidence;
+                    counted++;
+                }
+            }
+            avgConfidence = counted > 0 ? (sum / counted) : 0.92f;
+        }
 
         if (detectedLanguage == null && !string.Equals(language, "auto", StringComparison.OrdinalIgnoreCase))
         {
@@ -198,7 +217,7 @@ public sealed class WhisperNetInferenceEngine : IASREngine
             EngineId: Info.Id,
             Segments: segments,
             DetectedLanguage: detectedLanguage,
-            LanguageConfidence: avgConfidence
+            LanguageConfidence: avgConfidence > 0 ? avgConfidence : (float?)null
         );
     }
 

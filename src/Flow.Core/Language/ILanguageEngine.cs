@@ -10,7 +10,8 @@ public sealed record FormattingOptions(
     bool EnsureTerminalPunctuation = true,
     bool RemoveFillerWords = true,
     bool ReplaceSpokenPunctuation = true,
-    bool FormatNumberedLists = true
+    bool FormatNumberedLists = true,
+    LanguageInfo? Language = null
 );
 
 /// <summary>

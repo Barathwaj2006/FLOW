@@ -43,6 +43,7 @@ public sealed class VoiceSessionCoordinator
     private readonly ICommandParser _commandParser;
     private readonly ICommandSafetyPolicy _safetyPolicy;
     private readonly ITextTransformEngine _transformEngine;
+    private readonly ILanguageSessionService _languageSessionService;
     private readonly ILogger<VoiceSessionCoordinator>? _logger;
 
     private readonly double _maxRecordingDurationSeconds;
@@ -112,7 +113,31 @@ public sealed class VoiceSessionCoordinator
     /// Selected transcription language (WF-021, WF-022).
     /// Default is "auto" for Whisper automatic language detection; or explicit code like "en", "ta".
     /// </summary>
-    public string SelectedLanguage { get; set; } = "auto";
+    public string SelectedLanguage
+    {
+        get => _languageSessionService.ActiveLanguage.Code.Value;
+        set => _languageSessionService.SetSessionLanguage(new LanguageCode(value));
+    }
+
+    /// <summary>
+    /// Currently effective language for speech recognition.
+    /// </summary>
+    public LanguageInfo ActiveLanguage => _languageSessionService.ActiveLanguage;
+
+    /// <summary>
+    /// Language detected during the most recent ASR session.
+    /// </summary>
+    public string? LastDetectedLanguage { get; private set; }
+
+    /// <summary>
+    /// Confidence of the language detected during the most recent ASR session.
+    /// </summary>
+    public float? LastDetectedLanguageConfidence { get; private set; }
+
+    /// <summary>
+    /// Language session manager for session isolation and language configuration.
+    /// </summary>
+    public ILanguageSessionService LanguageSessionService => _languageSessionService;
 
     /// <summary>
     /// Optional vocabulary adaptation biasing prompt for code-switching and bilingual audio (WF-023).
@@ -125,6 +150,11 @@ public sealed class VoiceSessionCoordinator
     public event Action<string>? FinalTextInserted;
     public event Action<string>? SessionWarning;
     public event Action<CommandIntent, CommandSafetyResult>? CommandProcessed;
+    public event Action<string, float?>? LanguageDetected;
+
+    public void SetSessionLanguage(LanguageCode code) => _languageSessionService.SetSessionLanguage(code);
+    public void SetDefaultLanguage(LanguageCode code) => _languageSessionService.SetDefaultLanguage(code);
+    public void ResetSessionLanguage() => _languageSessionService.ResetSession();
 
     public VoiceSessionCoordinator(
         AudioRingBuffer ringBuffer,
@@ -139,7 +169,8 @@ public sealed class VoiceSessionCoordinator
         IUIContextService? contextService = null,
         ICommandParser? commandParser = null,
         ICommandSafetyPolicy? safetyPolicy = null,
-        ITextTransformEngine? transformEngine = null)
+        ITextTransformEngine? transformEngine = null,
+        ILanguageSessionService? languageSessionService = null)
     {
         _ringBuffer = ringBuffer ?? throw new ArgumentNullException(nameof(ringBuffer));
         _vad = vad ?? throw new ArgumentNullException(nameof(vad));
@@ -151,6 +182,7 @@ public sealed class VoiceSessionCoordinator
         _commandParser = commandParser ?? new DeterministicCommandParser();
         _safetyPolicy = safetyPolicy ?? new DeterministicCommandSafetyPolicy();
         _transformEngine = transformEngine ?? new DeterministicTextTransformEngine();
+        _languageSessionService = languageSessionService ?? new LanguageSessionService();
         _logger = logger;
         _maxRecordingDurationSeconds = maxRecordingSeconds;
         _warningDurationSeconds = warningThresholdSeconds;
@@ -354,10 +386,19 @@ public sealed class VoiceSessionCoordinator
 
             // 1. Transcribe via ASR engine registry (executing real local Whisper backend)
             var asrOptions = new ASROptions(
-                Language: SelectedLanguage,
+                Language: _languageSessionService.ActiveLanguage.WhisperCode,
                 Prompt: CodeSwitchingBiasingPrompt
             );
             var asrResult = await _asrRegistry.TranscribeWithFallbackAsync(audioBuffer, options: asrOptions, progress: progress, cancellationToken: ct);
+
+            if (asrResult.DetectedLanguage != null)
+            {
+                LastDetectedLanguage = asrResult.DetectedLanguage;
+                LastDetectedLanguageConfidence = asrResult.LanguageConfidence;
+                LanguageDetected?.Invoke(asrResult.DetectedLanguage, asrResult.LanguageConfidence);
+                _logger?.LogInformation("ASR completed. Detected language: {DetectedLang} (Confidence: {Conf:F2})",
+                    asrResult.DetectedLanguage, asrResult.LanguageConfidence);
+            }
 
             if (string.IsNullOrWhiteSpace(asrResult.Text))
             {
@@ -462,7 +503,8 @@ public sealed class VoiceSessionCoordinator
 
             // Standard Voice Dictation Processing Branch (Permanently inert text-only)
             // 2. Deterministic sanitization & Zero-Enter guarantee
-            string cleanText = _languageEngine.Format(asrResult.Text);
+            var formattingOptions = new FormattingOptions(Language: _languageSessionService.ActiveLanguage);
+            string cleanText = _languageEngine.Format(asrResult.Text, formattingOptions);
 
             if (string.IsNullOrWhiteSpace(cleanText))
             {
@@ -536,6 +578,9 @@ public sealed class VoiceSessionCoordinator
         }
         finally
         {
+            // Reset session language override to enforce session isolation (WF-021)
+            _languageSessionService.ResetSession();
+
             // Auto-return to Idle state after short interval
             _ = Task.Run(async () =>
             {
@@ -565,6 +610,7 @@ public sealed class VoiceSessionCoordinator
             _activeSelectedText = null;
         }
 
+        _languageSessionService.ResetSession();
         _sessionCts?.Cancel();
         _ringBuffer.Clear();
         _vad.Reset();

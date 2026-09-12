@@ -22,11 +22,13 @@ public sealed class TranscriptProcessingContext
     public ListState CurrentListState { get; set; } = ListState.NotInList;
     public int CurrentListIndex { get; set; } = 0;
     public string? TargetApplication { get; init; }
+    public LanguageInfo Language { get; init; }
 
-    public TranscriptProcessingContext(FormattingOptions? options = null, string? targetApplication = null)
+    public TranscriptProcessingContext(FormattingOptions? options = null, string? targetApplication = null, LanguageInfo? language = null)
     {
         Options = options ?? new FormattingOptions();
         TargetApplication = targetApplication;
+        Language = language ?? Options.Language ?? LanguageCatalog.English;
     }
 }
 

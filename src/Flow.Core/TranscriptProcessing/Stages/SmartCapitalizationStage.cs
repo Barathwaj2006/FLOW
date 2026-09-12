@@ -14,9 +14,9 @@ public sealed class SmartCapitalizationStage : ITranscriptStage
         @"^(?:[""'\(\[\s]*)([a-z])",
         RegexOptions.Compiled);
 
-    // Matches lower-case letter following sentence terminators (. ! ?) and whitespace
+    // Matches lower-case letter following sentence terminators (. ! ? । ॥) and whitespace
     private static readonly Regex SentenceBoundaryRegex = new(
-        @"(?<=[.!?]\s+)([a-z])",
+        @"(?<=[.!?\u0964\u0965]\s+)([a-z])",
         RegexOptions.Compiled);
 
     // Matches lower-case letter following list item marker e.g. "1. " or "2. "

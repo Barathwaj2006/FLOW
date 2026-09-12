@@ -84,9 +84,9 @@ Phase Allocation:
 | **WF-020A** | Formatting | Number, Date & Currency Norm | Standard | Mandatory | Level 5 | Phase 2C | P1 | Spoken entity normalizer & technical protection physically validated (<0.09ms latency) |
 | **WF-020B** | Formatting | Auto Cleanup Levels | Standard | Mandatory | Level 1 | Phase 2H | P1 | Architecture mapped; pending Hub Style tab |
 | **WF-020C** | Formatting | Undo AI Edit / Raw Revert | Standard | Mandatory | Level 1 | Phase 2H | P1 | History tracking mapped; pending Hub UI |
-| **WF-021** | Multilingual | Manual Multi-Language Selection | Standard | Mandatory | Level 4 | Phase 2E | P1 | Real multilingual ggml-tiny.bin model tested with English & Tamil parameters; physical mic Tamil unverified |
-| **WF-022** | Multilingual | Automatic Language Detection | Standard | Mandatory | Level 4 | Phase 2E | P1 | Real Whisper LID token auto-detection tested (en verified at 0.31x RTF; multi-language coverage unverified on mic) |
-| **WF-023** | Multilingual | Code-Switching & Bilingual Audio | Standard | Mandatory | Level 4 | Phase 2E | P2 | Whisper prompt biasing adaptation tested with mixed vocabulary |
+| **WF-021** | Multilingual | Manual Multi-Language Selection | Standard | Mandatory | Level 5 | Phase 3 | P1 | Strongly typed ISO 639-1 LanguageCatalog, session isolation, physical ggml-tiny.bin multilingual inference verified (en, ta, hi) |
+| **WF-022** | Multilingual | Automatic Language Detection | Standard | Mandatory | Level 5 | Phase 3 | P1 | Whisper LID auto-detection pipeline verified with LanguageDetected event and confidence scoring (en verified at 0.16x RTF) |
+| **WF-023** | Multilingual | Code-Switching & Bilingual Audio | Standard | Mandatory | Level 5 | Phase 3 | P2 | Whisper prompt biasing + Indic-aware entity shielding verified protecting mixed vocabulary and scripts |
 | **WF-024A** | Personalization| Personal Dictionary Engine | Standard | Mandatory | Level 4 | Phase 2D | P0 | SQLite storage & regex replacement tested |
 | **WF-024B** | Personalization| Personal Dictionary Hub GUI | Standard | Mandatory | Level 0 | Phase 2H | P1 | WinUI 3 management table pending |
 | **WF-025A** | Personalization| Custom Corrections Engine | Standard | Mandatory | Level 4 | Phase 2D | P0 | SQLite phonetic replacement rules tested |

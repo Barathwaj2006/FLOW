@@ -36,9 +36,9 @@ FLOW tracks exactly 75 atomic capabilities across 12 functional domains and 1 ou
 | **WF-020A** | Formatting | Number, Date & Currency Norm | Mandatory | **Level 5** | `TechnicalEntityProtectionStage.cs` |
 | **WF-020B** | Formatting | Auto Cleanup Levels | Mandatory | **Level 1** | Architecture mapped; pending Hub Style tab |
 | **WF-020C** | Formatting | Undo AI Edit / Raw Revert | Mandatory | **Level 1** | History tracking mapped; pending Hub UI |
-| **WF-021** | Multilingual | Manual Multi-Language Selection | Mandatory | **Level 4** | `WhisperModelManager.cs` (`ggml-tiny.bin`) |
-| **WF-022** | Multilingual | Automatic Language Detection | Mandatory | **Level 4** | Whisper LID token auto-detection |
-| **WF-023** | Multilingual | Code-Switching & Bilingual Audio | Mandatory | **Level 4** | Whisper prompt biasing adaptation |
+| **WF-021** | Multilingual | Manual Multi-Language Selection | Mandatory | **Level 5** | `LanguageCatalog.cs`, `LanguageSessionService.cs`, `WhisperModelManager.cs` (`ggml-tiny.bin`) |
+| **WF-022** | Multilingual | Automatic Language Detection | Mandatory | **Level 5** | Whisper LID token auto-detection & `LanguageDetected` event |
+| **WF-023** | Multilingual | Code-Switching & Bilingual Audio | Mandatory | **Level 5** | Whisper prompt biasing + Indic-aware technical entity shielding |
 | **WF-024A** | Personalization| Personal Dictionary Engine | Mandatory | **Level 4** | `SqlitePersonalDictionaryRepository.cs` |
 | **WF-024B** | Personalization| Personal Dictionary Hub GUI | Mandatory | **Level 0** | WinUI 3 management table pending |
 | **WF-025A** | Personalization| Custom Corrections Engine | Mandatory | **Level 4** | `PersonalDictionaryEngine.cs` |

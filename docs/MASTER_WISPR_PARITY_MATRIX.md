@@ -59,10 +59,9 @@
 ### C. Languages & Multilingual
 
 | ID | Capability | Wispr Windows Behavior | FLOW Level | FLOW Architecture & Module | Phase | Verification Status |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **WF-021** | **Multi-Language Selection** | User can choose primary transcription language in Settings from 100+ languages. | **Level 1** | `ASROptions.Language` parameter passed to `IASREngine` | Phase 2C | Contract defined; multilingual weights pending |
-| **WF-022** | **Automatic Language Detection**| Automatically detects spoken language without manual pre-selection. | **Level 0** | Whisper encoder LID token extraction | Phase 2E | Architecture mapped |
-| **WF-023** | **Code-Switching** | Accurately handles bilingual transitions (English + regional words). | **Level 0** | Vocabulary adaptation via Whisper prompt biasing | Phase 2E | Architecture mapped |
+| **WF-021** | **Multi-Language Selection** | User can choose primary transcription language in Settings from 100+ languages. | **Level 5** | Strongly typed `LanguageCatalog`, `LanguageSessionService`, `WhisperModelManager` | Phase 3 | Verified with physical multilingual ggml-tiny.bin (en, ta, hi) |
+| **WF-022** | **Automatic Language Detection**| Automatically detects spoken language without manual pre-selection. | **Level 5** | Whisper encoder LID token auto-detection, `LanguageDetected` event & confidence | Phase 3 | Verified on physical audio (0.16x RTF, en detection) |
+| **WF-023** | **Code-Switching** | Accurately handles bilingual transitions (English + regional words). | **Level 5** | Whisper prompt biasing + Indic code-switching regex shield | Phase 3 | Verified with mixed technical vocabulary and scripts |
 
 ---
 
