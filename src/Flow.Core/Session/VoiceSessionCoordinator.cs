@@ -542,7 +542,15 @@ public sealed class VoiceSessionCoordinator
                 Language: _languageSessionService.ActiveLanguage,
                 TargetApplication: ActiveTarget?.ProcessName,
                 Category: ActiveContext?.Category ?? ApplicationCategory.Unknown,
-                NearbyContext: ActiveNearbyContext
+                NearbyContext: ActiveNearbyContext,
+                DeveloperContext: ActiveContext != null ? new DeveloperContext(
+                    Application: ActiveTarget?.ProcessName,
+                    Category: ActiveContext.Category,
+                    Language: _languageSessionService.ActiveLanguage,
+                    PreferredCasing: ActiveContext.Category == ApplicationCategory.Code ? IdentifierCasingStyle.CamelCase : IdentifierCasingStyle.None,
+                    IsCodeEditor: ActiveContext.Category == ApplicationCategory.Code,
+                    IsTerminal: ActiveContext.Category == ApplicationCategory.Terminal
+                ) : null
             );
             string cleanText = _languageEngine.Format(asrResult.Text, formattingOptions);
 

@@ -253,8 +253,11 @@ public class Phase6SafetyInvariantTests
 
             var latencies = new List<double>(iterations);
 
-            // Warmup
-            _ = _pipeline.Format(text, CodeOptions);
+            // Warmup JIT and regex caches
+            for (int w = 0; w < 5; w++)
+            {
+                _ = _pipeline.Format(text, CodeOptions);
+            }
 
             for (int i = 0; i < iterations; i++)
             {

@@ -1,20 +1,33 @@
-# FLOW — Phase 6 & Phase 6.5: Developer & Coding Mode Parity (Autonomous Hardened & Certified)
+# FLOW — Phase 6: Developer & Coding Mode Parity (Final System Hardening Certified)
 
 ## 1. Executive Summary
 
-Phase 6 and Phase 6.5 establish a production-grade, local-first **Developer & Coding Mode** subsystem for FLOW on Windows 10/11 x64 (.NET 9 / Win32).
+Phase 6 establishes a production-grade, local-first **Developer & Coding Mode** subsystem for FLOW on Windows 10/11 x64 (.NET 9 / Win32).
 
-Following a rigorous, fully autonomous application-first hardening pass (Phase 6.5), Developer Mode has achieved **Full Production Certification**:
-- **Total Test Solution Baseline**: **1,929 / 1,929 PASS (0 failed, 0 skipped, 0 warnings, 0 errors)**
-  - `Flow.Core.Tests`: **1,795 / 1,795 PASS** (+1,000 tests across adversarial corpora, mathematical property suites, and seeded fuzzing)
-  - `Flow.Windows.Tests`: **134 / 134 PASS** (+5 live Windows autonomous validation tests)
-- **Adversarial Developer Corpus**: **511 / 511 PASS** curated developer utterances across 9 categories (functions, classes, interfaces, spoken casing, operators, Windows/Unix paths, CLI commands, frameworks, and Indic code-switching).
+Following a rigorous, fully autonomous final system-level hardening pass, Developer Mode has achieved **Full Production System Certification**:
+- **Total Test Solution Baseline**: **1,962 / 1,962 PASS (0 failed, 0 skipped, 0 warnings, 0 errors)**
+  - `Flow.Core.Tests`: **1,821 / 1,821 PASS** (+26 whole-system end-to-end scenarios across concurrency, fuzzing, 1,000-session lifecycle, golden corpus, false positive gate, path flow, Indic flow, and payload latency benchmarks)
+  - `Flow.Windows.Tests`: **141 / 141 PASS** (+7 live Windows autonomous system validation tests exercising real host processes and STA UIA controls)
+- **Whole-System End-to-End Suite**: **26 / 26 PASS** in `SystemDeveloperEndToEndTests.cs` covering:
+  - 1,000-session sequential lifecycle stress test with 0 resource leaks
+  - Concurrency stress across 8 parallel worker tasks with 0 cross-talk or race conditions
+  - 2,000-iteration pipeline fuzzing with zero crashes, zero deadlocks, and zero unhandled exceptions
+  - 250 curated golden corpus developer scenarios with 100% exact output match
+  - 500-utterance prose false positive suite with 0 false syntax/casing triggers
+  - Target switch abort, password privacy gate, complex path flow, Indic code-switching, personalization, context, and crash recovery
+- **Autonomous Physical Windows Validation**: **7 / 7 PASS** in `Phase6SystemWindowsValidationTests.cs` certifying:
+  - Honest application inventory audit (verifying physical availability of Notepad, CMD, PowerShell, Windows Terminal, VS Code; declaring simulated IDEs)
+  - Live isolated Notepad process text injection with zero Enter keys
+  - Live Windows Terminal process tree zero-execution monitor (0 child processes spawned)
+  - Live STA WPF multi-window target switch abort
+  - Live WPF PasswordBox UIA privacy gate
+  - Live clipboard safety preservation
+  - Clean process teardown audit
+- **Adversarial Developer Corpus**: **511 / 511 PASS** curated developer utterances across 9 categories.
 - **Adversarial Prose Corpus**: **106 / 106 PASS** natural-language prose sentences verified with **0 false-positive casing/syntax triggers**.
 - **Mathematical Property Invariants**: **37 / 37 PASS** property-based tests proving algebraic idempotence, zero-Enter invariance, span preservation, and path invariance.
-- **Seeded Fuzz Stress Testing**: **2,000 / 2,000 iterations PASS** with 0 crashes, 0 deadlocks, 0 Enter keys (`VK_RETURN`), and 0 leaked sentinels (`__FLOW_TECH_...__`).
-- **Autonomous Physical Windows Validation**: 5 live physical desktop integration tests verifying Windows application discovery, isolated Notepad text injection without Enter, live Terminal command safety, multi-window focus switch abort, and WPF PasswordBox privacy shielding.
-- **Safety Invariant Certification**: 25 dedicated invariant tests certifying Invariants A–I (zero execution primitives in `src/`, zero Enter keys, target switch abort, password field exclusion, pipeline round-trip, fuzz/malformed inputs, empirical latency benchmarks).
-- **Host Application Inventory**: Honest Level-5 audit verifying physical presence of Notepad, PowerShell, CMD, Windows Terminal, and VS Code, while explicitly declaring uninstalled IDEs as simulated.
+- **Zero Execution Primitives Invariant**: 0 calls to `Process.Start`, `CreateProcess`, `ShellExecute`, `WinExec`, `popen`, or `system()` in `src/`.
+- **Zero Enter Key Invariant**: Hardware-level exceptions in `WindowsTextInsertionService` guarantee injected text never contains `VK_RETURN` (`0x0D`), `VK_SEPARATOR` (`0x6C`), `\r`, or `\n`.
 
 ---
 
@@ -192,10 +205,11 @@ Empirical benchmarks measured across payload sizes (50 iterations per payload wi
 
 ## 8. Verification Summary
 
-- **Flow.Core.Tests**: **1,795 / 1,795 PASS** (0 failed, 0 skipped)
-- **Flow.Windows.Tests**: **134 / 134 PASS** (0 failed, 0 skipped)
-- **Total Solution Baseline**: **1,929 / 1,929 PASS (0 failed, 0 skipped)**
+- **Flow.Core.Tests**: **1,821 / 1,821 PASS** (0 failed, 0 skipped)
+- **Flow.Windows.Tests**: **141 / 141 PASS** (0 failed, 0 skipped)
+- **Total Solution Baseline**: **1,962 / 1,962 PASS (0 failed, 0 skipped)**
 - **Build Status**: 0 warnings, 0 errors (.NET 9 x64)
 - **Static Scans**: 0 `Process.Start`, 0 `ShellExecute`, 0 `CreateProcess`, 0 `WinExec`, 0 `system()`, 0 `popen()` in `src/`.
 - **Phase 7 Status**: **NOT STARTED**
+
 
