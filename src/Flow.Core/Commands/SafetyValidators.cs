@@ -26,8 +26,9 @@ public static class UrlSafetyValidator
 
         string trimmed = rawUrl.Trim();
 
-        // If scheme is missing, default to https://
-        if (!trimmed.Contains("://", StringComparison.Ordinal))
+        // If scheme is missing (no colon present), default to https://
+        // If a colon is present (e.g. javascript:, file:, shell:), keep it as-is so scheme validation rejects it
+        if (!trimmed.Contains(':'))
         {
             trimmed = "https://" + trimmed;
         }

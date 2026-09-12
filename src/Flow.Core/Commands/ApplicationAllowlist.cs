@@ -72,6 +72,14 @@ public static class ApplicationAllowlist
 
         string normalized = appName.Trim().ToLowerInvariant();
 
+        // Strictly reject path traversal, absolute/relative paths, UNC paths, environment variables, and metacharacters
+        if (normalized.Contains('\\') || normalized.Contains('/') || normalized.Contains('%') ||
+            normalized.Contains(':') || normalized.Contains('&') || normalized.Contains('|') ||
+            normalized.Contains(';') || normalized.Contains(".."))
+        {
+            return false;
+        }
+
         foreach (var app in ApprovedApps)
         {
             if (app.Id.Equals(normalized, StringComparison.OrdinalIgnoreCase) ||

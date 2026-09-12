@@ -107,22 +107,18 @@ Passed Flow.Windows.Tests.Phase7WindowsCommandValidationTests.ProcessCleanupAudi
 
 | Test Category | Suite File | Total Cases | Passed | Failed |
 | :--- | :--- | :--- | :--- | :--- |
-| **Command State Machine** | `CommandModeStateMachineTests.cs` | 7 | 7 | 0 |
-| **Command Parser** | `CommandParserTests.cs` | 33 | 33 | 0 |
-| **Command Policy** | `CommandPolicyTests.cs` | 22 | 22 | 0 |
-| **Command Registry** | `CommandRegistryTests.cs` | 4 | 4 | 0 |
-| **Command Confirmation** | `CommandConfirmationTests.cs` | 6 | 6 | 0 |
-| **Safe Transforms** | `SafeTransformTests.cs` | 8 | 8 | 0 |
-| **Audit & Privacy** | `CommandAuditPrivacyTests.cs` | 3 | 3 | 0 |
-| **Application Allowlist** | `ApplicationAllowlistTests.cs` | 24 | 24 | 0 |
-| **Prose Safety Corpus** | `ProseSafetyCorpusTests.cs` | 500 | 500 | 0 |
-| **Command Corpus** | `CommandCorpusTests.cs` | 300 | 300 | 0 |
-| **Negative Security Corpus** | `NegativeSecurityCorpusTests.cs` | 300 | 300 | 0 |
-| **Mathematical Property Tests** | `CommandPropertyTests.cs` | 11 | 11 | 0 |
-| **Deterministic Fuzz Suite** | `CommandFuzzTests.cs` | 5,000 iterations (1 test) | 1 | 0 |
-| **Live Windows Physical Validation** | `Phase7WindowsCommandValidationTests.cs` | 6 | 6 | 0 |
+| **Command State Machine & Safety** | `Phase75StateMachineAndSafetyTests.cs` | 165 | 165 | 0 |
+| **Normal Dictation Isolation** | `Phase75NormalDictationIsolationTests.cs` | 11 | 11 | 0 |
+| **Parser Adversarial Suite** | `Phase75ParserAdversarialTests.cs` | 3 | 3 | 0 |
+| **Transforms & Multilingual** | `Phase75TransformAndMultilingualTests.cs` | 234 | 234 | 0 |
+| **Target Binding & Confirmation** | `Phase75TargetBindingAndConfirmationTests.cs` | 22 | 22 | 0 |
+| **Deterministic Pipeline Fuzz** | `Phase75PipelineFuzzTests.cs` | 10,000 iterations (1 test) | 1 | 0 |
+| **Live Windows Adversarial Audit** | `Phase75WindowsLiveAuditTests.cs` | 8 | 8 | 0 |
+| **Phase 7 Baseline Suites** | `Command*.cs`, `Prose*.cs`, etc. | 1,186 | 1,186 | 0 |
 | **Phases 1–6 Regression Baseline** | All prior suites | 1,962 | 1,962 | 0 |
-| **TOTAL SOLUTION TESTS** | **Entire Solution** | **3,285** | **3,285 (100%)** | **0** |
+| **TOTAL SOLUTION TESTS** | **Entire Solution** | **3,729** | **3,729 (100%)** | **0** |
+
+> See [docs/PHASE_7_5_FINAL_AUDIT.md](file:///c:/Users/barat/OneDrive/Desktop/FLOW/docs/PHASE_7_5_FINAL_AUDIT.md) for full 53-section adversarial audit certification.
 
 ---
 
@@ -133,3 +129,4 @@ Passed Flow.Windows.Tests.Phase7WindowsCommandValidationTests.ProcessCleanupAudi
 - [x] **Zero Cloud LLM / Network Dependency**: 100% offline deterministic execution. Zero cloud API calls.
 - [x] **Fail-Closed Protection**: Password controls, credential dialogs, and conversational prose permanently reject command execution.
 - [x] **Zero Process Orphan Leakage**: Live processes used in physical verification tests are cleaned up deterministically.
+- [x] **Phase 7.5 Adversarial Audit Passed**: Certified and frozen with 3,729 / 3,729 tests passing. Phase 8 NOT started.

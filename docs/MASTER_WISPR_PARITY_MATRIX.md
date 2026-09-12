@@ -101,9 +101,9 @@
 
 | ID | Capability | Wispr Windows Behavior | FLOW Level | FLOW Architecture & Module | Phase | Verification Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **WF-036** | **Command Mode Trigger** | Dedicated secondary shortcut activates command voice input. | **Level 5** | `CommandModeStateMachine.cs`, `GlobalHotkeyHook.cs` (`Ctrl + Right Alt`), `WindowsCommandCoordinator.cs` | Phase 7 | Physical Desktop Verified (3,285 tests passing); dedicated 8-state machine, liveness check, target binding |
-| **WF-037** | **Voice Text Formatting** | Highlight text, speak command (*"make this bullet points"*, *"make concise"*). | **Level 5** | `DeterministicCommandParser.cs`, `DeterministicTextTransformEngine.cs`, `WindowsSafeTransformService.cs` | Phase 7 | Physical Desktop Verified (3,285 tests passing); 19 safe transforms, multilingual (EN, Tamil, Hindi), live Notepad & UIA |
-| **WF-038** | **Zero-Destructive Safety** | Prohibits automated Enter, Send, Submit, Delete, or file system execution. | **Level 5** | `DeterministicCommandPolicy.cs`, `CommandConfirmationService.cs`, `ApplicationAllowlist.cs` | Phase 7 | Physical Desktop Verified (3,285 tests passing); 0 execution primitives in `src/`, 0 Enter keys, 500 prose / 300 security tests |
+| **WF-036** | **Command Mode Trigger** | Dedicated secondary shortcut activates command voice input. | **Level 5** | `CommandModeStateMachine.cs`, `GlobalHotkeyHook.cs` (`Ctrl + Right Alt`), `WindowsCommandCoordinator.cs` | Phase 7 & 7.5 | Adversarially Certified & Frozen (3,729 tests passing); dedicated 8-state machine, liveness check, target binding |
+| **WF-037** | **Voice Text Formatting** | Highlight text, speak command (*"make this bullet points"*, *"make concise"*). | **Level 5** | `DeterministicCommandParser.cs`, `DeterministicTextTransformEngine.cs`, `WindowsSafeTransformService.cs` | Phase 7 & 7.5 | Adversarially Certified & Frozen (3,729 tests passing); 19 safe transforms, multilingual (EN, Tamil, Hindi), live Notepad & UIA |
+| **WF-038** | **Zero-Destructive Safety** | Prohibits automated Enter, Send, Submit, Delete, or file system execution. | **Level 5** | `DeterministicCommandPolicy.cs`, `CommandConfirmationService.cs`, `ApplicationAllowlist.cs` | Phase 7 & 7.5 | Adversarially Certified & Frozen (3,729 tests passing); 0 execution primitives in `src/`, 0 Enter keys, 1,000 prose / 1,000 security / 10,000 fuzz tests |
 
 ---
 

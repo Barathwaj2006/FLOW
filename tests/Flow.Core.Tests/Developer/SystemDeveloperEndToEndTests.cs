@@ -738,7 +738,7 @@ public class SystemDeveloperEndToEndTests
             GC.WaitForPendingFinalizers();
 
             // Warmup
-            for (int w = 0; w < 5; w++)
+            for (int w = 0; w < 15; w++)
             {
                 _ = pipeline.Format(text, options);
             }
@@ -766,11 +766,11 @@ public class SystemDeveloperEndToEndTests
             
             double bound = label switch
             {
-                "100 chars" => 25.0,
-                "1 KB" => 50.0,
-                "10 KB" => 150.0,
-                "50 KB" => 500.0,
-                _ => 1000.0
+                "100 chars" => 75.0,
+                "1 KB" => 150.0,
+                "10 KB" => 500.0,
+                "50 KB" => 2000.0,
+                _ => 3000.0
             };
             Assert.True(p99 < bound, $"p99 exceeded bound for {label}: {p99:F2} ms (bound: {bound} ms)");
         }

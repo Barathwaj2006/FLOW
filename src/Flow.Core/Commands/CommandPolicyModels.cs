@@ -74,8 +74,16 @@ public sealed class DeterministicCommandPolicy : ICommandPolicy
         (new Regex(@"\bpowershell(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "PowerShell process execution is strictly blocked."),
         (new Regex(@"\bpwsh(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "PowerShell Core process execution is strictly blocked."),
         (new Regex(@"\bbash(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Bash shell execution is strictly blocked."),
+        (new Regex(@"\bsh\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Unix shell execution is strictly blocked."),
         (new Regex(@"\bwscript(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Windows Script Host execution is strictly blocked."),
         (new Regex(@"\bcscript(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Console Script Host execution is strictly blocked."),
+        (new Regex(@"\bcurl\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Curl network download execution is strictly blocked."),
+        (new Regex(@"\bwget\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Wget network download execution is strictly blocked."),
+
+        // Windows execution primitives & API calls
+        (new Regex(@"\bcreateprocess\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Direct process creation primitives are strictly blocked."),
+        (new Regex(@"\bshellexecute(ex)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "ShellExecute primitives are strictly blocked."),
+        (new Regex(@"\bprocess\.start\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Process.Start execution is strictly blocked."),
 
         // Filesystem destruction & mass deletion
         (new Regex(@"\brm\s+(-[rfRF]+|\S+)", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Filesystem removal commands are strictly blocked."),
@@ -86,6 +94,10 @@ public sealed class DeterministicCommandPolicy : ICommandPolicy
         (new Regex(@"\brd\s+/[sqSQ]", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Directory tree removal commands are strictly blocked."),
         (new Regex(@"\bformat\s+([a-zA-Z]:|drive|disk)", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Drive format commands are strictly blocked."),
         (new Regex(@"\bdiskpart\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Disk partitioning commands are strictly blocked."),
+
+        // Registry manipulation
+        (new Regex(@"\bregistry\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Registry operations are strictly blocked."),
+        (new Regex(@"\breg\s+(add|delete|query|import|export)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Reg CLI operations are strictly blocked."),
 
         // Process termination
         (new Regex(@"\btaskkill\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Process termination commands are strictly blocked."),

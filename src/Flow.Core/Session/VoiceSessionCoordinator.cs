@@ -392,6 +392,11 @@ public sealed class VoiceSessionCoordinator
             double duration = _ringBuffer.BufferedDurationSeconds;
             if (duration < 0.2 || (!_hasDetectedSpeechInSession && duration < 0.5))
             {
+                lock (_stateLock)
+                {
+                    _sessionMode = SessionMode.Dictation;
+                    _activeSelectedText = null;
+                }
                 SetState(SessionState.Cancelled, "No speech detected");
                 _ringBuffer.Clear();
                 return false;
@@ -437,6 +442,7 @@ public sealed class VoiceSessionCoordinator
 
             if (string.IsNullOrWhiteSpace(asrResult.Text))
             {
+                _sessionMode = SessionMode.Dictation;
                 SetState(SessionState.Cancelled, "Empty transcription");
                 return false;
             }
@@ -444,95 +450,105 @@ public sealed class VoiceSessionCoordinator
             // Command Mode Processing Branch (WF-036, WF-037A, WF-038)
             if (_sessionMode == SessionMode.Command)
             {
-                // WF-038: Zero-Destructive Command Safety Check
-                var safetyResult = _safetyPolicy.EvaluateTranscript(asrResult.Text);
-                if (safetyResult.Verdict == CommandSafetyVerdict.Blocked)
+                try
                 {
-                    _logger?.LogWarning("Command execution blocked by safety policy: {Reason} (Token: {Token})", safetyResult.Reason, safetyResult.ProhibitedToken);
-                    SetState(SessionState.Cancelled, $"Blocked: {safetyResult.Reason}");
-                    SessionWarning?.Invoke($"Command blocked: {safetyResult.Reason}");
-                    return false;
-                }
-
-                // Parse command into typed intent
-                var intent = _commandParser.Parse(asrResult.Text);
-                var intentSafety = _safetyPolicy.EvaluateIntent(intent);
-
-                if (intentSafety.Verdict == CommandSafetyVerdict.Blocked)
-                {
-                    _logger?.LogWarning("Command intent blocked by safety policy: {Reason}", intentSafety.Reason);
-                    SetState(SessionState.Cancelled, $"Blocked: {intentSafety.Reason}");
-                    SessionWarning?.Invoke($"Command blocked: {intentSafety.Reason}");
-                    return false;
-                }
-
-                if (intentSafety.Verdict == CommandSafetyVerdict.Unknown || intent is UnknownCommandIntent)
-                {
-                    _logger?.LogInformation("Command not recognized: {Transcript}. Failing closed.", asrResult.Text);
-                    SetState(SessionState.Cancelled, $"Unknown: {asrResult.Text}");
-                    SessionWarning?.Invoke($"Unrecognized command: \"{asrResult.Text}\"");
-                    return false;
-                }
-
-                // Execute validated command
-                if (intent is TransformCommandIntent transformIntent)
-                {
-                    if (string.IsNullOrWhiteSpace(_activeSelectedText))
+                    // WF-038: Zero-Destructive Command Safety Check
+                    var safetyResult = _safetyPolicy.EvaluateTranscript(asrResult.Text);
+                    if (safetyResult.Verdict == CommandSafetyVerdict.Blocked)
                     {
-                        _logger?.LogInformation("Transform command requested but no text was selected.");
-                        SetState(SessionState.Completed, "No text selected");
-                        SessionWarning?.Invoke("No text selected to transform. Highlight text first.");
-                        return true;
-                    }
-
-                    string transformed = _transformEngine.Transform(_activeSelectedText, transformIntent.Transform);
-
-                    // WF-030: Secondary defense-in-depth password check before insertion
-                    if (_contextService.IsFocusInPasswordField())
-                    {
-                        _logger?.LogWarning("EndSessionAsync insertion blocked: Focused UI element is a password or credential field.");
-                        SetState(SessionState.Cancelled, "Password field detected — insertion blocked");
+                        _logger?.LogWarning("Command execution blocked by safety policy: {Reason} (Token: {Token})", safetyResult.Reason, safetyResult.ProhibitedToken);
+                        SetState(SessionState.Cancelled, $"Blocked: {safetyResult.Reason}");
+                        SessionWarning?.Invoke($"Command blocked: {safetyResult.Reason}");
                         return false;
                     }
 
-                    SetState(SessionState.Inserting, $"Transform: {transformIntent.Transform}");
+                    // Parse command into typed intent
+                    var intent = _commandParser.Parse(asrResult.Text);
+                    var intentSafety = _safetyPolicy.EvaluateIntent(intent);
 
-                    var transformResult = await _insertionService.InsertTextAsync(transformed, ct);
-                    if (transformResult.Success)
+                    if (intentSafety.Verdict == CommandSafetyVerdict.Blocked)
                     {
-                        var record = new InsertionRecord(
-                            Guid.NewGuid(),
-                            transformed,
-                            transformResult.InsertedLength > 0 ? transformResult.InsertedLength : transformed.Length,
-                            DateTimeOffset.UtcNow,
-                            transformResult.TargetHwnd,
-                            transformResult.TargetApplicationName ?? "Unknown",
-                            transformResult.TargetProcessId,
-                            transformResult.StrategyUsed
-                        );
-                        _historyTracker.RecordInsertion(record);
-
-                        FinalTextInserted?.Invoke(transformed);
-                        CommandProcessed?.Invoke(transformIntent, intentSafety);
-                        SetState(SessionState.Completed, $"Transformed: {transformIntent.Transform}");
-                        return true;
-                    }
-                    else
-                    {
-                        SetState(SessionState.Error, transformResult.ErrorMessage ?? "Transform insertion failed");
+                        _logger?.LogWarning("Command intent blocked by safety policy: {Reason}", intentSafety.Reason);
+                        SetState(SessionState.Cancelled, $"Blocked: {intentSafety.Reason}");
+                        SessionWarning?.Invoke($"Command blocked: {intentSafety.Reason}");
                         return false;
                     }
-                }
-                else if (intent is EditorCommandIntent editorIntent)
-                {
-                    if (editorIntent.ActionName == "undo")
+
+                    if (intentSafety.Verdict == CommandSafetyVerdict.Unknown || intent is UnknownCommandIntent)
                     {
-                        return await BacktrackAsync(ct);
+                        _logger?.LogInformation("Command not recognized: {Transcript}. Failing closed.", asrResult.Text);
+                        SetState(SessionState.Cancelled, $"Unknown: {asrResult.Text}");
+                        SessionWarning?.Invoke($"Unrecognized command: \"{asrResult.Text}\"");
+                        return false;
                     }
 
-                    CommandProcessed?.Invoke(editorIntent, intentSafety);
-                    SetState(SessionState.Completed, $"Executed: {editorIntent.ActionName}");
-                    return true;
+                    // Execute validated command
+                    if (intent is TransformCommandIntent transformIntent)
+                    {
+                        if (string.IsNullOrWhiteSpace(_activeSelectedText))
+                        {
+                            _logger?.LogInformation("Transform command requested but no text was selected.");
+                            SetState(SessionState.Completed, "No text selected");
+                            SessionWarning?.Invoke("No text selected to transform. Highlight text first.");
+                            return true;
+                        }
+
+                        string transformed = _transformEngine.Transform(_activeSelectedText, transformIntent.Transform);
+
+                        // WF-030: Secondary defense-in-depth password check before insertion
+                        if (_contextService.IsFocusInPasswordField())
+                        {
+                            _logger?.LogWarning("EndSessionAsync insertion blocked: Focused UI element is a password or credential field.");
+                            SetState(SessionState.Cancelled, "Password field detected — insertion blocked");
+                            return false;
+                        }
+
+                        SetState(SessionState.Inserting, $"Transform: {transformIntent.Transform}");
+
+                        var transformResult = await _insertionService.InsertTextAsync(transformed, ct);
+                        if (transformResult.Success)
+                        {
+                            var record = new InsertionRecord(
+                                Guid.NewGuid(),
+                                transformed,
+                                transformResult.InsertedLength > 0 ? transformResult.InsertedLength : transformed.Length,
+                                DateTimeOffset.UtcNow,
+                                transformResult.TargetHwnd,
+                                transformResult.TargetApplicationName ?? "Unknown",
+                                transformResult.TargetProcessId,
+                                transformResult.StrategyUsed
+                            );
+                            _historyTracker.RecordInsertion(record);
+
+                            FinalTextInserted?.Invoke(transformed);
+                            CommandProcessed?.Invoke(transformIntent, intentSafety);
+                            SetState(SessionState.Completed, $"Transformed: {transformIntent.Transform}");
+                            return true;
+                        }
+                        else
+                        {
+                            SetState(SessionState.Error, transformResult.ErrorMessage ?? "Transform insertion failed");
+                            return false;
+                        }
+                    }
+                    else if (intent is EditorCommandIntent editorIntent)
+                    {
+                        if (editorIntent.ActionName == "undo")
+                        {
+                            return await BacktrackAsync(ct);
+                        }
+
+                        CommandProcessed?.Invoke(editorIntent, intentSafety);
+                        SetState(SessionState.Completed, $"Executed: {editorIntent.ActionName}");
+                        return true;
+                    }
+
+                    return false;
+                }
+                finally
+                {
+                    // Inviolable guarantee: Command Mode ALWAYS resets to Dictation after turn ends
+                    _sessionMode = SessionMode.Dictation;
                 }
             }
 
@@ -635,6 +651,12 @@ public sealed class VoiceSessionCoordinator
             // Reset session language override to enforce session isolation (WF-021)
             _languageSessionService.ResetSession();
 
+            lock (_stateLock)
+            {
+                _sessionMode = SessionMode.Dictation;
+                _activeSelectedText = null;
+            }
+
             // Auto-return to Idle state after short interval
             _ = Task.Run(async () =>
             {
@@ -643,8 +665,6 @@ public sealed class VoiceSessionCoordinator
                 {
                     if (_currentState is SessionState.Completed or SessionState.Cancelled or SessionState.Error)
                     {
-                        _sessionMode = SessionMode.Dictation;
-                        _activeSelectedText = null;
                         InvalidateContext();
                         SetState(SessionState.Idle);
                     }

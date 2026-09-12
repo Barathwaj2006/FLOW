@@ -172,6 +172,16 @@ public sealed class WindowsCommandCoordinator
         Stopwatch sw,
         CancellationToken cancellationToken)
     {
+        // Re-verify target liveness immediately prior to executing
+        if (!WindowsCommandTarget.IsTargetStillActive(context.TargetHwnd, context.TargetProcessId))
+        {
+            _logger?.LogWarning("Command execution aborted: Target window focus changed prior to execution.");
+            _stateMachine.TryTransitionTo(CommandModeState.Failed, "Target focus changed");
+            var lostResult = CommandResult.CreateTargetLost("liveness", CommandIntentType.Unknown);
+            RecordAudit(context, lostResult, sw.Elapsed);
+            return lostResult;
+        }
+
         _stateMachine.TryTransitionTo(CommandModeState.Executing, $"Executing {intent.GetType().Name}");
 
         CommandResult result;
@@ -181,6 +191,9 @@ public sealed class WindowsCommandCoordinator
             {
                 TransformCommandIntent transformIntent =>
                     await _transformService.ExecuteTransformAsync(context.SelectionText ?? string.Empty, transformIntent.Transform, context, cancellationToken),
+
+                DeleteSelectionIntent =>
+                    await ExecuteDeleteSelectionAsync(context, cancellationToken),
 
                 EditorCommandIntent editorIntent when editorIntent.ActionName == "undo" =>
                     await ExecuteUndoAsync(context, cancellationToken),
@@ -241,6 +254,16 @@ public sealed class WindowsCommandCoordinator
             return CommandResult.CreateSuccess("undo", CommandIntentType.Undo, "Undid previous action.");
         }
         return CommandResult.CreateRejected("undo", CommandIntentType.Undo, "Nothing to undo or backtrack target mismatch.");
+    }
+
+    private async Task<CommandResult> ExecuteDeleteSelectionAsync(CommandExecutionContext context, CancellationToken ct)
+    {
+        var insertionResult = await _insertionService.InsertTextAsync(string.Empty, ct);
+        if (insertionResult.Success)
+        {
+            return CommandResult.CreateSuccess("delete_selection", CommandIntentType.DeleteSelection, "Deleted selected text.");
+        }
+        return CommandResult.CreateRejected("delete_selection", CommandIntentType.DeleteSelection, insertionResult.ErrorMessage ?? "Failed to delete selection.");
     }
 
     private static CommandResult ExecuteEditorAction(string actionName, CommandExecutionContext context)

@@ -19,7 +19,7 @@ public sealed class DeterministicCommandSafetyPolicy : ICommandSafetyPolicy
         // System control & power operations
         (new Regex(@"\bshutdown\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "System shutdown commands are strictly blocked."),
         (new Regex(@"\breboot\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "System reboot commands are strictly blocked."),
-        (new Regex(@"\brestart-computer\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "System restart commands are strictly blocked."),
+        (new Regex(@"\b(restart|restart-computer)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "System restart commands are strictly blocked."),
         (new Regex(@"\bpoweroff\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "System poweroff commands are strictly blocked."),
         (new Regex(@"\blogoff\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "System logoff commands are strictly blocked."),
 
@@ -28,23 +28,35 @@ public sealed class DeterministicCommandSafetyPolicy : ICommandSafetyPolicy
         (new Regex(@"\bpowershell(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "PowerShell process execution is strictly blocked."),
         (new Regex(@"\bpwsh(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "PowerShell Core process execution is strictly blocked."),
         (new Regex(@"\bbash(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Bash shell execution is strictly blocked."),
+        (new Regex(@"\bsh\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Unix shell execution is strictly blocked."),
         (new Regex(@"\bwscript(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Windows Script Host execution is strictly blocked."),
         (new Regex(@"\bcscript(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Console Script Host execution is strictly blocked."),
+        (new Regex(@"\bcurl\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Curl network download execution is strictly blocked."),
+        (new Regex(@"\bwget\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Wget network download execution is strictly blocked."),
+
+        // Windows execution primitives & API calls
+        (new Regex(@"\bcreateprocess\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Direct process creation primitives are strictly blocked."),
+        (new Regex(@"\bshellexecute(ex)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "ShellExecute primitives are strictly blocked."),
+        (new Regex(@"\bprocess\.start\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Process.Start execution is strictly blocked."),
 
         // Filesystem destruction & mass deletion
-        (new Regex(@"\brm\s+(-[rfRF]+|\S+)", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Filesystem removal commands are strictly blocked."),
-        (new Regex(@"\bdel\s+([a-zA-Z0-9_\-\*\\/.]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled), "File deletion commands are strictly blocked."),
-        (new Regex(@"\berase\s+([a-zA-Z0-9_\-\*\\/.]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled), "File erase commands are strictly blocked."),
+        (new Regex(@"\brm\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Filesystem removal commands are strictly blocked."),
+        (new Regex(@"\bdel\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "File deletion commands are strictly blocked."),
+        (new Regex(@"\berase\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "File erase commands are strictly blocked."),
         (new Regex(@"\bremove-item\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "PowerShell Remove-Item commands are strictly blocked."),
         (new Regex(@"\brmdir\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Directory removal commands are strictly blocked."),
         (new Regex(@"\brd\s+/[sqSQ]", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Directory tree removal commands are strictly blocked."),
-        (new Regex(@"\bformat\s+([a-zA-Z]:|drive|disk)", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Drive format commands are strictly blocked."),
+        (new Regex(@"\bformat(?!\s+(as\s+)?(bullets?|bullet\s+list|numbered|a\s+numbered))\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Drive format commands are strictly blocked."),
         (new Regex(@"\bdiskpart\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Disk partitioning commands are strictly blocked."),
+
+        // Registry manipulation
+        (new Regex(@"\bregistry\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Registry operations are strictly blocked."),
+        (new Regex(@"\breg\s+(add|delete|query|import|export)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Reg CLI operations are strictly blocked."),
 
         // Process termination & task killing
         (new Regex(@"\btaskkill\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Process termination commands are strictly blocked."),
         (new Regex(@"\bstop-process\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Process termination commands are strictly blocked."),
-        (new Regex(@"\bkill\s+(-9|\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Process kill commands are strictly blocked."),
+        (new Regex(@"\bkill\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Process kill commands are strictly blocked."),
 
         // Database destruction
         (new Regex(@"\bdrop\s+(table|database|schema)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Database drop commands are strictly blocked."),
@@ -101,6 +113,14 @@ public sealed class DeterministicCommandSafetyPolicy : ICommandSafetyPolicy
         {
             TransformCommandIntent => new CommandSafetyResult(CommandSafetyVerdict.Safe, "Text transformation intent is safe."),
             EditorCommandIntent editor => EvaluateEditorAction(editor.ActionName),
+            CancelCommandIntent => new CommandSafetyResult(CommandSafetyVerdict.Safe, "Cancellation intent is safe."),
+            DeleteSelectionIntent => new CommandSafetyResult(CommandSafetyVerdict.Safe, "Delete selection intent is safe when confirmed."),
+            ApplicationCommandIntent app => ApplicationAllowlist.IsAllowed(app.ApplicationName)
+                ? new CommandSafetyResult(CommandSafetyVerdict.Safe, $"Allowlisted app '{app.ApplicationName}' is safe.")
+                : new CommandSafetyResult(CommandSafetyVerdict.Blocked, $"App '{app.ApplicationName}' is not allowlisted."),
+            UrlCommandIntent url => UrlSafetyValidator.TryValidateUrl(url.ValidatedUrl.ToString(), out _, out _)
+                ? new CommandSafetyResult(CommandSafetyVerdict.Safe, "Validated URL is safe.")
+                : new CommandSafetyResult(CommandSafetyVerdict.Blocked, "Prohibited URL scheme."),
             UnknownCommandIntent unk => new CommandSafetyResult(CommandSafetyVerdict.Unknown, unk.FailureReason),
             _ => new CommandSafetyResult(CommandSafetyVerdict.Unknown, "Unrecognized intent type.")
         };

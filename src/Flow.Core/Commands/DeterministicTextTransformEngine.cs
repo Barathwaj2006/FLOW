@@ -133,6 +133,18 @@ public sealed class DeterministicTextTransformEngine : ITextTransformEngine, ITe
             return rawLines.Select(l => l.Trim()).Where(l => !string.IsNullOrWhiteSpace(l)).ToList();
         }
 
+        // Check if text already has multiple numbered or bullet items on the same line
+        if (Regex.IsMatch(text, @"\b\d+[\.\)]\s+"))
+        {
+            var splitNumbered = Regex.Split(text, @"(?:\s+|^)(?=\d+[\.\)]\s+)").Select(s => s.Trim()).Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+            if (splitNumbered.Count > 0) return splitNumbered;
+        }
+        if (text.Contains('•') || text.Contains('-') || text.Contains('*'))
+        {
+            var splitBullets = Regex.Split(text, @"(?:\s+|^)(?=[-*•]\s+)").Select(s => s.Trim()).Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+            if (splitBullets.Count > 1) return splitBullets;
+        }
+
         // If single line with commas, split on commas if at least 2 commas present
         if (text.Count(c => c == ',') >= 2)
         {
@@ -140,8 +152,8 @@ public sealed class DeterministicTextTransformEngine : ITextTransformEngine, ITe
             return commaItems.Select(c => c.Trim().TrimEnd('.')).Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
         }
 
-        // Split on sentences (. followed by space or end)
-        var sentenceMatches = Regex.Split(text, @"(?<=[.!?])\s+");
+        // Split on sentences (. followed by space or end), but NOT on numbers like "1. "
+        var sentenceMatches = Regex.Split(text, @"(?<!\b\d+)(?<=[.!?])\s+");
         var items = sentenceMatches.Select(s => s.Trim().TrimEnd('.', '!', '?')).Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
 
         if (items.Count > 0) return items;

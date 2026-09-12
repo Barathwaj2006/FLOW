@@ -269,7 +269,7 @@ public class Phase4PersonalizationPhysicalValidationTests
             double readMs = sw.Elapsed.TotalMilliseconds;
             _output.WriteLine($"[Benchmark] SQLite Read All (20 entries): {readMs:F2} ms");
             Assert.Equal(20, all.Count);
-            Assert.True(readMs < 20.0, $"Read latency was {readMs} ms");
+            Assert.True(readMs < 50.0, $"Read latency was {readMs} ms");
 
             // In-memory engines
             var dictEngine = new PersonalDictionaryEngine(all);

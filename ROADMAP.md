@@ -95,11 +95,11 @@ The objective is to implement the complete set of applicable capabilities curren
 * IDE integration: VS Code, Windows Terminal, PowerShell, CMD physically validated; voice file tagging (`@file.ext`).
 * Production Certification: 1,962 solution tests passing (1,821 Core + 141 Windows); 511 adversarial developer cases (0 corruptions), 106 adversarial prose cases (0 false positives), 37 mathematical property tests, 2,000-iteration seeded fuzzing suite, 26 whole-system end-to-end scenarios, 7 live Windows system validation tests. Zero shell execution, zero Enter key injection.
 
-#### 2E — Command Mode (Complete & Certified — Phase 7)
+#### 2E — Command Mode (Complete & Adversarially Certified — Phase 7 & 7.5 Frozen)
 * Dedicated command shortcut / state (`Ctrl + Right Alt`, `CommandModeStateMachine`).
 * Voice commands for: Edit, Select, Delete, Replace, Format, and Search (Multilingual: English, Tamil, Hindi).
 * **Inviolable Safety Rule**: Never silently send, submit, execute, confirm, or perform irreversible destructive actions.
-* Production Certification: 3,285 solution tests passing (3,138 Core + 147 Windows, 100% pass); 500-case prose safety corpus (0 false positives), 300-case command corpus (100% recognition), 300-case negative security corpus (100% blocked), 11 mathematical property tests, 5,000-iteration seeded fuzzing suite, 6 live Windows system physical validation tests (Notepad, Terminal, PasswordBox, TargetSwitch, Confirmation, Cleanup). Zero execution primitives in `src/`, zero Enter keys emitted. Normal dictation remains strictly text-only.
+* Production Certification: 3,729 solution tests passing (3,574 Core + 155 Windows, 100% pass, 0 failed, 0 skipped); 1,000-case prose safety corpus (100% text-only inert dictation), 1,000-case command corpus (100% recognition), 1,000-case ambiguous corpus (100% fail-closed), 42 dangerous shell tokens blocked, 19 idempotent transforms verified, 10,000-iteration seeded fuzzing suite, 2,000-session sequential stability verified, 8 live Windows system physical validation tests. Static scan confirms 0 execution primitives in `src/`, zero Enter keys emitted. Normal dictation remains strictly text-only. Phase 7 certified and frozen.
 
 #### 2F — History & Productivity
 * Transcript history log with full-text search.
