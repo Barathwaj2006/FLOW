@@ -22,7 +22,9 @@ public sealed record ASRResult(
     TimeSpan AudioDuration,
     TimeSpan InferenceDuration,
     string EngineId,
-    IReadOnlyList<ASRSegment> Segments
+    IReadOnlyList<ASRSegment> Segments,
+    string? DetectedLanguage = null,
+    float? LanguageConfidence = null
 )
 {
     public static ASRResult Empty(string engineId = "none") =>

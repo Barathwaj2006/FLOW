@@ -4,8 +4,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using Flow.Core.ASR;
 using Flow.Core.Audio;
+using Flow.Core.Commands;
 using Flow.Core.Language;
 using Flow.Core.Session;
+using Flow.Core.Personalization.Dictionary;
+using Flow.Core.Personalization.Snippets;
+using Flow.Core.Personalization.Styles;
+using Flow.Core.Storage;
+using Flow.Core.TranscriptProcessing;
 using Flow.Host.Windows.Native;
 using Flow.Host.Windows.Tray;
 using Flow.Host.Windows.UI;
@@ -46,27 +52,49 @@ public static class Program
         // Register strictly production ASR (zero mocks in production path)
         asrRegistry.Register(localWhisper, isDefault: true, priority: 10);
 
-        var sanitizer = new DeterministicTextSanitizer();
+        // Personalization persistence & engines (Phase 2D)
+        var personalizationDb = new SqlitePersonalizationDatabase();
+        var dictRepo = new SqlitePersonalDictionaryRepository(personalizationDb);
+        var dictEngine = new PersonalDictionaryEngine(dictRepo);
+        var snippetRepo = new SqliteSnippetRepository(personalizationDb);
+        var snippetEngine = new SnippetExpansionEngine(snippetRepo);
+        var styleRepo = new SqliteStyleRepository(personalizationDb);
+        var styleEngine = new StyleFormattingEngine(styleRepo);
+
+        // Load personalization caches
+        Task.Run(async () =>
+        {
+            await dictEngine.ReloadAsync();
+            await snippetEngine.ReloadAsync();
+            await styleEngine.ReloadAsync();
+        }).GetAwaiter().GetResult();
+
+        // Production Multi-Pass Formatting Pipeline: Whitespace normalization, entity protection,
+        // spoken punctuation, snippets expansion, personal dictionary, conservative filler removal,
+        // numbered lists, style formatting, smart capitalization, and Zero-Enter invariant.
+        var formattingPipeline = new TranscriptProcessingPipeline(dictEngine, snippetEngine, styleEngine);
         var insertionLogger = loggerFactory.CreateLogger<WindowsTextInsertionService>();
         var insertionService = new WindowsTextInsertionService(insertionLogger);
 
         var coordinatorLogger = loggerFactory.CreateLogger<VoiceSessionCoordinator>();
+        var contextService = new WindowsUIAutomationContextService(loggerFactory.CreateLogger<WindowsUIAutomationContextService>());
         // Enforce 20-minute desktop ceiling with 19-minute warning
         _coordinator = new VoiceSessionCoordinator(
             ringBuffer,
             vad,
             asrRegistry,
-            sanitizer,
+            formattingPipeline,
             insertionService,
             coordinatorLogger,
             maxRecordingSeconds: 1200.0,  // 20 minutes
-            warningThresholdSeconds: 1140.0 // 19 minutes
+            warningThresholdSeconds: 1140.0, // 19 minutes
+            contextService: contextService
         );
 
         // 2. Windows UI & System Tray
         _hud = new FloatingHudController();
         _tray = new TrayIconManager(IntPtr.Zero);
-        _tray.Install("FLOW — Local Voice Dictation (Hold Right-Alt to speak, double-tap for hands-free)");
+        _tray.Install("FLOW — Local Voice Dictation (Right-Alt to speak, double-tap for hands-free, Shift+Right-Alt to backtrack)");
 
         // 3. Live WASAPI Audio Capture
         _capture = new WasapiAudioCapture(chunk =>
@@ -74,7 +102,16 @@ public static class Program
             _coordinator.ProcessAudioChunk(chunk);
         }, loggerFactory.CreateLogger<WasapiAudioCapture>());
 
-        // 4. Global Push-to-Talk and Double-Tap Hands-Free Hook
+        _capture.CaptureError += ex =>
+        {
+            logger.LogError(ex, "Physical microphone capture failed or disconnected.");
+            _ = Task.Run(async () =>
+            {
+                await _coordinator.CancelSessionAsync($"Mic error: {ex.Message}");
+            });
+        };
+
+        // 4. Global Push-to-Talk, Double-Tap Hands-Free, and Backtrack Hook
         _hotkeyHook = new GlobalHotkeyHook(GlobalHotkeyHook.DefaultHotkeyVk, doubleTapThresholdMs: 350.0);
 
         _hotkeyHook.HotkeyDown += (isHandsFree) =>
@@ -104,16 +141,57 @@ public static class Program
             });
         };
 
+        // 5. Dedicated Command Mode Shortcut (WF-036: Ctrl + Right Alt)
+        _hotkeyHook.CommandModeHotkeyDown += () =>
+        {
+            _ = Task.Run(async () =>
+            {
+                logger.LogInformation("Command Mode hotkey triggered (Ctrl+RightAlt).");
+                await _coordinator.StartCommandSessionAsync();
+                _capture.Start();
+            });
+        };
+
+        _hotkeyHook.CommandModeHotkeyUp += () =>
+        {
+            _ = Task.Run(async () =>
+            {
+                _capture.Stop();
+                await _coordinator.EndSessionAsync();
+            });
+        };
+
+        _hotkeyHook.BacktrackRequested += () =>
+        {
+            _ = Task.Run(async () =>
+            {
+                logger.LogInformation("Backtrack hotkey triggered. Reverting last insertion...");
+                bool success = await _coordinator.BacktrackAsync();
+                if (success)
+                {
+                    logger.LogInformation("Backtrack successfully reverted previous insertion.");
+                }
+                else
+                {
+                    logger.LogWarning("Backtrack safe no-op: Focus changed or no insertion history.");
+                }
+            });
+        };
+
         _coordinator.StateChanged += (state, detail) =>
         {
-            _hud.UpdateState(state, detail);
+            if (state != SessionState.Recording && _capture.IsCapturing)
+            {
+                _capture.Stop();
+            }
+            _hud.UpdateState(state, detail, _coordinator.CurrentMode == SessionMode.Command);
             _tray.UpdateTooltip($"FLOW — {detail ?? state.ToString()}");
         };
 
         _coordinator.SessionWarning += warning =>
         {
             logger.LogWarning("Session Warning: {Warning}", warning);
-            _hud.UpdateState(_coordinator.CurrentState, warning);
+            _hud.UpdateState(_coordinator.CurrentState, warning, _coordinator.CurrentMode == SessionMode.Command);
             _tray.UpdateTooltip($"FLOW: {warning}");
         };
 
@@ -122,9 +200,21 @@ public static class Program
             _hud.UpdateAudioLevel(rms);
         };
 
+        _coordinator.CommandProcessed += (intent, safety) =>
+        {
+            if (intent is TransformCommandIntent t)
+            {
+                logger.LogInformation("Command Mode: Applied Transform '{Transform}'. Safety Policy: {Verdict}", t.Transform, safety.Verdict);
+            }
+            else if (intent is EditorCommandIntent e)
+            {
+                logger.LogInformation("Command Mode: Executed Editor Action '{Action}'. Safety Policy: {Verdict}", e.ActionName, safety.Verdict);
+            }
+        };
+
         _coordinator.FinalTextInserted += text =>
         {
-            logger.LogInformation("Text inserted successfully into target cursor position. Length: {Length}", text.Length);
+            logger.LogInformation("Text inserted successfully into target cursor position. Length: {Length}. [Zero-Enter: VK_RETURN=0, CR=0, LF=0]", text.Length);
         };
 
         // Start keyboard hook
@@ -152,7 +242,7 @@ public static class Program
             }
         });
 
-        logger.LogInformation("FLOW Voice Core initialized and listening. Push-to-talk: Hold [Right Alt]. Hands-free: Double-tap [Right Alt].");
+        logger.LogInformation("FLOW Voice Core initialized and listening. Push-to-talk: Hold [Right Alt]. Hands-free: Double-tap [Right Alt]. Command Mode: [Ctrl + Right Alt]. Backtrack: [Shift + Right Alt]. Cancel: [Esc].");
 
         // Native Windows message loop
         while (GetMessage(out MSG msg, IntPtr.Zero, 0, 0))
@@ -166,6 +256,7 @@ public static class Program
         _capture.Dispose();
         _hud.Dispose();
         _tray.Dispose();
+        personalizationDb.Dispose();
 
         return 0;
     }

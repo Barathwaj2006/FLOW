@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <UseWPF>true</UseWPF>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,6 +14,7 @@
     <ProjectReference Include="..\..\src\Flow.Inference\Flow.Inference.csproj" />
     <ProjectReference Include="..\..\src\Flow.Core\Flow.Core.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="System.Speech" Version="9.0.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>

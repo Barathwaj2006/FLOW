@@ -8,14 +8,18 @@
 .vs/
 
 # Models and Binary Assets (Do not commit heavy weights)
-models/*.bin
-models/*.onnx
-models/*.mlmodelc
-models/*.mlpackage
+models/
+*.bin
+*.onnx
+*.mlmodelc
+*.mlpackage
 *.gguf
 *.weights
 
 # Local User Data and Cache
+*.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm

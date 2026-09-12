@@ -26,7 +26,18 @@ public class VoiceSessionCoordinatorTests
             }
 
             InsertedTexts.Add(text);
-            return Task.FromResult(new InsertionResult(true, InsertionStrategy.UiaDirect, "TestApp", TimeSpan.FromMilliseconds(10)));
+            return Task.FromResult(new InsertionResult(true, InsertionStrategy.UiaDirect, "TestApp", TimeSpan.FromMilliseconds(10), TargetHwnd: (IntPtr)1234, TargetProcessId: 5678, InsertedLength: text.Length));
+        }
+
+        public Task<bool> BacktrackAsync(Flow.Core.Backtrack.InsertionRecord record, CancellationToken cancellationToken = default)
+        {
+            if (ShouldFail) return Task.FromResult(false);
+            if (InsertedTexts.Count > 0)
+            {
+                InsertedTexts.RemoveAt(InsertedTexts.Count - 1);
+                return Task.FromResult(true);
+            }
+            return Task.FromResult(false);
         }
     }
 

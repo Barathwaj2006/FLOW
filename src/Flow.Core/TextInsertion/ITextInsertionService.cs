@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Flow.Core.Backtrack;
 
 namespace Flow.Core.TextInsertion;
 
@@ -22,7 +23,10 @@ public sealed record InsertionResult(
     InsertionStrategy StrategyUsed,
     string? TargetApplicationName,
     TimeSpan Latency,
-    string? ErrorMessage = null
+    string? ErrorMessage = null,
+    IntPtr TargetHwnd = default,
+    uint TargetProcessId = 0,
+    int InsertedLength = 0
 )
 {
     public static InsertionResult Failed(string error, TimeSpan latency, string? appName = null) =>
@@ -39,4 +43,10 @@ public interface ITextInsertionService
     /// Inviolable invariant: MUST NEVER simulate Enter (VK_RETURN) or click submit.
     /// </summary>
     Task<InsertionResult> InsertTextAsync(string text, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Safely backtracks (deletes) previously inserted text after verifying foreground window ownership.
+    /// Inviolable invariant: MUST NEVER simulate Enter (VK_RETURN) or modify wrong target application.
+    /// </summary>
+    Task<bool> BacktrackAsync(InsertionRecord record, CancellationToken cancellationToken = default);
 }

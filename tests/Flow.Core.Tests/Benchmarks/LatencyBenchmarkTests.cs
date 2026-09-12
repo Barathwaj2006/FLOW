@@ -28,6 +28,11 @@ public class LatencyBenchmarkTests
         {
             return Task.FromResult(new InsertionResult(true, InsertionStrategy.UiaDirect, "BenchmarkTarget", TimeSpan.FromMicroseconds(100)));
         }
+
+        public Task<bool> BacktrackAsync(Flow.Core.Backtrack.InsertionRecord record, System.Threading.CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(true);
+        }
     }
 
     [Fact]

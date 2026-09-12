@@ -1,7 +1,7 @@
-# PHASE_2_TEST_STRATEGY.md — Comprehensive Verification Strategy & Application Matrix
+﻿# PHASE_2_TEST_STRATEGY.md — Comprehensive Verification Strategy & Application Matrix
 
-> **Standard**: Production Native Desktop Quality  
-> **Rule**: Real implementations, physical testing, and empirical measurements over synthetic claims.
+> **Standard**: Production Native Desktop Quality (Post-Reconciliation Audit)  
+> **Rule**: Real physical testing, honest UI verification, and empirical measurements over synthetic claims.
 
 ---
 
@@ -9,17 +9,20 @@
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│  Tier 5: Real-World Physical Cross-Application Tests   │
-│  (Real mic -> Real DirectML ASR -> Target App window)  │
+│  Tier 6: UI & Human Desktop Validation Gate            │
+│  (Hub XAML tabs, HUD waveform, shortcut rebinding)     │
+├────────────────────────────────────────────────────────┤
+│  Tier 5: Real-World Physical Cross-Application Matrix  │
+│  (Real mic -> Real Whisper ASR -> 12 Windows apps)     │
 ├────────────────────────────────────────────────────────┤
 │  Tier 4: Windows Integration Tests                     │
 │  (UIA focus, WASAPI audio tap, Win32 hooks, clipboard) │
 ├────────────────────────────────────────────────────────┤
 │  Tier 3: End-to-End In-Process Integration Tests       │
-│  (VoiceSessionCoordinator full pipeline with Mock/ASR) │
+│  (VoiceSessionCoordinator full pipeline with ASR)      │
 ├────────────────────────────────────────────────────────┤
 │  Tier 2: Subsystem Integration & Persistence Tests     │
-│  (SQLite CRUD, FTS5 search, Registry fallback chains)  │
+│  (SQLite on-disk CRUD, WAL mode, FTS5 full-text search)│
 ├────────────────────────────────────────────────────────┤
 │  Tier 1: Deterministic Unit Tests                      │
 │  (RingBuffer, EnergyVAD, Sanitizer, Casing, Backtrack) │
@@ -37,33 +40,34 @@
 * **`CasingTransformerTests`**: `camelCase`, `snake_case`, `PascalCase`, `kebab-case`, `SCREAMING_SNAKE`, `Title Case`, and `Sentence case`.
 * **`BacktrackingTests`**: Intent correction (*"Friday actually next Monday"* $\rightarrow$ *"Next Monday"*).
 * **`ListFormattingTests`**: Spoken numbers and lists (*"one ... two ... three ..."* $\rightarrow$ `1. ...\n2. ...\n3. ...`).
+* **`PersonalDictionaryTests`**: Dictionary CRUD, case sensitivity, starred term priority, word boundary safety, JSON/CSV roundtrips.
+* **`SnippetExpansionTests`**: Snippets CRUD, spoken trigger matching, longest-match precedence, disabled toggle, Zero-Enter invariant preservation.
+* **`StyleFormattingTests`**: Contraction expansion/contraction, formality level substitutions, application mapping resolution.
 * **`ZeroEnterUnitTests`**: Asserts that `\r`, `\n`, `\r\n`, and spoken `"new line"` never survive into output prose.
 
 ### B. Tier 2: Subsystem & Persistence Integration Tests
-* **`DatabaseRepositoryTests`**: SQLite schema creation, migrations, transaction rollbacks, and WAL file hygiene.
-* **`DictionaryManagerTests`**: Case-insensitive custom vocabulary lookups and Whisper prompt biasing token construction.
-* **`SnippetEngineTests`**: Voice cue matching within $\le 60$ characters; rich text snippet expansion up to $4,000$ characters.
+* **`SqlitePersonalizationDatabaseTests`**: Real SQLite schema creation, WAL journal mode (`PRAGMA journal_mode = wal`), foreign keys (`PRAGMA foreign_keys = 1`), and connection pooling.
 * **`FtsSearchTests`**: SQLite FTS5 full-text indexing over dictation history with prefix and phrase queries.
-* **`StyleManagerTests`**: Category/tone profile resolution based on target application process names.
+* **`PersistenceRoundtripTests`**: Database close and reopen from physical Windows disk verifying data integrity and starred ordering.
 
 ### C. Tier 3: Core Integration Tests
 * **`VoiceSessionCoordinatorTests`**:
   * Happy path: Start $\rightarrow$ Audio Stream $\rightarrow$ End $\rightarrow$ Transcribe $\rightarrow$ Format $\rightarrow$ Insert.
   * Silence rejection: Low energy audio rejected cleanly without calling insertion.
-  * User cancellation: `Esc` cancels active session and resets HUD to Idle.
-  * ASR Fallback: Primary engine simulated failure triggers secondary engine seamlessly.
-  * Rapid repeated triggers: Stress test simulating 20 rapid PTT activations without race conditions.
+  * User cancellation: `Escape` cancels active session and resets HUD to Idle.
+  * ASR Fallback: Primary engine failure triggers secondary engine seamlessly.
+  * 20-minute ceiling: Session auto-stops at 1,200 seconds with warning event at 1,140 seconds.
 
 ### D. Tier 4: Windows Integration Tests (`tests/Flow.Windows.Tests`)
 * **`WasapiAudioCaptureTests`**: Real Core Audio client initialization, device format negotiation, 16kHz float32 conversion, and background capture thread lifecycle.
-* **`GlobalHotkeyHookTests`**: Low-level `WH_KEYBOARD_LL` hook registration, KeyDown vs KeyUp differentiation, and shortcut rebinding.
+* **`GlobalHotkeyHookTests`**: Low-level `WH_KEYBOARD_LL` hook registration, KeyDown vs KeyUp differentiation, 350ms double-tap hands-free state machine.
 * **`ZeroEnterSafetyIntegrationTests`**: Verifies that `WindowsTextInsertionService` intercepts and rejects any input containing `0x0D` or enter simulation.
 * **`ClipboardSafetyTests`**: Validates that SendInput `Ctrl+V` restores the user's prior clipboard text within 150ms.
-* **`DpapiEncryptionTests`**: Validates roundtrip protection and unprotection of sensitive configuration strings using Windows DPAPI.
+* **`DpapiEncryptionTests`**: Validates roundtrip protection and unprotection of sensitive database strings using Windows DPAPI.
 
-### E. Tier 5: Physical Cross-Application Test Matrix
+### E. Tier 5: Physical Cross-Application Test Matrix (12 Target Apps)
 
-Every application in this matrix must be physically validated with real voice dictation before Phase 2 acceptance:
+Every application in this matrix must be physically validated with real voice dictation:
 
 | Application | Process Name | Window Class / Technology | Target Text Field | Insertion Strategy | Known Quirk / Requirement |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -71,37 +75,23 @@ Every application in this matrix must be physically validated with real voice di
 | **Microsoft Word** | `WINWORD.EXE` | `_WwG` (Office RichEdit) | Document canvas | Tier 1 UIA / Tier 2 Clipboard | Preserves document styling. |
 | **Google Chrome** | `chrome.exe` | `Chrome_WidgetWin_1` | Omnibox, search, web forms | Tier 2 SendInput Clipboard | Fast clipboard restore required. |
 | **Microsoft Edge** | `msedge.exe` | `Chrome_WidgetWin_1` | Web text areas, inputs | Tier 2 SendInput Clipboard | Identical Chromium behavior. |
-| **Gmail (Web)** | `chrome.exe` | ContentEditable `div` | Compose body, Subject line | Tier 2 SendInput Clipboard | Avoids Enter simulation to prevent auto-send (`Ctrl+Enter` or accidental submit). |
-| **Google Docs** | `chrome.exe` | Custom Canvas / Kix editor | Document canvas | Tier 2 SendInput Clipboard | Does not expose standard UIA text elements; requires pure clipboard injection. |
-| **WhatsApp Web** | `chrome.exe` | ContentEditable `div` | Message input box | Tier 2 SendInput Clipboard | **CRITICAL SAFETY**: Zero-Enter invariant must prevent sending messages. |
-| **Slack (Desktop)** | `slack.exe` | Electron / Quill editor | Message draft box | Tier 2 SendInput Clipboard | **CRITICAL SAFETY**: Must never simulate Enter or trigger message dispatch. |
+| **Gmail (Web)** | `chrome.exe` | ContentEditable `div` | Compose body, Subject line | Tier 2 SendInput Clipboard | Avoids Enter simulation to prevent auto-send. |
+| **Google Docs** | `chrome.exe` | Custom Canvas / Kix editor | Document canvas | Tier 2 SendInput Clipboard | Pure clipboard injection; bypasses UIA canvas limitation. |
+| **WhatsApp Web** | `chrome.exe` | ContentEditable `div` | Message input box | Tier 2 SendInput Clipboard | **CRITICAL SAFETY**: Zero-Enter invariant prevents sending. |
+| **Slack (Desktop)** | `slack.exe` | Electron / Quill editor | Message draft box | Tier 2 SendInput Clipboard | **CRITICAL SAFETY**: Must never simulate Enter. |
 | **Notion (Desktop)** | `notion.exe` | Electron / React canvas | Page block | Tier 2 SendInput Clipboard | Fast cursor placement. |
 | **Visual Studio Code**| `code.exe` | Electron / Monaco editor | Code file, terminal, Copilot chat | Tier 2 SendInput Clipboard | Does NOT trigger "Screen Reader Mode" alert. |
 | **Cursor** | `cursor.exe` | Electron / Monaco editor | Composer, Chat, Code editor | Tier 2 SendInput Clipboard | Supports voice file tagging (`@filename`). |
-| **PowerShell** | `powershell.exe` | `ConsoleWindowClass` | Command prompt | Tier 2 SendInput Clipboard | **CRITICAL SAFETY**: Must NEVER simulate Enter or execute commands. |
-| **Windows Terminal** | `wt.exe` | `CASCADIA_HOSTING_WINDOW_CLASS` | Active shell tab | Tier 2 SendInput Clipboard | **CRITICAL SAFETY**: Must NEVER simulate Enter or execute commands. |
+| **Windows Terminal** | `wt.exe` | `CASCADIA_HOSTING_WINDOW_CLASS` | Active shell tab | Tier 2 SendInput Clipboard | **CRITICAL SAFETY**: Must NEVER execute commands. |
 
 ---
 
-## 3. Empirical Performance SLA
+## 3. Tier 6: UI & Human Desktop Validation Gate
 
-Synthetic unit tests must NEVER be reported as "end-to-end latency."
-
-Measurements must be taken from the start of user audio capture through to the visual appearance of text in the target application:
-
-| Pipeline Stage | Target P50 | Target P95 | Target P99 | Measurement Method |
-| :--- | :--- | :--- | :--- | :--- |
-| **Audio Capture to Ring Buffer** | $< 2\text{ ms}$ | $< 5\text{ ms}$ | $< 10\text{ ms}$ | High-resolution timestamp from WASAPI packet arrival to ring buffer write. |
-| **Voice Activity Detection** | $< 1\text{ ms}$ | $< 2\text{ ms}$ | $< 3\text{ ms}$ | RMS energy & silence calculation per 100ms audio chunk. |
-| **ASR Inference (DirectML)** | $< 250\text{ ms}$ | $< 400\text{ ms}$ | $< 600\text{ ms}$ | Model forward pass on 3-second audio buffer using GPU DirectML. |
-| **ASR Inference (CPU Fallback)** | $< 500\text{ ms}$ | $< 900\text{ ms}$ | $< 1400\text{ ms}$ | Model forward pass using AVX2 CPU execution. |
-| **Language Sanitization** | $< 1\text{ ms}$ | $< 2\text{ ms}$ | $< 5\text{ ms}$ | Regex formatting, zero-enter stripping, and snippet replacement. |
-| **Text Insertion (Clipboard Tier)**| $< 160\text{ ms}$ | $< 180\text{ ms}$ | $< 220\text{ ms}$ | Win32 clipboard write + SendInput + 150ms app read delay + restore. |
-| **Total End-to-End (Local GPU)** | **$< 420\text{ ms}$** | **$< 600\text{ ms}$** | **$< 850\text{ ms}$** | From hotkey release to text in target application window. |
-
-### Resource Budgets
-* **Idle RAM (Working Set)**: $< 65\text{ MB}$
-* **Active Transcription RAM**: $< 280\text{ MB}$ (with `whisper-base.en` loaded in ONNX Runtime)
-* **VRAM Allocation (DirectML)**: $< 450\text{ MB}$
-* **Idle CPU Usage**: $< 0.1\%$
-* **Cold Start Time**: $< 600\text{ ms}$
+A capability is NOT complete merely because backend tests pass. Before declaring Phase 2 complete, the following physical UI actions must be executed and confirmed by a human tester on Windows:
+1. **Hub Launch**: Hub window opens cleanly from tray icon and displays all navigation tabs.
+2. **Dictionary Management**: User can add a new term in the Hub UI, see it listed in the table, toggle its Starred status, and dictate it into Notepad to see it formatted with exact casing.
+3. **Snippets Management**: User can create a snippet with trigger cue `"test snippet"` in the Hub UI, speak `"test snippet"` into Slack, and see the expanded text inserted with zero Enter simulation.
+4. **Style Configuration**: User can change active style from Default to Formal in the Hub UI and verify that spoken contractions (*"don't"*) are expanded into formal text (*"do not"*).
+5. **HUD Waveform**: Floating HUD displays a live fluctuating VU meter / waveform that responds dynamically to user voice volume.
+6. **Shortcut Customization**: User can rebind Push-to-Talk to a custom key in Settings and verify the new key operates.

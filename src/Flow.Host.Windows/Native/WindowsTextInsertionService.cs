@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Flow.Core.Backtrack;
 using Flow.Core.TextInsertion;
 using Microsoft.Extensions.Logging;
 
@@ -47,9 +48,14 @@ public sealed class WindowsTextInsertionService : ITextInsertionService
 
         // Target active foreground window
         IntPtr foregroundHwnd = GetForegroundWindow();
+        uint pid = 0;
+        if (foregroundHwnd != IntPtr.Zero)
+        {
+            GetWindowThreadProcessId(foregroundHwnd, out pid);
+        }
         string appName = GetProcessNameFromHwnd(foregroundHwnd);
 
-        _logger?.LogInformation("Targeting foreground window: {Hwnd} ({App})", foregroundHwnd, appName);
+        _logger?.LogInformation("Targeting foreground window: {Hwnd} ({App}, PID={Pid})", foregroundHwnd, appName, pid);
 
         // Attempt Tier 1: Direct UI Automation Injection
         bool uiaSuccess = TryUiaInsertion(foregroundHwnd, safeText);
@@ -57,7 +63,7 @@ public sealed class WindowsTextInsertionService : ITextInsertionService
         {
             stopwatch.Stop();
             _logger?.LogInformation("Text successfully inserted via UIA Direct into {App} in {ElapsedMs}ms", appName, stopwatch.ElapsedMilliseconds);
-            return new InsertionResult(true, InsertionStrategy.UiaDirect, appName, stopwatch.Elapsed);
+            return new InsertionResult(true, InsertionStrategy.UiaDirect, appName, stopwatch.Elapsed, null, foregroundHwnd, pid, safeText.Length);
         }
 
         // Attempt Tier 2: Safe SendInput (Ctrl+V) with 150ms Clipboard Restore
@@ -67,11 +73,56 @@ public sealed class WindowsTextInsertionService : ITextInsertionService
         if (sendInputSuccess)
         {
             _logger?.LogInformation("Text successfully inserted via SendInput Ctrl+V into {App} in {ElapsedMs}ms", appName, stopwatch.ElapsedMilliseconds);
-            return new InsertionResult(true, InsertionStrategy.SendInputClipboardFallback, appName, stopwatch.Elapsed);
+            return new InsertionResult(true, InsertionStrategy.SendInputClipboardFallback, appName, stopwatch.Elapsed, null, foregroundHwnd, pid, safeText.Length);
         }
 
         _logger?.LogError("Failed to insert text into {App}", appName);
         return InsertionResult.Failed("Text insertion failed across all tiers.", stopwatch.Elapsed, appName);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> BacktrackAsync(InsertionRecord record, CancellationToken cancellationToken = default)
+    {
+        if (record == null || record.CharacterCount <= 0)
+        {
+            _logger?.LogWarning("Backtrack aborted: invalid or empty insertion record.");
+            return Task.FromResult(false);
+        }
+
+        IntPtr currentHwnd = GetForegroundWindow();
+        uint currentPid = 0;
+        if (currentHwnd != IntPtr.Zero)
+        {
+            GetWindowThreadProcessId(currentHwnd, out currentPid);
+        }
+        string currentApp = GetProcessNameFromHwnd(currentHwnd);
+
+        // Strict ownership check: Foreground window must match the original target
+        if (record.TargetHwnd != IntPtr.Zero && currentHwnd != record.TargetHwnd)
+        {
+            _logger?.LogWarning(
+                "Backtrack aborted for safety: Active window changed. Recorded HWND={RecordedHwnd} ({RecordedApp}), Current HWND={CurrentHwnd} ({CurrentApp}). Zero destructive action taken.",
+                record.TargetHwnd, record.TargetProcessName, currentHwnd, currentApp);
+            return Task.FromResult(false);
+        }
+
+        if (record.TargetProcessId != 0 && currentPid != record.TargetProcessId)
+        {
+            _logger?.LogWarning(
+                "Backtrack aborted for safety: Active process ID changed. Recorded PID={RecordedPid}, Current PID={CurrentPid}.",
+                record.TargetProcessId, currentPid);
+            return Task.FromResult(false);
+        }
+
+        _logger?.LogInformation(
+            "Executing backtrack in {App} (HWND={Hwnd}) for {Count} characters.",
+            currentApp, currentHwnd, record.CharacterCount);
+
+        // Execute bounded VK_BACK SendInput sequence
+        int countToDelete = Math.Clamp(record.CharacterCount, 1, 2000);
+        SimulateBackspaces(countToDelete);
+
+        return Task.FromResult(true);
     }
 
     private bool TryUiaInsertion(IntPtr hwnd, string text)
@@ -203,6 +254,65 @@ public sealed class WindowsTextInsertionService : ITextInsertionService
         SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
     }
 
+    private static void SimulateBackspaces(int count)
+    {
+        if (count <= 0) return;
+
+        const int batchSize = 50;
+        for (int i = 0; i < count; i += batchSize)
+        {
+            int batchCount = Math.Min(batchSize, count - i);
+            INPUT[] inputs = new INPUT[batchCount * 2];
+
+            for (int b = 0; b < batchCount; b++)
+            {
+                inputs[b * 2] = new INPUT
+                {
+                    type = INPUT_KEYBOARD,
+                    u = new InputUnion
+                    {
+                        ki = new KEYBDINPUT
+                        {
+                            wVk = VK_BACK,
+                            wScan = 0,
+                            dwFlags = 0,
+                            time = 0,
+                            dwExtraInfo = IntPtr.Zero
+                        }
+                    }
+                };
+
+                inputs[b * 2 + 1] = new INPUT
+                {
+                    type = INPUT_KEYBOARD,
+                    u = new InputUnion
+                    {
+                        ki = new KEYBDINPUT
+                        {
+                            wVk = VK_BACK,
+                            wScan = 0,
+                            dwFlags = KEYEVENTF_KEYUP,
+                            time = 0,
+                            dwExtraInfo = IntPtr.Zero
+                        }
+                    }
+                };
+            }
+
+            // Strict verification that no Enter key is present
+            foreach (var inp in inputs)
+            {
+                if (inp.u.ki.wVk == VK_RETURN || inp.u.ki.wVk == VK_SEPARATOR)
+                {
+                    throw new InvalidOperationException("CRITICAL SAFETY VIOLATION: VK_RETURN detected in Backtrack sequence!");
+                }
+            }
+
+            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
+            Thread.Sleep(5);
+        }
+    }
+
     private static string? ReadClipboardText()
     {
         for (int attempt = 0; attempt < 5; attempt++)
@@ -298,6 +408,7 @@ public sealed class WindowsTextInsertionService : ITextInsertionService
     private const uint KEYEVENTF_KEYUP = 0x0002;
     private const ushort VK_CONTROL = 0x11;
     private const ushort VK_V = 0x56;
+    private const ushort VK_BACK = 0x08;
     private const ushort VK_RETURN = 0x0D;
     private const ushort VK_SEPARATOR = 0x6C;
 
@@ -364,6 +475,36 @@ public sealed class WindowsTextInsertionService : ITextInsertionService
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GlobalUnlock(IntPtr hMem);
+
+    private static readonly System.Collections.Generic.HashSet<string> KnownIdeProcessNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "code", "code.exe",
+        "cursor", "cursor.exe",
+        "devenv", "devenv.exe",
+        "windsurf", "windsurf.exe",
+        "idea64", "idea64.exe",
+        "pycharm64", "pycharm64.exe",
+        "webstorm64", "webstorm64.exe",
+        "rider64", "rider64.exe",
+        "windowsterminal", "windowsterminal.exe",
+        "powershell", "powershell.exe",
+        "pwsh", "pwsh.exe",
+        "cmd", "cmd.exe"
+    };
+
+    /// <summary>
+    /// Checks whether the specified process name corresponds to an IDE, code editor, or developer terminal (WF-029).
+    /// </summary>
+    public static bool IsIdeProcess(string? processName)
+    {
+        if (string.IsNullOrWhiteSpace(processName)) return false;
+        string clean = processName.Trim();
+        if (clean.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            clean = clean[..^4];
+        }
+        return KnownIdeProcessNames.Contains(clean) || KnownIdeProcessNames.Contains(processName);
+    }
 
     #endregion
 }

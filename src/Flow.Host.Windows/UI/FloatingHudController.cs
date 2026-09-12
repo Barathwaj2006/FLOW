@@ -15,11 +15,14 @@ public sealed class FloatingHudController : IDisposable
     private IntPtr _hwnd = IntPtr.Zero;
     private SessionState _currentState = SessionState.Idle;
     private string _statusText = "Ready";
+    private bool _isCommandMode;
     private float _audioLevel;
     private bool _isDisposed;
 
     public IntPtr Handle => _hwnd;
     public bool IsVisible => _hwnd != IntPtr.Zero && IsWindowVisible(_hwnd);
+    public string StatusText => _statusText;
+    public bool IsCommandMode => _isCommandMode;
 
     public FloatingHudController()
     {
@@ -28,15 +31,17 @@ public sealed class FloatingHudController : IDisposable
     /// <summary>
     /// Updates the HUD display with the current voice session state.
     /// </summary>
-    public void UpdateState(SessionState state, string? detail = null)
+    public void UpdateState(SessionState state, string? detail = null, bool isCommandMode = false)
     {
         _currentState = state;
+        _isCommandMode = isCommandMode;
         _statusText = detail ?? state switch
         {
-            SessionState.Recording => "Listening...",
-            SessionState.Processing => "Transcribing...",
-            SessionState.Inserting => "Inserting...",
-            SessionState.Completed => "Done",
+            SessionState.Recording => isCommandMode ? "🪄 Command: Listening..." : "Listening...",
+            SessionState.Processing => isCommandMode ? "🪄 Transforming..." : "Transcribing...",
+            SessionState.Inserting => isCommandMode ? "🪄 Applying Transform..." : "Inserting...",
+            SessionState.Backtracking => "Backtracking...",
+            SessionState.Completed => isCommandMode ? "🪄 Transformed" : "Done",
             SessionState.Cancelled => "Cancelled",
             SessionState.Error => "Error",
             _ => "Ready"

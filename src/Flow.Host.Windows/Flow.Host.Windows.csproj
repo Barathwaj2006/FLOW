@@ -8,6 +8,7 @@
     <Platforms>x64;ARM64</Platforms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
     <Description>FLOW Windows Desktop Host: Native Win32 Presentation, System Tray, WASAPI Audio, and UI Automation</Description>
   </PropertyGroup>
 

@@ -31,6 +31,11 @@ public sealed class WasapiAudioCapture : IDisposable
     public int DiagnosticPacketsReceived { get; private set; }
     public int NativeSampleRate { get; private set; }
     public int NativeChannels { get; private set; }
+    public int NativeBitsPerSample { get; private set; }
+    public string SampleFormat { get; private set; } = string.Empty;
+    public double BufferDurationMs { get; private set; }
+
+    public event Action<Exception>? CaptureError;
 
     public bool WaitForStart(int timeoutMs = 3000) => _startedEvent.Wait(timeoutMs);
 
@@ -167,11 +172,24 @@ public sealed class WasapiAudioCapture : IDisposable
                 throw new InvalidOperationException($"IAudioClient::Start failed with HRESULT: 0x{hr:X8}");
             }
 
+            if (device.GetId(out string devId) == 0)
+            {
+                ActiveDeviceName = devId;
+            }
+
             NativeSampleRate = nativeSampleRate;
             NativeChannels = channels;
+            NativeBitsPerSample = bitsPerSample;
+            SampleFormat = isFloat ? $"IEEE Float {bitsPerSample}-bit" : $"PCM {bitsPerSample}-bit";
+
+            if (audioClient.GetBufferSize(out uint bufferSizeFrames) == 0)
+            {
+                BufferDurationMs = (double)bufferSizeFrames / nativeSampleRate * 1000.0;
+            }
 
             _startedEvent.Set();
-            _logger?.LogInformation("WASAPI live capture loop active. Streaming 16kHz float32 mono samples.");
+            _logger?.LogInformation("WASAPI live capture loop active on {Device}. Format: {Format} {Rate}Hz {Ch}ch, Buffer: {Buffer:F1}ms.",
+                ActiveDeviceName, SampleFormat, NativeSampleRate, NativeChannels, BufferDurationMs);
 
             // 9. Process live microphone packets
             while (_isCapturing)
@@ -230,6 +248,8 @@ public sealed class WasapiAudioCapture : IDisposable
         {
             LastError = ex;
             _logger?.LogError(ex, "Live WASAPI capture encountered an exception.");
+            _startedEvent.Set();
+            CaptureError?.Invoke(ex);
         }
         finally
         {
@@ -363,6 +383,12 @@ public sealed class WasapiAudioCapture : IDisposable
     {
         [PreserveSig]
         int Activate(ref Guid iid, int dwClsCtx, IntPtr pActivationParams, [MarshalAs(UnmanagedType.IUnknown)] out object ppInterface);
+        [PreserveSig]
+        int OpenPropertyStore(int stgmAccess, out IntPtr ppProperties);
+        [PreserveSig]
+        int GetId([MarshalAs(UnmanagedType.LPWStr)] out string ppstrId);
+        [PreserveSig]
+        int GetState(out int pdwState);
     }
 
     [ComImport]

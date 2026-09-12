@@ -1,222 +1,145 @@
-# PHASE_2_IMPLEMENTATION_ROADMAP.md — Wispr Flow Parity Execution Plan
+# PHASE_2_IMPLEMENTATION_ROADMAP.md — FLOW Wispr Parity Master Roadmap
 
-> **Scope**: Phase 2 (2A through 2J)  
-> **Target Platform**: Windows 10/11 x64  
-> **Methodology**: Sequential, phase-gated engineering work packages.
+> **Target Platform**: Windows 10/11 x64 Native Desktop (.NET 9.0)  
+> **Benchmark Reference**: Wispr Flow Windows Desktop Application  
+> **Engineering Execution Rule**: Strict sequential phase gating. Zero cloud audio. Zero unauthorized commits. Zero fake implementations.
 
 ---
 
-## Work Package Breakdown
+## 1. Master Phase Sequence
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│ Phase 2A: Parity Audit & Architecture Specification (Current Task)     │
+│ Phase 2A: Parity Audit & Architecture Specification       [COMPLETE]   │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼────────────────────────────────────┐
-│ Phase 2B: Core Dictation Parity (Real WASAPI & DirectML ASR Engine)    │
+│ Phase 2B: Physical Core Dictation Parity (WASAPI + ASR)   [COMPLETE]   │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼────────────────────────────────────┐
-│ Phase 2C: Smart Formatting, Backtracking & Spoken Lists                │
+│ Phase 2C: Smart Formatting, Backtrack & Spoken Lists      [COMPLETE]   │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼────────────────────────────────────┐
-│ Phase 2D: Personalization Engine (Dictionary, Snippets, Styles)        │
+│ Phase 2D: Personalization Engine (Backend SQLite Complete)[COMPLETE]   │
+│           (Personal Dictionary, Corrections, Snippets, Styles)         │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼────────────────────────────────────┐
-│ Phase 2E: Developer Mode & IDE Context Awareness                       │
+│ Parity Reconciliation Gate: Definitive Windows Spec Audit [COMPLETE]   │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼────────────────────────────────────┐
-│ Phase 2F: Safe Voice Command Mode                                      │
+│ Phase 2E: Developer Mode & IDE Context Awareness          [COMPLETE]   │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼────────────────────────────────────┐
-│ Phase 2G: History, Search, Statistics & Desktop Scratchpad             │
+│ Phase 2F: Safe Voice Command Mode & Transforms            [COMPLETE]   │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼────────────────────────────────────┐
-│ Phase 2H: Windows Native Hub & Settings Interface                      │
+│ Phase 2G: History, Search, Statistics & Desktop Scratchpad[NEXT]       │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼────────────────────────────────────┐
-│ Phase 2I: Privacy, DPAPI Security & Fault Recovery                     │
+│ Phase 2H: Native Windows Hub Window & HUD Polish          [PENDING]    │
+│           (WinUI 3 GUI for Dictionary, Snippets, Styles,               │
+│            History, Settings, and HUD Audio Waveform)                  │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼────────────────────────────────────┐
-│ Phase 2J: Full Parity Physical Application Validation & Benchmarks     │
+│ Phase 2I: Privacy, DPAPI Security & Fault Recovery        [PENDING]    │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+┌───────────────────────────────────▼────────────────────────────────────┐
+│ Phase 2J: Full Parity Physical Application Validation     [FINAL]      │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Work Package 2A: Parity Audit & Architecture Specification
-* **Objective**: Establish authoritative feature-parity benchmark, inspect repository implementation levels, and deliver detailed technical blueprints.
-* **Scope**: Research Wispr Flow documentation, create capability matrix, identify synthetic/mock implementations, design test strategy and dependency graph.
-* **Non-Scope**: Writing production feature code for Phase 2B+.
-* **Components**: `docs/PHASE_2_WISPR_PARITY_MATRIX.md`, `docs/PHASE_2_IMPLEMENTATION_ROADMAP.md`, `docs/PHASE_2_DEPENDENCY_GRAPH.md`, `docs/PHASE_2_TEST_STRATEGY.md`, `docs/PHASE_2_RESEARCH_SOURCES.md`.
-* **Exit Gate**: All parity documents written, solution builds with 0 errors/warnings, 27/27 tests passing, committed to git, stopped for review.
+## 2. Phase-by-Phase Capability Allocation (75 Capabilities)
 
----
+### Phase 2A — Parity Audit & Architecture Specification
+* **Status**: `COMPLETE`
+* **Deliverables**: Comprehensive feature breakdown, dependency graphs, test methodology, and capability mapping.
 
-### Work Package 2B: Core Dictation Parity
-* **Objective**: Elevate audio capture and ASR inference from Level 2 (synthetic) to Level 4/5 (real hardware execution).
-* **Scope**:
-  * Implement real WASAPI `IAudioCaptureClient::GetBuffer` reading 16kHz float32 audio.
-  * Integrate ONNX Runtime DirectML session with real Whisper weights (`whisper-base.en` / `whisper-small.en`).
-  * Add automatic CPU fallback when DirectX 12 / DirectML GPU is unavailable.
-  * Add hands-free double-tap mode in `GlobalHotkeyHook`.
-  * Enforce 20-minute continuous recording limit with $T - 60\text{s}$ warning.
-  * Implement `WasapiDeviceManager` for microphone enumeration and hot-swapping.
-* **Non-Scope**: Personal dictionary or snippets (Phase 2D).
-* **Components**:
-  * `Flow.Host.Windows/Native/WasapiAudioCapture.cs`
-  * `Flow.Host.Windows/Native/WasapiDeviceManager.cs`
-  * `Flow.Inference/DirectMlWhisperInference.cs`
-  * `Flow.Core/ASR/LocalWhisperEngine.cs`
-  * `Flow.Host.Windows/Native/GlobalHotkeyHook.cs`
-* **Dependencies**: Phase 2A approval, ONNX Runtime DirectML NuGet.
-* **Tests**: End-to-end microphone loopback capture test, ONNX DirectML execution test, CPU fallback test, double-tap hotkey test, 20-minute timer test.
-* **Safety Criteria**: Absolute Zero-Enter verification on all inserted transcripts.
-* **Exit Gate**: Real microphone audio transcribed by real local model into Notepad with zero cloud calls.
+### Phase 2B — Physical Core Dictation Parity
+* **Status**: `COMPLETE` (26 Capabilities Verified on Windows 10/11 hardware)
+* **Capabilities Covered**:
+  - Core Voice & Audio: `WF-001` (PTT), `WF-002` (Hands-Free), `WF-003` (Cancel), `WF-004` (WASAPI capture), `WF-005` (Ring buffer), `WF-006` (VAD), `WF-007` (Mic selection), `WF-008` (20m ceiling), `WF-009` (Whisper audio), `WF-010A` (Audio feedback cues).
+  - Transcription: `WF-011` (Local WhisperNet ASR), `WF-012` (ASR fallback), `WF-017` (Zero-Enter safety).
+  - Context & Insertion: `WF-031B` (Contextual routing), `WF-035` (IDE & terminal compat), `WF-038` (Zero-destructive safety), `WF-049` (Dual-tier insertion).
+  - Desktop UX: `WF-044A` (Floating HUD window), `WF-044C` (HUD state transitions), `WF-045` (System tray).
+  - Windows Hygiene & Privacy: `WF-050` (PerMonitorV2 DPI), `WF-052` (Graceful shutdown), `WF-053A` (Audio endpoint recovery), `WF-053B` (RDP safety), `WF-054` (100% local RAM audio), `WF-056` (Zero telemetry leaks).
 
----
+### Phase 2C — Smart Formatting, Backtrack & Spoken Lists
+* **Status**: `COMPLETE` (10 Capabilities Verified on Windows 10/11 hardware)
+* **Capabilities Covered**:
+  - `WF-013` (Automatic capitalization), `WF-014` (Terminal punctuation), `WF-015` (Spoken punctuation), `WF-016` (Filler word removal), `WF-018` (Backtracking self-correction), `WF-019` (Numbered & bulleted lists), `WF-020A` (Number/date formatting).
+  - Context & Developer: `WF-029` (Active app detection), `WF-032A` (Programmatic casing), `WF-033` (Technical token shield).
 
-### Work Package 2C: Smart Formatting, Backtracking & Spoken Lists
-* **Objective**: Replicate Wispr's intelligent dictation formatting and mid-speech corrections.
-* **Scope**:
-  * Backtracking correction engine: detect *"actually [replacement]"*, *"I mean [replacement]"*, *"scratch that"*.
-  * Number & currency normalization (*"five hundred dollars"* $\rightarrow$ `\$500`, *"March third"* $\rightarrow$ `March 3rd`).
-  * Spoken numbered lists (*"one ... two ... three ..."* $\rightarrow$ ordered markdown list).
-  * Multi-language selection support in `ASROptions`.
-* **Non-Scope**: Translation (Phase 4).
-* **Components**:
-  * `Flow.Core/Language/BacktrackingResolver.cs`
-  * `Flow.Core/Language/SpokenEntityNormalizer.cs`
-  * `Flow.Core/Language/ListFormattingEngine.cs`
-  * `Flow.Core/Language/DeterministicTextSanitizer.cs`
-* **Dependencies**: Phase 2B.
-* **Tests**: Unit test suite for backtracking sentences, list formatting, currency, and numbers.
-* **Safety Criteria**: Sanitizer strictly drops all `\r` and `\n` characters unless within an explicit structured list block.
+### Phase 2D — Personalization Engine (Backend)
+* **Status**: `COMPLETE` (4 Capabilities Verified via SQLite Persistence & Pipeline Stages)
+* **Capabilities Covered**:
+  - `WF-024A` (Personal Dictionary Engine: SQLite storage, regex matching, casing preservation, starred priority, import/export).
+  - `WF-025A` (Custom Corrections Engine: Phonetic replacement rules).
+  - `WF-026A` (Voice Snippets Engine: 4k character templates, trigger matching, Zero-Enter enforcement).
+  - `WF-027A` (Writing Styles Engine: Profiles, contraction policy, formality substitutions, app mapping).
 
----
+### Phase 2E — Developer Mode & IDE Context Awareness
+* **Status**: `COMPLETE` (7 Capabilities Implemented & Tested + 4 Regression Validated)
+* **Implement**:
+  - `WF-030`: Password Field Exclusion (`CurrentIsPassword` check to refuse recording/insertion).
+  - `WF-031A`: Nearby Context Read (UIA `TextPattern` reading preceding text to bias formatting).
+  - `WF-032B`: Spoken Casing Triggers (Voice command parser for *"camel case [text]"*, etc.).
+  - `WF-034`: Voice File Tagging (Voice filter for *"at filename dot ts"* $\rightarrow$ `@filename.ts`).
+  - `WF-021`: Multi-Language Selection (Manual selection parameter).
+  - `WF-022`: Auto Language Detection (Whisper LID first-chunk token extraction).
+  - `WF-023`: Code-Switching (Vocabulary adaptation via prompt biasing).
+* **Regression Validate**:
+  - `WF-029` (Active App Detection), `WF-032A` (Programmatic Casing), `WF-033` (Technical Token Shield), `WF-035` (IDE & Terminal Compatibility).
 
-### Work Package 2D: Personalization Engine
-* **Objective**: Build local equivalents of Personal Dictionary, Snippets, and Styles.
-* **Scope**:
-  * Local SQLite storage for user dictionary terms, custom corrections, and snippets.
-  * Whisper initial prompt token biasing using dictionary entries.
-  * Voice snippets matching: voice trigger (up to 60 chars) $\rightarrow$ expansion (up to 4,000 chars).
-  * Styles profiles: Formal, Casual, Very Casual, Excited mapped to target apps.
-* **Non-Scope**: Team cloud snippet sharing.
-* **Components**:
-  * `Flow.Core/Storage/FlowDatabase.cs` (`Microsoft.Data.Sqlite`)
-  * `Flow.Core/Personalization/DictionaryManager.cs`
-  * `Flow.Core/Personalization/SnippetEngine.cs`
-  * `Flow.Core/Personalization/StyleManager.cs`
-* **Dependencies**: Phase 2C.
-* **Tests**: SQLite CRUD tests, snippet trigger match tests, style application tests.
-* **Exit Gate**: Speaking snippet cue instantly outputs expansion block into active text box.
+### Phase 2F — Safe Voice Command Mode & Transforms
+* **Status**: `COMPLETE` (3 Capabilities)
+* **Capabilities Covered**:
+  - `WF-036`: Command Mode Global Shortcut Trigger (Level 5).
+  - `WF-037A`: Selection-Aware Voice Editing (Level 5).
+  - `WF-037B`: Flow Bar Transforms Widget (Level 5).
+* **Regression Validate**:
+  - `WF-038`: Zero-Destructive Execution Safety (Level 5).
 
----
+### Phase 2G — History, Search, Statistics & Desktop Scratchpad
+* **Status**: `PENDING` (7 Capabilities)
+* **Capabilities Covered**:
+  - `WF-028`: Auto-Learned Vocabulary (Optional/Beta).
+  - `WF-039A`: History SQLite Storage & FTS5 Search.
+  - `WF-039B`: Dismissed / Cancelled Dictation Recovery.
+  - `WF-041`: Paste-Last-Transcript Global Shortcut.
+  - `WF-042`: Productivity Statistics (WPM, words, streaks).
+  - `WF-043A`: Desktop Scratchpad Floating Window.
+  - `WF-043B`: Scratchpad Direct Voice Dictation & Markdown.
 
-### Work Package 2E: Developer Mode & IDE Context Awareness
-* **Objective**: Enable seamless voice productivity inside code editors and terminals.
-* **Scope**:
-  * Voice casing conversions: `camelCase`, `snake_case`, `PascalCase`, `kebab-case`.
-  * Technical token protection: variables, functions, CLI flags, file paths, URLs.
-  * Voice file tagging: *"at index dot ts"* $\rightarrow$ `@index.ts`.
-  * IDE context integration: VS Code, Cursor, Windsurf, and Windows Terminal.
-* **Non-Scope**: Full screen OCR (Phase 5).
-* **Components**:
-  * `Flow.Core/Language/CasingTransformer.cs`
-  * `Flow.Core/Developer/DeveloperSyntaxEngine.cs`
-  * `Flow.Host.Windows/Native/IdeContextDetector.cs`
-* **Dependencies**: Phase 2D.
-* **Tests**: Unit tests for all casing styles, code identifiers, file tagging regexes.
-* **Safety Criteria**: Zero `Enter` simulation in terminal contexts.
+### Phase 2H — Native Windows Hub Window & HUD Polish
+* **Status**: `PENDING` (12 Capabilities)
+* **Capabilities Covered**:
+  - Hub Subsystem UI: `WF-024B` (Dictionary Hub GUI), `WF-025B` (Corrections Hub GUI), `WF-026B` (Snippets Hub GUI), `WF-027B` (Styles Hub GUI), `WF-040` (History Hub GUI), `WF-046` (Native WinUI 3 Hub window).
+  - Settings & Controls: `WF-010B` (Audio feedback toggle), `WF-020B` (Auto cleanup levels slider), `WF-020C` (Undo AI edit action), `WF-047` (Shortcut rebinding UI), `WF-048` (Audio diagnostics VU meter).
+  - HUD Polish: `WF-044B` (HUD audio waveform meter).
 
----
+### Phase 2I — Privacy, DPAPI Security & Fault Recovery
+* **Status**: `PENDING` (2 Capabilities)
+* **Capabilities Covered**:
+  - `WF-051`: Run on Windows Startup (`HKCU\...\Run` manager).
+  - `WF-055`: Local DPAPI Encryption of SQLite databases.
 
-### Work Package 2F: Safe Voice Command Mode
-* **Objective**: Implement voice-driven text manipulation with strict irreversible-action prevention.
-* **Scope**:
-  * Secondary global hotkey activating Command Mode.
-  * Selection capture via UI Automation / Clipboard.
-  * Voice editing transforms: *"make bullet points"*, *"summarize"*, *"fix spelling"*, *"capitalize"*.
-  * Inviolable safety filter: Strictly rejects commands requesting Enter, Send, Submit, Delete, Confirm, or Shell Execution.
-* **Non-Scope**: Web search / cloud generative actions.
-* **Components**:
-  * `Flow.Host.Windows/Commands/VoiceCommandCoordinator.cs`
-  * `Flow.Host.Windows/Commands/CommandSafetyFilter.cs`
-  * `Flow.Core/Commands/TextTransformationEngine.cs`
-* **Dependencies**: Phase 2E.
-* **Tests**: Safety filter blacklist test vectors, text transformation unit tests.
-* **Exit Gate**: Highlight text $\rightarrow$ speak command $\rightarrow$ text modified in-place; all destructive commands rejected.
+### Phase 2J — Full Parity Physical Application Validation & Benchmarks
+* **Status**: `FINAL GATE`
+* **Objective**: Full 12-application physical desktop matrix validation, empirical latency, CPU, and RAM profiling.
 
----
-
-### Work Package 2G: History, Search, Statistics & Scratchpad
-* **Objective**: Persistent local transcript archive, search, and productivity metrics.
-* **Scope**:
-  * SQLite FTS5 full-text search over past dictations.
-  * Re-insert past transcripts via global shortcut ("Paste Last Transcript").
-  * Metrics calculation: Words Per Minute (WPM), word count, active streaks.
-  * Desktop Scratchpad draft buffer.
-* **Components**:
-  * `Flow.Core/History/HistoryRepository.cs`
-  * `Flow.Core/History/FtsSearchEngine.cs`
-  * `Flow.Core/Productivity/StatisticsAggregator.cs`
-  * `Flow.Core/Storage/ScratchpadRepository.cs`
-* **Dependencies**: Phase 2D.
-* **Tests**: FTS5 search queries, WPM calculation tests, Scratchpad draft persistence.
-
----
-
-### Work Package 2H: Windows Native Hub & Settings Interface
-* **Objective**: Professional, non-vibecoded management application.
-* **Scope**:
-  * WinUI 3 desktop Hub window adhering to `APP_DESIGN_GUIDELINES.md` (Segoe UI, subtle dark surface, 8pt grid).
-  * Tabs: Home, History, Dictionary, Snippets, Styles, Developer, Shortcuts, Audio, Models, Privacy, About.
-  * Real-time VU meter for microphone level test.
-  * Run on Windows startup option (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`).
-  * Shortcut rebinding interface.
-* **Non-Scope**: Cloud account logins or subscriptions.
-* **Components**:
-  * `Flow.Host.Windows/UI/HubWindow.xaml(.cs)`
-  * `Flow.Host.Windows/UI/ViewModels/...`
-  * `Flow.Host.Windows/Settings/SettingsManager.cs`
-* **Dependencies**: Phases 2B - 2G.
-* **Tests**: UI binding tests, settings persistence tests, startup registry tests.
-
----
-
-### Work Package 2I: Privacy, DPAPI Security & Fault Recovery
-* **Objective**: Enterprise-grade security hardening and fault resilience.
-* **Scope**:
-  * Windows DPAPI encryption for local SQLite database and configuration.
-  * UI Automation password field detection (`CurrentIsPassword == true`) to suppress recording.
-  * Audio endpoint disconnect/reconnect recovery without deadlocks.
-  * Clean OS shutdown (`WM_QUERYENDSESSION`) handling.
-* **Components**:
-  * `Flow.Core/Security/DpapiDataProtector.cs`
-  * `Flow.Host.Windows/Native/PasswordDetector.cs`
-  * `Flow.Host.Windows/Lifecycle/SystemSessionManager.cs`
-* **Dependencies**: Phase 2H.
-* **Tests**: DPAPI encrypt/decrypt roundtrip, password field exclusion test, endpoint fault injection test.
-
----
-
-### Work Package 2J: Full Parity Physical Application Validation
-* **Objective**: Rigorous real-world physical verification across the entire Windows application suite.
-* **Scope**:
-  * Physical testing with real microphone input against all 12 target applications: Notepad, Word, Chrome, Edge, Gmail, Google Docs, WhatsApp Web, Slack, Notion, VS Code, Cursor, PowerShell, Windows Terminal.
-  * Empirical measurement of capture latency, inference latency, insertion latency, CPU %, RAM (RSS), and VRAM.
-  * Verification of zero simulated enters across all apps.
-* **Components**:
-  * `tests/Flow.Windows.Tests/Physical/CrossAppValidationSuite.cs`
-  * `docs/PHASE_2_PARITY_VERIFICATION_REPORT.md`
-* **Dependencies**: All prior Phase 2 work packages (2B through 2I).
-* **Exit Gate**: Formal sign-off on 100% of P0 capabilities and 90%+ of P1 capabilities.
+### Out of Scope
+* `WF-OS-01`: Wispr Flow AI Notetaker.
+* `WF-OS-02`: Mobile Virtual Keyboards.
+* `WF-OS-03`: Team Cloud Synchronization.
+* `WF-OS-04`: Cloud Telemetry & Analytics.

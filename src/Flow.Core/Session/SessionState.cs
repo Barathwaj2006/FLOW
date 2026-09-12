@@ -17,6 +17,9 @@ public enum SessionState
     /// <summary>Sanitized text is being inserted at cursor position.</summary>
     Inserting,
 
+    /// <summary>Previous insertion is being safely backtracked / undone.</summary>
+    Backtracking,
+
     /// <summary>Session finished successfully.</summary>
     Completed,
 

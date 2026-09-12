@@ -97,17 +97,37 @@ public sealed class WhisperNetInferenceEngine : IASREngine
             return ASRResult.Empty(Info.Id);
         }
 
+        string language = options?.Language ?? "en";
+
+        // Resolve required model for language ("auto", "ta", "en")
+        string requiredModelPath = await _modelManager.EnsureModelForLanguageAsync(language, null, cancellationToken);
+        if (_whisperFactory == null || _loadedModelPath != requiredModelPath)
+        {
+            _whisperFactory?.Dispose();
+            _whisperFactory = WhisperFactory.FromPath(requiredModelPath);
+            _loadedModelPath = requiredModelPath;
+        }
+
         var stopwatch = Stopwatch.StartNew();
         var segments = new List<ASRSegment>();
         var fullTextBuilder = new StringBuilder();
-
-        string language = options?.Language ?? "en";
+        string? detectedLanguage = null;
 
         try
         {
-            var processorBuilder = _whisperFactory.CreateBuilder()
-                .WithLanguage(language);
+            var processorBuilder = _whisperFactory.CreateBuilder();
 
+            // WF-021: Manual Language Selection & WF-022: Auto Language Detection
+            if (string.Equals(language, "auto", StringComparison.OrdinalIgnoreCase))
+            {
+                processorBuilder.WithLanguage("auto");
+            }
+            else
+            {
+                processorBuilder.WithLanguage(language);
+            }
+
+            // WF-023: Code-Switching Prompt Biasing
             if (!string.IsNullOrEmpty(options?.Prompt))
             {
                 processorBuilder.WithPrompt(options.Prompt);
@@ -121,6 +141,11 @@ public sealed class WhisperNetInferenceEngine : IASREngine
                 string text = segmentData.Text?.Trim() ?? string.Empty;
                 if (!string.IsNullOrEmpty(text))
                 {
+                    if (detectedLanguage == null && !string.IsNullOrEmpty(segmentData.Language))
+                    {
+                        detectedLanguage = segmentData.Language;
+                    }
+
                     var seg = new ASRSegment(
                         Text: text,
                         StartSeconds: segmentData.Start.TotalSeconds,
@@ -154,13 +179,20 @@ public sealed class WhisperNetInferenceEngine : IASREngine
         string finalText = fullTextBuilder.ToString();
         float avgConfidence = segments.Count > 0 ? 0.92f : 1.0f;
 
+        if (detectedLanguage == null && !string.Equals(language, "auto", StringComparison.OrdinalIgnoreCase))
+        {
+            detectedLanguage = language;
+        }
+
         return new ASRResult(
             Text: finalText,
             Confidence: avgConfidence,
             AudioDuration: TimeSpan.FromSeconds(audio.DurationSeconds),
             InferenceDuration: stopwatch.Elapsed,
             EngineId: Info.Id,
-            Segments: segments
+            Segments: segments,
+            DetectedLanguage: detectedLanguage,
+            LanguageConfidence: avgConfidence
         );
     }
 

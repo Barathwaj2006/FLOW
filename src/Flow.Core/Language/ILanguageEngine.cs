@@ -9,7 +9,8 @@ public sealed record FormattingOptions(
     bool CapitalizeFirstWord = true,
     bool EnsureTerminalPunctuation = true,
     bool RemoveFillerWords = true,
-    bool ReplaceSpokenPunctuation = true
+    bool ReplaceSpokenPunctuation = true,
+    bool FormatNumberedLists = true
 );
 
 /// <summary>

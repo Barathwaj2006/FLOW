@@ -12,6 +12,9 @@ public sealed class GlobalHotkeyHook : IDisposable
 {
     public const int DefaultHotkeyVk = 0xA5; // VK_RMENU (Right Alt)
     private const int VK_ESCAPE = 0x1B;
+    private const int VK_SHIFT = 0x10;
+    private const int VK_CONTROL = 0x11;
+    private const int VK_BACK = 0x08;
 
     private readonly int _targetVk;
     private readonly double _doubleTapThresholdMs;
@@ -19,6 +22,7 @@ public sealed class GlobalHotkeyHook : IDisposable
     private IntPtr _hookId = IntPtr.Zero;
     private LowLevelKeyboardProc? _proc;
     private bool _isKeyDown;
+    private bool _isCommandModeKeyDown;
     private bool _isHandsFreeActive;
     private long _lastKeyUpTimestamp;
     private bool _isDisposed;
@@ -35,9 +39,24 @@ public sealed class GlobalHotkeyHook : IDisposable
     public event Action? HotkeyUp;
 
     /// <summary>
+    /// Fired when dedicated command mode recording begins (WF-036: Ctrl + TargetKey).
+    /// </summary>
+    public event Action? CommandModeHotkeyDown;
+
+    /// <summary>
+    /// Fired when dedicated command mode recording concludes.
+    /// </summary>
+    public event Action? CommandModeHotkeyUp;
+
+    /// <summary>
     /// Fired when the active session is cancelled via Escape.
     /// </summary>
     public event Action? HotkeyCancelled;
+
+    /// <summary>
+    /// Fired when a backtrack operation is requested via shortcut (Shift+RightAlt or RightAlt+Backspace).
+    /// </summary>
+    public event Action? BacktrackRequested;
 
     public bool IsHooked => _hookId != IntPtr.Zero;
     public bool IsHandsFreeActive => _isHandsFreeActive;
@@ -74,6 +93,7 @@ public sealed class GlobalHotkeyHook : IDisposable
             _hookId = IntPtr.Zero;
         }
         _isKeyDown = false;
+        _isCommandModeKeyDown = false;
         _isHandsFreeActive = false;
     }
 
@@ -87,14 +107,45 @@ public sealed class GlobalHotkeyHook : IDisposable
             // 1. Handle Escape key for immediate cancellation
             if (vkCode == VK_ESCAPE && (message == WM_KEYDOWN || message == WM_SYSKEYDOWN))
             {
-                if (_isKeyDown || _isHandsFreeActive)
+                if (_isKeyDown || _isHandsFreeActive || _isCommandModeKeyDown)
                 {
                     _isKeyDown = false;
+                    _isCommandModeKeyDown = false;
                     _isHandsFreeActive = false;
                     HotkeyCancelled?.Invoke();
                 }
             }
-            // 2. Handle configured hotkey (default: Right Alt)
+            // 2. Handle Backtrack shortcuts: Shift + TargetKey or TargetKey + Backspace
+            else if (((vkCode == _targetVk && (GetKeyState(VK_SHIFT) & 0x8000) != 0) ||
+                      (vkCode == VK_BACK && (GetKeyState(_targetVk) & 0x8000) != 0)) &&
+                     (message == WM_KEYDOWN || message == WM_SYSKEYDOWN))
+            {
+                BacktrackRequested?.Invoke();
+                return (IntPtr)1;
+            }
+            // 3. Handle Command Mode shortcut: Ctrl + TargetKey (WF-036)
+            else if (vkCode == _targetVk && ((GetKeyState(VK_CONTROL) & 0x8000) != 0 || _isCommandModeKeyDown))
+            {
+                if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
+                {
+                    if (!_isCommandModeKeyDown)
+                    {
+                        _isCommandModeKeyDown = true;
+                        CommandModeHotkeyDown?.Invoke();
+                        return (IntPtr)1;
+                    }
+                }
+                else if (message == WM_KEYUP || message == WM_SYSKEYUP)
+                {
+                    if (_isCommandModeKeyDown)
+                    {
+                        _isCommandModeKeyDown = false;
+                        CommandModeHotkeyUp?.Invoke();
+                        return (IntPtr)1;
+                    }
+                }
+            }
+            // 4. Handle configured dictation hotkey (default: Right Alt)
             else if (vkCode == _targetVk)
             {
                 if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
@@ -177,6 +228,9 @@ public sealed class GlobalHotkeyHook : IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern short GetKeyState(int nVirtKey);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr GetModuleHandle(string? lpModuleName);
