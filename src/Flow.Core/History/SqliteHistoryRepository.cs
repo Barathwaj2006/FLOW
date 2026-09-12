@@ -376,6 +376,198 @@ public sealed class SqliteHistoryRepository : IHistoryRepository, IHistorySearch
         return list;
     }
 
+    public async Task<IReadOnlyList<DictationEntry>> GetEntriesForStatisticsAsync(DateTimeOffset? fromDate, CancellationToken ct = default)
+    {
+        await using var conn = _database.CreateConnection();
+        await using var cmd = conn.CreateCommand();
+
+        if (fromDate.HasValue)
+        {
+            cmd.CommandText = @"
+                SELECT Id, CreatedAt, DurationMs, CharacterCount, WordCount, Language, Application
+                FROM DictationHistory
+                WHERE IsDeleted = 0 AND State = 'Completed' AND CreatedAt >= @from
+                ORDER BY CreatedAt ASC;
+            ";
+            cmd.Parameters.AddWithValue("@from", fromDate.Value.ToString("O"));
+        }
+        else
+        {
+            cmd.CommandText = @"
+                SELECT Id, CreatedAt, DurationMs, CharacterCount, WordCount, Language, Application
+                FROM DictationHistory
+                WHERE IsDeleted = 0 AND State = 'Completed'
+                ORDER BY CreatedAt ASC;
+            ";
+        }
+
+        var list = new List<DictationEntry>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            list.Add(new DictationEntry(
+                Id: reader.GetString(0),
+                SessionId: Guid.Empty,
+                CreatedAt: DateTimeOffset.Parse(reader.GetString(1)),
+                DurationMs: reader.GetInt64(2),
+                CharacterCount: reader.GetInt32(3),
+                WordCount: reader.GetInt32(4),
+                Language: reader.GetString(5),
+                Application: reader.GetString(6),
+                ApplicationCategory: "Productivity",
+                Mode: "Dictation",
+                State: HistoryState.Completed,
+                WasEdited: false,
+                IsFavorite: false,
+                Text: null,
+                TextHash: null,
+                MetadataJson: null,
+                IsDeleted: false,
+                DeletedAt: null
+            ));
+        }
+
+        return list;
+    }
+
+    public async Task<ProductivityMetrics> GetMetricsAsync(TimeRangeWindow window, DateTimeOffset? fromDate, TimeZoneInfo tz, CancellationToken ct = default)
+    {
+        await using var conn = _database.CreateConnection();
+        string dateClause = fromDate.HasValue ? " AND CreatedAt >= @from" : "";
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = $@"
+            SELECT COUNT(*), COALESCE(SUM(WordCount), 0), COALESCE(SUM(CharacterCount), 0), COALESCE(SUM(DurationMs), 0)
+            FROM DictationHistory WHERE IsDeleted = 0 AND State = 'Completed'{dateClause};
+
+            SELECT Application, COUNT(*)
+            FROM DictationHistory WHERE IsDeleted = 0 AND State = 'Completed'{dateClause}
+            GROUP BY Application ORDER BY COUNT(*) DESC LIMIT 10;
+
+            SELECT Language, COUNT(*)
+            FROM DictationHistory WHERE IsDeleted = 0 AND State = 'Completed'{dateClause}
+            GROUP BY Language ORDER BY COUNT(*) DESC LIMIT 5;
+
+            SELECT substr(CreatedAt, 1, 10), SUM(WordCount), SUM(CharacterCount), COUNT(*), SUM(DurationMs)
+            FROM DictationHistory WHERE IsDeleted = 0 AND State = 'Completed'{dateClause}
+            GROUP BY substr(CreatedAt, 1, 10) ORDER BY substr(CreatedAt, 1, 10) ASC;
+        ";
+        if (fromDate.HasValue) cmd.Parameters.AddWithValue("@from", fromDate.Value.ToString("O"));
+
+        int totalSessions = 0;
+        int totalWords = 0;
+        int totalChars = 0;
+        long totalDurationMs = 0;
+        var topApps = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var topLangs = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var dailyList = new List<DailyUsageMetric>();
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+
+        // Result 1: Aggregates
+        if (await reader.ReadAsync(ct))
+        {
+            totalSessions = reader.GetInt32(0);
+            totalWords = Convert.ToInt32(reader.GetInt64(1));
+            totalChars = Convert.ToInt32(reader.GetInt64(2));
+            totalDurationMs = reader.GetInt64(3);
+        }
+
+        // Result 2: Top Apps
+        if (await reader.NextResultAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                topApps[reader.GetString(0)] = reader.GetInt32(1);
+            }
+        }
+
+        // Result 3: Top Languages
+        if (await reader.NextResultAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                topLangs[reader.GetString(0)] = reader.GetInt32(1);
+            }
+        }
+
+        // Result 4: Daily Usage
+        if (await reader.NextResultAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                if (DateOnly.TryParse(reader.GetString(0), out var date))
+                {
+                    dailyList.Add(new DailyUsageMetric(
+                        date,
+                        Convert.ToInt32(reader.GetInt64(1)),
+                        Convert.ToInt32(reader.GetInt64(2)),
+                        reader.GetInt32(3),
+                        reader.GetInt64(4)
+                    ));
+                }
+            }
+        }
+
+        double avgWordsPerSession = totalSessions > 0 ? Math.Round((double)totalWords / totalSessions, 1) : 0.0;
+        double avgDurationSec = totalSessions > 0 ? Math.Round((double)totalDurationMs / (totalSessions * 1000.0), 1) : 0.0;
+        double activeMinutes = totalDurationMs / 60000.0;
+        double avgWpm = (totalDurationMs >= 10000 && totalWords > 0) ? Math.Round(totalWords / activeMinutes, 1) : 0.0;
+
+        return new ProductivityMetrics(
+            Window: window,
+            TotalWords: totalWords,
+            TotalCharacters: totalChars,
+            TotalSessions: totalSessions,
+            TotalActiveDurationMs: totalDurationMs,
+            AverageWpm: avgWpm,
+            AverageWordsPerSession: avgWordsPerSession,
+            AverageSessionDurationSeconds: avgDurationSec,
+            TopApplications: topApps,
+            TopLanguages: topLangs,
+            DailyUsage: dailyList
+        );
+    }
+
+    public async Task<IReadOnlyList<DateOnly>> GetActiveDaysAsync(int minWordsThreshold, TimeZoneInfo tz, CancellationToken ct = default)
+    {
+        await using var conn = _database.CreateConnection();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT substr(CreatedAt, 1, 10)
+            FROM DictationHistory
+            WHERE IsDeleted = 0 AND State = 'Completed'
+            GROUP BY substr(CreatedAt, 1, 10)
+            HAVING SUM(WordCount) >= @minWords
+            ORDER BY substr(CreatedAt, 1, 10) ASC;
+        ";
+        cmd.Parameters.AddWithValue("@minWords", Math.Max(1, minWordsThreshold));
+
+        var list = new List<DateOnly>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            if (DateOnly.TryParse(reader.GetString(0), out var d))
+            {
+                list.Add(d);
+            }
+        }
+
+        return list;
+    }
+
+    public async Task<long> GetMaxDurationMsAsync(DateTimeOffset? fromDate, CancellationToken ct = default)
+    {
+        await using var conn = _database.CreateConnection();
+        await using var cmd = conn.CreateCommand();
+        string dateClause = fromDate.HasValue ? " AND CreatedAt >= @from" : "";
+        cmd.CommandText = $"SELECT COALESCE(MAX(DurationMs), 0) FROM DictationHistory WHERE IsDeleted = 0 AND State = 'Completed'{dateClause};";
+        if (fromDate.HasValue) cmd.Parameters.AddWithValue("@from", fromDate.Value.ToString("O"));
+
+        var result = await cmd.ExecuteScalarAsync(ct);
+        return result != null ? Convert.ToInt64(result) : 0;
+    }
+
     private static async Task<int> GetFilteredCountInternalAsync(SqliteConnection conn, HistoryFilter filter, CancellationToken ct)
     {
         var (whereSql, parameters) = BuildWhereClause(filter);

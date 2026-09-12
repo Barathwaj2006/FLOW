@@ -196,8 +196,9 @@ public class Phase85PrivacyAndAdversarialAuditTests : IDisposable
     [Fact]
     public async Task SentinelSecrets_LeakScan_ExportsNeverContainSentinels()
     {
-        string sentinelPassword = "FLOW_PASSWORD_SENTINEL_B_999";
-        string sentinelSensitive = "FLOW_SECRET_SENTINEL_A_888";
+        string sentinelPassword = "FLOW_PASSWORD_SENTINEL_B";
+        string sentinelSensitive = "FLOW_SECRET_SENTINEL_A";
+        string sentinelSelection = "FLOW_COMMAND_SELECTION_SENTINEL_C";
 
         // 1. Record normal entry
         await _historyService.RecordDictationAsync(
@@ -246,6 +247,34 @@ public class Phase85PrivacyAndAdversarialAuditTests : IDisposable
             context: sensContext
         );
 
+        // 4. Record command mode transform with selection sentinel
+        await _historyService.RecordDictationAsync(
+            sessionId: Guid.NewGuid(),
+            text: "", // Inviolable: raw selection never passed to history text
+            duration: TimeSpan.FromSeconds(1),
+            language: "en",
+            context: null,
+            mode: "Command",
+            metadataJson: "{\"Intent\":\"TransformSelection\",\"Transform\":\"Uppercase\",\"Result\":\"Success\"}"
+        );
+
+        // 5. Inspect SQLite Database directly across DictationHistory.Text, MetadataJson, and DictationHistoryFts
+        await using (var conn = _database.CreateConnection())
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT COUNT(*) FROM DictationHistory 
+                WHERE Text LIKE '%FLOW_%' OR MetadataJson LIKE '%FLOW_%';
+            ";
+            int dbMatches = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            Assert.Equal(0, dbMatches);
+
+            await using var ftsCmd = conn.CreateCommand();
+            ftsCmd.CommandText = "SELECT COUNT(*) FROM DictationHistoryFts WHERE Text LIKE '%FLOW_%';";
+            int ftsMatches = Convert.ToInt32(await ftsCmd.ExecuteScalarAsync());
+            Assert.Equal(0, ftsMatches);
+        }
+
         // Export all formats
         string jsonPath = Path.Combine(_exportDir, "export.json");
         string csvPath = Path.Combine(_exportDir, "export.csv");
@@ -267,6 +296,10 @@ public class Phase85PrivacyAndAdversarialAuditTests : IDisposable
         Assert.DoesNotContain(sentinelSensitive, json);
         Assert.DoesNotContain(sentinelSensitive, csv);
         Assert.DoesNotContain(sentinelSensitive, txt);
+
+        Assert.DoesNotContain(sentinelSelection, json);
+        Assert.DoesNotContain(sentinelSelection, csv);
+        Assert.DoesNotContain(sentinelSelection, txt);
     }
 
     [Fact]

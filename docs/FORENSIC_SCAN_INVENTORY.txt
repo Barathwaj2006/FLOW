@@ -1,0 +1,320 @@
+FLOW SRC FORENSIC SCAN INVENTORY
+Total matches: 317
+
+powershell.exe | Flow.Core\Commands\CommandPolicyModels.cs:L74 | (new Regex(@"\bpowershell(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "PowerShell process execution is strictly blocked."),
+powershell.exe | Flow.Core\Commands\CommandPolicyModels.cs:L75 | (new Regex(@"\bpwsh(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "PowerShell Core process execution is strictly blocked."),
+bash | Flow.Core\Commands\CommandPolicyModels.cs:L76 | (new Regex(@"\bbash(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Bash shell execution is strictly blocked."),
+ShellExecute | Flow.Core\Commands\CommandPolicyModels.cs:L85 | (new Regex(@"\bshellexecute(ex)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "ShellExecute primitives are strictly blocked."),
+Process.Start | Flow.Core\Commands\CommandPolicyModels.cs:L86 | (new Regex(@"\bprocess\.start\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Process.Start execution is strictly blocked."),
+powershell.exe | Flow.Core\Commands\CommandPolicyModels.cs:L92 | (new Regex(@"\bremove-item\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "PowerShell Remove-Item commands are strictly blocked."),
+cmd.exe | Flow.Core\Commands\CommandRegistry.cs:L82 | "cmd.copy",
+cmd.exe | Flow.Core\Commands\CommandRegistry.cs:L94 | "cmd.paste",
+cmd.exe | Flow.Core\Commands\CommandRegistry.cs:L106 | "cmd.undo",
+cmd.exe | Flow.Core\Commands\CommandRegistry.cs:L118 | "cmd.redo",
+cmd.exe | Flow.Core\Commands\CommandRegistry.cs:L130 | "cmd.select_all",
+cmd.exe | Flow.Core\Commands\CommandRegistry.cs:L142 | "cmd.deselect",
+cmd.exe | Flow.Core\Commands\CommandRegistry.cs:L154 | "cmd.delete_selection",
+cmd.exe | Flow.Core\Commands\CommandRegistry.cs:L167 | "cmd.cancel",
+powershell.exe | Flow.Core\Commands\DeterministicCommandSafetyPolicy.cs:L28 | (new Regex(@"\bpowershell(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "PowerShell process execution is strictly blocked."),
+powershell.exe | Flow.Core\Commands\DeterministicCommandSafetyPolicy.cs:L29 | (new Regex(@"\bpwsh(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "PowerShell Core process execution is strictly blocked."),
+bash | Flow.Core\Commands\DeterministicCommandSafetyPolicy.cs:L30 | (new Regex(@"\bbash(\.exe)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Bash shell execution is strictly blocked."),
+ShellExecute | Flow.Core\Commands\DeterministicCommandSafetyPolicy.cs:L39 | (new Regex(@"\bshellexecute(ex)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "ShellExecute primitives are strictly blocked."),
+Process.Start | Flow.Core\Commands\DeterministicCommandSafetyPolicy.cs:L40 | (new Regex(@"\bprocess\.start\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "Process.Start execution is strictly blocked."),
+powershell.exe | Flow.Core\Commands\DeterministicCommandSafetyPolicy.cs:L46 | (new Regex(@"\bremove-item\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), "PowerShell Remove-Item commands are strictly blocked."),
+\r | Flow.Core\Commands\DeterministicTextTransformEngine.cs:L130 | var rawLines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+\n | Flow.Core\Commands\DeterministicTextTransformEngine.cs:L130 | var rawLines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+\r | Flow.Core\Commands\DeterministicTextTransformEngine.cs:L253 | string s = Regex.Replace(text, @"[\r\n]+", " ");
+\n | Flow.Core\Commands\DeterministicTextTransformEngine.cs:L253 | string s = Regex.Replace(text, @"[\r\n]+", " ");
+powershell.exe | Flow.Core\Context\RuleBasedApplicationClassifier.cs:L52 | "powershell",
+pwsh | Flow.Core\Context\RuleBasedApplicationClassifier.cs:L53 | "pwsh",
+cmd.exe | Flow.Core\Context\RuleBasedApplicationClassifier.cs:L54 | "cmd",
+bash | Flow.Core\Context\RuleBasedApplicationClassifier.cs:L57 | "bash",
+\r | Flow.Core\History\HistoryService.cs:L99 | return text.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Length;
+\n | Flow.Core\History\HistoryService.cs:L99 | return text.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Length;
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L35 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L37 | cmd.CommandText = @"
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L49 | cmd.Parameters.AddWithValue("@id", id);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L50 | cmd.Parameters.AddWithValue("@sessionId", entry.SessionId.ToString());
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L51 | cmd.Parameters.AddWithValue("@createdAt", entry.CreatedAt.ToString("O"));
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L52 | cmd.Parameters.AddWithValue("@durationMs", entry.DurationMs);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L53 | cmd.Parameters.AddWithValue("@charCount", entry.CharacterCount);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L54 | cmd.Parameters.AddWithValue("@wordCount", entry.WordCount);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L55 | cmd.Parameters.AddWithValue("@language", entry.Language);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L56 | cmd.Parameters.AddWithValue("@app", entry.Application);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L57 | cmd.Parameters.AddWithValue("@category", entry.ApplicationCategory);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L58 | cmd.Parameters.AddWithValue("@mode", entry.Mode);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L59 | cmd.Parameters.AddWithValue("@state", entry.State.ToString());
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L60 | cmd.Parameters.AddWithValue("@wasEdited", entry.WasEdited ? 1 : 0);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L61 | cmd.Parameters.AddWithValue("@isFavorite", entry.IsFavorite ? 1 : 0);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L62 | cmd.Parameters.AddWithValue("@text", (object?)entry.Text ?? DBNull.Value);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L63 | cmd.Parameters.AddWithValue("@textHash", (object?)textHash ?? DBNull.Value);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L64 | cmd.Parameters.AddWithValue("@metadata", (object?)entry.MetadataJson ?? DBNull.Value);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L65 | cmd.Parameters.AddWithValue("@isDeleted", entry.IsDeleted ? 1 : 0);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L66 | cmd.Parameters.AddWithValue("@deletedAt", entry.DeletedAt.HasValue ? entry.DeletedAt.Value.ToString("O") : DBNull.Value);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L68 | await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L77 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L79 | cmd.CommandText = @"
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L86 | cmd.Parameters.AddWithValue("@id", id);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L88 | await using var reader = await cmd.ExecuteReaderAsync(ct);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L121 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L122 | cmd.CommandText = querySql;
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L125 | cmd.Parameters.AddWithValue(k, v);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L127 | cmd.Parameters.AddWithValue("@limit", safePageSize);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L128 | cmd.Parameters.AddWithValue("@offset", offset);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L131 | await using var reader = await cmd.ExecuteReaderAsync(ct);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L151 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L153 | cmd.CommandText = "UPDATE DictationHistory SET IsFavorite = @fav WHERE Id = @id;";
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L154 | cmd.Parameters.AddWithValue("@fav", isFavorite ? 1 : 0);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L155 | cmd.Parameters.AddWithValue("@id", id);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L157 | int rows = await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L166 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L169 | cmd.CommandText = "UPDATE DictationHistory SET IsDeleted = 1, DeletedAt = @now WHERE Id = @id;";
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L170 | cmd.Parameters.AddWithValue("@now", now);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L171 | cmd.Parameters.AddWithValue("@id", id);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L173 | int rows = await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L182 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L184 | cmd.CommandText = "UPDATE DictationHistory SET IsDeleted = 0, DeletedAt = NULL WHERE Id = @id;";
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L185 | cmd.Parameters.AddWithValue("@id", id);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L187 | int rows = await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L196 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L198 | cmd.CommandText = "DELETE FROM DictationHistory WHERE Id = @id;";
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L199 | cmd.Parameters.AddWithValue("@id", id);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L201 | int rows = await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L213 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L216 | cmd.CommandText = "DELETE FROM DictationHistory WHERE IsFavorite = 0;";
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L217 | return await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L280 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L282 | cmd.CommandText = "SELECT Key, Value FROM HistorySettings;";
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L285 | await using var reader = await cmd.ExecuteReaderAsync(ct);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L332 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L333 | cmd.Transaction = transaction;
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L334 | cmd.CommandText = @"
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L339 | cmd.Parameters.AddWithValue("@k", k);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L340 | cmd.Parameters.AddWithValue("@v", v);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L341 | cmd.Parameters.AddWithValue("@now", now);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L342 | await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L362 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L363 | cmd.CommandText = querySql;
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L366 | cmd.Parameters.AddWithValue(k, v);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L370 | await using var reader = await cmd.ExecuteReaderAsync(ct);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L382 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L383 | cmd.CommandText = $"SELECT COUNT(*) FROM DictationHistory {whereSql};";
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L386 | cmd.Parameters.AddWithValue(k, v);
+cmd.exe | Flow.Core\History\SqliteHistoryRepository.cs:L389 | var val = await cmd.ExecuteScalarAsync(ct);
+\r | Flow.Core\Language\DeterministicTextSanitizer.cs:L45 | string text = rawText.Replace("\r", " ").Replace("\n", " ");
+\n | Flow.Core\Language\DeterministicTextSanitizer.cs:L45 | string text = rawText.Replace("\r", " ").Replace("\n", " ");
+\r | Flow.Core\Personalization\PersonalizationBiasingService.cs:L140 | if (c is '\r' or '\n' or '\t' or '"' or '\'' or '`' or char.MinValue)
+\n | Flow.Core\Personalization\PersonalizationBiasingService.cs:L140 | if (c is '\r' or '\n' or '\t' or '"' or '\'' or '`' or char.MinValue)
+\r | Flow.Core\Personalization\Dictionary\PersonalDictionaryEngine.cs:L137 | string target = entry.EffectiveText.Replace("\r\n", " ").Replace('\r', ' ').Replace('\n', ' ');
+\n | Flow.Core\Personalization\Dictionary\PersonalDictionaryEngine.cs:L137 | string target = entry.EffectiveText.Replace("\r\n", " ").Replace('\r', ' ').Replace('\n', ' ');
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L29 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L31 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L37 | await using var reader = await cmd.ExecuteReaderAsync(ct);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L51 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L53 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L58 | cmd.Parameters.AddWithValue("@id", id);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L60 | await using var reader = await cmd.ExecuteReaderAsync(ct);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L74 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L76 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L81 | cmd.Parameters.AddWithValue("@term", term.Trim());
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L83 | await using var reader = await cmd.ExecuteReaderAsync(ct);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L116 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L118 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L131 | BindEntryParameters(cmd, entry);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L133 | await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L153 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L157 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L170 | BindEntryParameters(cmd, entry);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L172 | await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L180 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L182 | cmd.CommandText = "DELETE FROM DictionaryEntries WHERE Id = @id;";
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L183 | cmd.Parameters.AddWithValue("@id", id);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L185 | await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L216 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L217 | cmd.Transaction = tx;
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L221 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L237 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L244 | BindEntryParameters(cmd, entry);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L245 | await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L323 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L324 | cmd.Transaction = tx;
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L328 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L344 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L351 | BindEntryParameters(cmd, entry);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L352 | await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L421 | private static void BindEntryParameters(SqliteCommand cmd, DictionaryEntry entry)
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L423 | cmd.Parameters.AddWithValue("@id", entry.Id);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L424 | cmd.Parameters.AddWithValue("@term", entry.Term);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L425 | cmd.Parameters.AddWithValue("@replacement", (object?)entry.Replacement ?? DBNull.Value);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L426 | cmd.Parameters.AddWithValue("@isStarred", entry.IsStarred ? 1 : 0);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L427 | cmd.Parameters.AddWithValue("@category", (object?)entry.Category ?? DBNull.Value);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L428 | cmd.Parameters.AddWithValue("@caseSensitive", entry.CaseSensitive ? 1 : 0);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L429 | cmd.Parameters.AddWithValue("@isEnabled", entry.IsEnabled ? 1 : 0);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L430 | cmd.Parameters.AddWithValue("@language", (object?)entry.Language ?? DBNull.Value);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L431 | cmd.Parameters.AddWithValue("@applicationScope", (object?)entry.ApplicationScope ?? DBNull.Value);
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L432 | cmd.Parameters.AddWithValue("@createdAt", entry.CreatedAt.ToString("O"));
+cmd.exe | Flow.Core\Personalization\Dictionary\SqlitePersonalDictionaryRepository.cs:L433 | cmd.Parameters.AddWithValue("@updatedAt", entry.UpdatedAt.ToString("O"));
+\r | Flow.Core\Personalization\Snippets\SnippetExpansionEngine.cs:L177 | .Replace("\r\n", " ")
+\n | Flow.Core\Personalization\Snippets\SnippetExpansionEngine.cs:L177 | .Replace("\r\n", " ")
+\r | Flow.Core\Personalization\Snippets\SnippetExpansionEngine.cs:L178 | .Replace("\r", " ")
+\n | Flow.Core\Personalization\Snippets\SnippetExpansionEngine.cs:L179 | .Replace("\n", " ");
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L27 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L29 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L35 | await using var reader = await cmd.ExecuteReaderAsync(ct);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L49 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L51 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L56 | cmd.Parameters.AddWithValue("@id", id);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L58 | await using var reader = await cmd.ExecuteReaderAsync(ct);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L72 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L74 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L79 | cmd.Parameters.AddWithValue("@trigger", trigger.Trim());
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L81 | await using var reader = await cmd.ExecuteReaderAsync(ct);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L107 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L109 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L113 | BindSnippetParameters(cmd, snippet);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L115 | await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L137 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L139 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L151 | BindSnippetParameters(cmd, snippet);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L153 | await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L161 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L163 | cmd.CommandText = "DELETE FROM Snippets WHERE Id = @id;";
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L164 | cmd.Parameters.AddWithValue("@id", id);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L166 | await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L197 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L198 | cmd.Transaction = tx;
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L202 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L217 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L224 | BindSnippetParameters(cmd, s);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L225 | await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L257 | private static void BindSnippetParameters(SqliteCommand cmd, SnippetEntry snippet)
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L259 | cmd.Parameters.AddWithValue("@id", snippet.Id);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L260 | cmd.Parameters.AddWithValue("@triggerPhrase", snippet.TriggerPhrase.Trim());
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L261 | cmd.Parameters.AddWithValue("@expansionText", snippet.ExpansionText);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L262 | cmd.Parameters.AddWithValue("@isEnabled", snippet.IsEnabled ? 1 : 0);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L263 | cmd.Parameters.AddWithValue("@category", (object?)snippet.Category ?? DBNull.Value);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L264 | cmd.Parameters.AddWithValue("@description", (object?)snippet.Description ?? DBNull.Value);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L265 | cmd.Parameters.AddWithValue("@language", (object?)snippet.Language ?? DBNull.Value);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L266 | cmd.Parameters.AddWithValue("@applicationScope", (object?)snippet.ApplicationScope ?? DBNull.Value);
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L267 | cmd.Parameters.AddWithValue("@createdAt", snippet.CreatedAt.ToString("O"));
+cmd.exe | Flow.Core\Personalization\Snippets\SqliteSnippetRepository.cs:L268 | cmd.Parameters.AddWithValue("@updatedAt", snippet.UpdatedAt.ToString("O"));
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L26 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L28 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L34 | await using var reader = await cmd.ExecuteReaderAsync(ct);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L48 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L50 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L55 | cmd.Parameters.AddWithValue("@id", id);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L57 | await using var reader = await cmd.ExecuteReaderAsync(ct);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L71 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L73 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L78 | cmd.Parameters.AddWithValue("@name", name.Trim());
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L80 | await using var reader = await cmd.ExecuteReaderAsync(ct);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L103 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L105 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L118 | cmd.Parameters.AddWithValue("@id", profile.Id);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L119 | cmd.Parameters.AddWithValue("@name", profile.Name.Trim());
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L120 | cmd.Parameters.AddWithValue("@desc", (object?)profile.Description ?? DBNull.Value);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L121 | cmd.Parameters.AddWithValue("@contractions", (int)profile.ContractionPolicy);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L122 | cmd.Parameters.AddWithValue("@formality", (int)profile.FormalityLevel);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L123 | cmd.Parameters.AddWithValue("@bullets", profile.UseBulletPoints ? 1 : 0);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L124 | cmd.Parameters.AddWithValue("@isEnabled", profile.IsEnabled ? 1 : 0);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L125 | cmd.Parameters.AddWithValue("@langScope", (object?)profile.LanguageScope ?? DBNull.Value);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L126 | cmd.Parameters.AddWithValue("@createdAt", profile.CreatedAt.ToString("O"));
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L127 | cmd.Parameters.AddWithValue("@updatedAt", profile.UpdatedAt.ToString("O"));
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L129 | await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L137 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L139 | cmd.CommandText = "DELETE FROM StyleProfiles WHERE Id = @id;";
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L140 | cmd.Parameters.AddWithValue("@id", id);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L142 | await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L149 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L151 | cmd.CommandText = "SELECT ProcessName, StyleProfileId FROM AppStyleMappings;";
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L152 | await using var reader = await cmd.ExecuteReaderAsync(ct);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L166 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L168 | cmd.CommandText = "SELECT StyleProfileId FROM AppStyleMappings WHERE ProcessName = @proc COLLATE NOCASE;";
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L169 | cmd.Parameters.AddWithValue("@proc", processName.Trim());
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L171 | object? result = await cmd.ExecuteScalarAsync(ct);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L181 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L183 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L189 | cmd.Parameters.AddWithValue("@proc", processName.Trim());
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L190 | cmd.Parameters.AddWithValue("@styleId", styleProfileId.Trim());
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L191 | cmd.Parameters.AddWithValue("@createdAt", DateTime.UtcNow.ToString("O"));
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L193 | await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L201 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L203 | cmd.CommandText = "DELETE FROM AppStyleMappings WHERE ProcessName = @proc COLLATE NOCASE;";
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L204 | cmd.Parameters.AddWithValue("@proc", processName.Trim());
+cmd.exe | Flow.Core\Personalization\Styles\SqliteStyleRepository.cs:L206 | await cmd.ExecuteNonQueryAsync(ct);
+\r | Flow.Core\Session\VoiceSessionCoordinator.cs:L625 | if (cleanText.Contains('\r') || cleanText.Contains('\n'))
+\n | Flow.Core\Session\VoiceSessionCoordinator.cs:L625 | if (cleanText.Contains('\r') || cleanText.Contains('\n'))
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L91 | using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L92 | cmd.CommandText = "PRAGMA user_version;";
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L93 | var val = cmd.ExecuteScalar();
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L103 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L104 | cmd.CommandText = sql;
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L105 | return await cmd.ExecuteNonQueryAsync(ct);
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L114 | await using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L115 | cmd.CommandText = sql;
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L116 | object? result = await cmd.ExecuteScalarAsync(ct);
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L135 | using (var cmd = conn.CreateCommand())
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L137 | cmd.CommandText = "PRAGMA foreign_keys = ON;";
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L138 | cmd.ExecuteNonQuery();
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L142 | cmd.CommandText = "PRAGMA journal_mode = WAL;";
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L143 | cmd.ExecuteNonQuery();
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L156 | using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L158 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L210 | cmd.ExecuteNonQuery();
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L349 | using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L350 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L354 | cmd.Parameters.AddWithValue("@k", k);
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L355 | cmd.Parameters.AddWithValue("@v", v);
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L356 | cmd.Parameters.AddWithValue("@now", now);
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L357 | cmd.ExecuteNonQuery();
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L402 | using var cmd = conn.CreateCommand();
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L403 | cmd.CommandText = @"
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L407 | cmd.Parameters.AddWithValue("@id", id);
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L408 | cmd.Parameters.AddWithValue("@name", name);
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L409 | cmd.Parameters.AddWithValue("@desc", desc);
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L410 | cmd.Parameters.AddWithValue("@contractions", contractions);
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L411 | cmd.Parameters.AddWithValue("@formality", formality);
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L412 | cmd.Parameters.AddWithValue("@bullets", bullets);
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L413 | cmd.Parameters.AddWithValue("@now", now);
+cmd.exe | Flow.Core\Storage\SqlitePersonalizationDatabase.cs:L414 | cmd.ExecuteNonQuery();
+VK_RETURN | Flow.Core\TextInsertion\ITextInsertionService.cs:L43 | /// Inviolable invariant: MUST NEVER simulate Enter (VK_RETURN) or click submit.
+VK_RETURN | Flow.Core\TextInsertion\ITextInsertionService.cs:L49 | /// Inviolable invariant: MUST NEVER simulate Enter (VK_RETURN) or modify wrong target application.
+\r | Flow.Core\TranscriptProcessing\TranscriptProcessingPipeline.cs:L18 | /// No \r, \n, or Enter simulation will ever be emitted.
+\n | Flow.Core\TranscriptProcessing\TranscriptProcessingPipeline.cs:L18 | /// No \r, \n, or Enter simulation will ever be emitted.
+\r | Flow.Core\TranscriptProcessing\TranscriptProcessingPipeline.cs:L99 | if (currentText.Contains('\r') || currentText.Contains('\n'))
+\n | Flow.Core\TranscriptProcessing\TranscriptProcessingPipeline.cs:L99 | if (currentText.Contains('\r') || currentText.Contains('\n'))
+powershell.exe | Flow.Core\TranscriptProcessing\Stages\TechnicalEntityProtectionStage.cs:L25 | // 3. Known CLI commands and PowerShell cmdlets
+Start-Process | Flow.Core\TranscriptProcessing\Stages\TechnicalEntityProtectionStage.cs:L35 | @"Remove-Item|Set-Content|Get-Content|Get-Process|Stop-Process|Start-Process|" +
+cmd.exe | Flow.Core\TranscriptProcessing\Stages\TechnicalEntityProtectionStage.cs:L36 | @"format\s+[A-Za-z]:|del\s+/[a-zA-Z0-9\s/*]+|powershell|pwsh|cmd\.exe)\b",
+powershell.exe | Flow.Core\TranscriptProcessing\Stages\TechnicalEntityProtectionStage.cs:L36 | @"format\s+[A-Za-z]:|del\s+/[a-zA-Z0-9\s/*]+|powershell|pwsh|cmd\.exe)\b",
+pwsh | Flow.Core\TranscriptProcessing\Stages\TechnicalEntityProtectionStage.cs:L36 | @"format\s+[A-Za-z]:|del\s+/[a-zA-Z0-9\s/*]+|powershell|pwsh|cmd\.exe)\b",
+\r | Flow.Core\TranscriptProcessing\Stages\WhitespaceAndZeroEnterStage.cs:L7 | /// All \r, \n, and spoken "new line" / "new paragraph" phrases are converted to single spaces.
+\n | Flow.Core\TranscriptProcessing\Stages\WhitespaceAndZeroEnterStage.cs:L7 | /// All \r, \n, and spoken "new line" / "new paragraph" phrases are converted to single spaces.
+\r | Flow.Core\TranscriptProcessing\Stages\WhitespaceAndZeroEnterStage.cs:L16 | @"[ \t\r\n]+",
+\n | Flow.Core\TranscriptProcessing\Stages\WhitespaceAndZeroEnterStage.cs:L16 | @"[ \t\r\n]+",
+\r | Flow.Core\TranscriptProcessing\Stages\WhitespaceAndZeroEnterStage.cs:L24 | string cleaned = text.Replace("\r", " ").Replace("\n", " ");
+\n | Flow.Core\TranscriptProcessing\Stages\WhitespaceAndZeroEnterStage.cs:L24 | string cleaned = text.Replace("\r", " ").Replace("\n", " ");
+VK_RETURN | Flow.Host.Windows\Program.cs:L228 | logger.LogInformation("Text inserted successfully into target cursor position. Length: {Length}. [Zero-Enter: VK_RETURN=0, CR=0, LF=0]", text.Length);
+Process.Start | Flow.Host.Windows\Commands\AllowlistedWindowsAppLauncher.cs:L12 | /// Inviolable rule: Zero arbitrary process execution. Zero calls to Process.Start, CreateProcess, ShellExecute.
+CreateProcess | Flow.Host.Windows\Commands\AllowlistedWindowsAppLauncher.cs:L12 | /// Inviolable rule: Zero arbitrary process execution. Zero calls to Process.Start, CreateProcess, ShellExecute.
+ShellExecute | Flow.Host.Windows\Commands\AllowlistedWindowsAppLauncher.cs:L12 | /// Inviolable rule: Zero arbitrary process execution. Zero calls to Process.Start, CreateProcess, ShellExecute.
+\r | Flow.Host.Windows\Commands\WindowsSafeTransformService.cs:L56 | if (transformed.Contains('\r') || transformed.Contains('\n'))
+\n | Flow.Host.Windows\Commands\WindowsSafeTransformService.cs:L56 | if (transformed.Contains('\r') || transformed.Contains('\n'))
+\r | Flow.Host.Windows\Commands\WindowsSafeTransformService.cs:L58 | transformed = transformed.Replace("\r", " ").Replace("\n", " ").Trim();
+\n | Flow.Host.Windows\Commands\WindowsSafeTransformService.cs:L58 | transformed = transformed.Replace("\r", " ").Replace("\n", " ").Trim();
+VK_RETURN | Flow.Host.Windows\Native\WindowsTextInsertionService.cs:L19 | /// STRICTLY PROHIBITS simulating Enter (VK_RETURN, 0x0D), Keypad Enter, or VK_SEPARATOR.
+VK_SEPARATOR | Flow.Host.Windows\Native\WindowsTextInsertionService.cs:L19 | /// STRICTLY PROHIBITS simulating Enter (VK_RETURN, 0x0D), Keypad Enter, or VK_SEPARATOR.
+\r | Flow.Host.Windows\Native\WindowsTextInsertionService.cs:L41 | string safeText = text.Replace("\r", " ").Replace("\n", " ").Trim();
+\n | Flow.Host.Windows\Native\WindowsTextInsertionService.cs:L41 | string safeText = text.Replace("\r", " ").Replace("\n", " ").Trim();
+VK_RETURN | Flow.Host.Windows\Native\WindowsTextInsertionService.cs:L248 | if (inp.u.ki.wVk == VK_RETURN || inp.u.ki.wVk == VK_SEPARATOR)
+VK_SEPARATOR | Flow.Host.Windows\Native\WindowsTextInsertionService.cs:L248 | if (inp.u.ki.wVk == VK_RETURN || inp.u.ki.wVk == VK_SEPARATOR)
+VK_RETURN | Flow.Host.Windows\Native\WindowsTextInsertionService.cs:L250 | throw new InvalidOperationException("CRITICAL SAFETY VIOLATION: VK_RETURN detected in SendInput sequence!");
+VK_RETURN | Flow.Host.Windows\Native\WindowsTextInsertionService.cs:L305 | if (inp.u.ki.wVk == VK_RETURN || inp.u.ki.wVk == VK_SEPARATOR)
+VK_SEPARATOR | Flow.Host.Windows\Native\WindowsTextInsertionService.cs:L305 | if (inp.u.ki.wVk == VK_RETURN || inp.u.ki.wVk == VK_SEPARATOR)
+VK_RETURN | Flow.Host.Windows\Native\WindowsTextInsertionService.cs:L307 | throw new InvalidOperationException("CRITICAL SAFETY VIOLATION: VK_RETURN detected in Backtrack sequence!");
+VK_RETURN | Flow.Host.Windows\Native\WindowsTextInsertionService.cs:L412 | private const ushort VK_RETURN = 0x0D;
+VK_SEPARATOR | Flow.Host.Windows\Native\WindowsTextInsertionService.cs:L413 | private const ushort VK_SEPARATOR = 0x6C;
+powershell.exe | Flow.Host.Windows\Native\WindowsTextInsertionService.cs:L490 | "powershell", "powershell.exe",
+pwsh | Flow.Host.Windows\Native\WindowsTextInsertionService.cs:L491 | "pwsh", "pwsh.exe",
+cmd.exe | Flow.Host.Windows\Native\WindowsTextInsertionService.cs:L492 | "cmd", "cmd.exe"

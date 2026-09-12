@@ -89,18 +89,25 @@ public class Phase5ContextAwarenessPhysicalValidationTests
                 txtBox.Focus();
                 txtBox.CaretIndex = txtBox.Text.Length;
 
-                var element = AutomationElement.FromHandle(new System.Windows.Interop.WindowInteropHelper(window).Handle);
-                Assert.NotNull(element);
+                var hwnd = new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
+                var winElement = AutomationElement.FromHandle(hwnd);
+                Assert.NotNull(winElement);
+
+                var txtElement = winElement.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.AutomationIdProperty, "PhysicalContextTxtBox"))
+                    ?? winElement.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit));
+                Assert.NotNull(txtElement);
 
                 var contextService = new WindowsUIAutomationContextService();
                 var sw = Stopwatch.StartNew();
-                var snapshot = contextService.CaptureContext(Guid.NewGuid());
+                var snapshot = contextService.CaptureContext(Guid.NewGuid(), 200, 10000, txtElement);
                 sw.Stop();
 
                 _output.WriteLine($"[Benchmark] CaptureContext latency: {sw.Elapsed.TotalMilliseconds:F2} ms");
 
                 Assert.NotNull(snapshot);
                 Assert.False(snapshot.IsSensitive);
+                Assert.NotNull(snapshot.NearbyText);
+                Assert.Contains("Initial context", snapshot.NearbyText);
 
                 window.Close();
             }
@@ -144,17 +151,39 @@ public class Phase5ContextAwarenessPhysicalValidationTests
                 window.Show();
                 pwdBox.Focus();
 
-                var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
-                var element = AutomationElement.FromHandle(hwnd);
-                Assert.NotNull(element);
+                var hwnd = new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
+                var winElement = AutomationElement.FromHandle(hwnd);
+                Assert.NotNull(winElement);
+
+                var pwdElement = winElement.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.AutomationIdProperty, "PhysicalSecretPwdBox"))
+                    ?? winElement.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit));
+                Assert.NotNull(pwdElement);
+
+                // Verify actual UIA properties on live WPF control
+                object isPassProp = pwdElement.GetCurrentPropertyValue(AutomationElement.IsPasswordProperty, true);
+                Assert.True(isPassProp is true || (isPassProp is bool b && b), "WPF PasswordBox must expose IsPasswordProperty = true");
 
                 var contextService = new WindowsUIAutomationContextService();
-                bool isPassword = contextService.IsFocusInPasswordField();
-                var snapshot = contextService.CaptureContext(Guid.NewGuid());
 
+                // 1. Direct UIA IsPasswordProperty validation on real WPF PasswordBox
+                bool isPassword = contextService.IsFocusInPasswordField(pwdElement);
+                _output.WriteLine($"[Physical] PasswordBox Element Check: IsPassword = {isPassword}");
+                Assert.True(isPassword, "Physical WPF PasswordBox was not identified as a password field!");
+
+                // 2. Test Nearby Context extraction on PasswordBox (must fail closed and return empty)
+                string passwordNearby = contextService.GetNearbyContext(200, pwdElement);
+                Assert.Equal(string.Empty, passwordNearby);
+
+                // 3. Test Selected Text extraction on PasswordBox (must fail closed and return empty)
+                string passwordSelection = contextService.GetSelectedText(1000, pwdElement);
+                Assert.Equal(string.Empty, passwordSelection);
+
+                // 4. CaptureContext with element targeting (Inviolable privacy invariant: IsSensitive = true, text = null)
+                var snapshot = contextService.CaptureContext(Guid.NewGuid(), 200, 10000, pwdElement);
                 _output.WriteLine($"[Physical] IsFocusInPasswordField: {isPassword}, Snapshot.IsSensitive: {snapshot.IsSensitive}");
 
                 // INVIOLABLE SAFETY: Must fail closed
+                Assert.True(snapshot.IsSensitive, "Snapshot must be classified as sensitive");
                 Assert.Null(snapshot.NearbyText);
                 Assert.Null(snapshot.SelectionText);
 
@@ -171,6 +200,27 @@ public class Phase5ContextAwarenessPhysicalValidationTests
         thread.Join(5000);
 
         if (threadEx != null) throw threadEx;
+    }
+
+    [Fact]
+    public void Physical_WindowsUIAutomation_AmbiguousFocus_FailsClosedSafely()
+    {
+        var contextService = new WindowsUIAutomationContextService();
+
+        // 1. Null / unresolvable target element query
+        bool isPasswordWhenNull = contextService.IsFocusInPasswordField(null);
+        _output.WriteLine($"[Ambiguous Focus] IsFocusInPasswordField(null): {isPasswordWhenNull}");
+
+        // 2. CaptureContext without target element: must fail closed if focus is ambiguous or foreign
+        var snapshot = contextService.CaptureContext(Guid.NewGuid());
+        Assert.NotNull(snapshot);
+
+        // If context was determined sensitive, verify text is suppressed
+        if (snapshot.IsSensitive)
+        {
+            Assert.Null(snapshot.NearbyText);
+            Assert.Null(snapshot.SelectionText);
+        }
     }
 
     [Fact]

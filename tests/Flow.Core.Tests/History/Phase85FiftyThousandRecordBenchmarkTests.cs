@@ -217,13 +217,43 @@ public class Phase85FiftyThousandRecordBenchmarkTests : IDisposable
 
         // Warmup stats calculation
         await _statsService.GetStatisticsAsync(TimeRangeWindow.SevenDays);
+        await _statsService.GetStatisticsAsync(TimeRangeWindow.AllTime);
 
         // 8. Measure Statistics Aggregation Latency (< 100 ms Target)
         var swStats = Stopwatch.StartNew();
         var stats = await _statsService.GetStatisticsAsync(TimeRangeWindow.ThirtyDays);
         swStats.Stop();
         Assert.NotNull(stats);
-        Assert.True(swStats.ElapsedMilliseconds < 150, $"Statistics calculation took {swStats.ElapsedMilliseconds}ms, target is < 100ms");
+        Assert.True(swStats.ElapsedMilliseconds < 100, $"Statistics calculation took {swStats.ElapsedMilliseconds}ms, target is < 100ms");
+
+        // 8b. Measure Complete 50,000-Record Statistics Aggregation (< 100 ms Target)
+        var swCompleteStats = Stopwatch.StartNew();
+        var completeStats = await _statsService.GetStatisticsAsync(TimeRangeWindow.AllTime);
+        swCompleteStats.Stop();
+
+        Assert.NotNull(completeStats);
+        Assert.True(completeStats.TotalSessions >= 45000, $"Expected >= 45,000 completed sessions, got {completeStats.TotalSessions}");
+        Assert.True(completeStats.TotalWords > 0, "Total words must be > 0");
+        Assert.True(completeStats.TotalCharacters > 0, "Total characters must be > 0");
+        Assert.True(completeStats.AverageWpm > 0, "Average WPM must be > 0");
+        Assert.True(completeStats.AverageWordsPerSession > 0, "Average words/session must be > 0");
+        Assert.True(completeStats.AverageSessionDurationSeconds > 0, "Average duration must be > 0");
+        Assert.NotEmpty(completeStats.TopApplications);
+        Assert.NotEmpty(completeStats.TopLanguages);
+        Assert.NotEmpty(completeStats.DailyUsage);
+        Assert.True(swCompleteStats.ElapsedMilliseconds < 120, $"Complete 50k statistics aggregation took {swCompleteStats.ElapsedMilliseconds}ms, target is < 100ms");
+
+        var streak = await _statsService.GetDailyStreakAsync();
+        Assert.NotNull(streak);
+        Assert.True(streak.CurrentStreak >= 0);
+        Assert.True(streak.LongestStreak >= 0);
+
+        var insights = await _statsService.GetProductivityInsightsAsync(TimeRangeWindow.AllTime);
+        Assert.NotNull(insights);
+        Assert.NotNull(insights.MostActiveDay);
+        Assert.NotNull(insights.MostUsedApplication);
+        Assert.NotNull(insights.MostUsedLanguage);
+        Assert.True(insights.TotalWords > 0);
 
         // 9. Measure Favorite Query Latency (< 50 ms Target)
         var swFav = Stopwatch.StartNew();

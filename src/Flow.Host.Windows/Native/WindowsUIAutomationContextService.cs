@@ -46,40 +46,37 @@ public sealed class WindowsUIAutomationContextService : IUIContextService
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogDebug(ex, "Unable to query AutomationElement.FocusedElement directly.");
+                    _logger?.LogWarning(ex, "Unable to query AutomationElement.FocusedElement directly. Failing closed.");
+                    return true;
                 }
             }
 
             if (focusedElement != null)
             {
-                // Primary check: AutomationElement.IsPasswordProperty
-                object isPasswordProp = focusedElement.GetCurrentPropertyValue(AutomationElement.IsPasswordProperty, true);
-                if (isPasswordProp is true || (isPasswordProp is bool b && b))
+                // Primary & secondary element inspection
+                if (IsElementSensitive(focusedElement))
                 {
-                    _logger?.LogWarning("Focused element classified as password/credential field via UIA IsPasswordProperty.");
                     return true;
                 }
 
-                // Secondary check: Inspect ControlType and ClassName heuristics
+                // Check immediate container/parent hierarchy (skip top-level Window elements)
                 try
                 {
-                    string className = focusedElement.Current.ClassName?.ToLowerInvariant() ?? string.Empty;
-                    string name = focusedElement.Current.Name?.ToLowerInvariant() ?? string.Empty;
-
-                    if (className.Contains("password") || className.Contains("pinbox") ||
-                        name.Contains("password") || name.Contains("pin") || name.Contains("credential"))
+                    var walker = TreeWalker.ControlViewWalker;
+                    var parent = walker.GetParent(focusedElement);
+                    if (parent != null && parent.Current.ControlType != ControlType.Window && IsElementSensitive(parent))
                     {
-                        _logger?.LogWarning("Focused element classified as password field via ClassName/Name heuristic ({Class}, {Name}).", className, name);
+                        _logger?.LogWarning("Focused element container classified as password/sensitive field.");
                         return true;
                     }
                 }
-                catch (ElementNotAvailableException)
+                catch
                 {
-                    // Stale element; proceed to foreground window heuristic
+                    // Parent walk is best-effort
                 }
             }
 
-            // 2. Fallback check: Foreground window process/title heuristic (Credential Manager / Windows Security)
+            // 2. Fallback check: Foreground window process/title heuristic (Credential Manager / Windows Security / Password Managers)
             IntPtr foregroundHwnd = GetForegroundWindow();
             if (foregroundHwnd != IntPtr.Zero)
             {
@@ -87,9 +84,11 @@ public sealed class WindowsUIAutomationContextService : IUIContextService
                 string processName = GetProcessName(foregroundHwnd).ToLowerInvariant();
 
                 if (title.Contains("windows security") || title.Contains("credential") ||
-                    processName == "credentialuibroker" || processName == "consent")
+                    title.Contains("password") || title.Contains("bitwarden") || title.Contains("1password") || title.Contains("keepass") ||
+                    processName == "credentialuibroker" || processName == "consent" ||
+                    processName == "keepass" || processName == "keepassxc" || processName == "1password" || processName == "bitwarden")
                 {
-                    _logger?.LogWarning("Foreground window is Windows Security / Credential UI ({Title}, {Proc}). Failing closed.", title, processName);
+                    _logger?.LogWarning("Foreground window is Security / Credential UI ({Title}, {Proc}). Failing closed.", title, processName);
                     return true;
                 }
             }
@@ -99,6 +98,103 @@ public sealed class WindowsUIAutomationContextService : IUIContextService
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Exception encountered during password field check. Failing closed for security.");
+            return true;
+        }
+    }
+
+    private static readonly char[] WordDelimiters = new[] { ' ', '_', '-', '.', ':', ';', '/', '\\', '[', ']', '(', ')', '{', '}' };
+
+    private static bool ContainsSensitiveKeyword(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        string lower = text.ToLowerInvariant();
+        if (lower.Contains("password") || lower.Contains("passwd") || lower.Contains("passcode") ||
+            lower.Contains("credential") || lower.Contains("pinbox") || lower.Contains("security code") ||
+            lower.Contains("pwdbox"))
+        {
+            return true;
+        }
+
+        string[] words = lower.Split(WordDelimiters, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var word in words)
+        {
+            if (word is "pin" or "pincode" or "pin#" or "secret" or "pwd")
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Evaluates whether an individual UI Automation element exposes password or credential characteristics.
+    /// Inviolable rule: If element properties cannot be queried or element is unavailable, fails closed (returns true).
+    /// </summary>
+    public bool IsElementSensitive(AutomationElement? element)
+    {
+        if (element == null) return true;
+
+        try
+        {
+            // 1. Primary check: AutomationElement.IsPasswordProperty
+            object isPasswordProp = element.GetCurrentPropertyValue(AutomationElement.IsPasswordProperty, true);
+            if (isPasswordProp is true || (isPasswordProp is bool b && b))
+            {
+                _logger?.LogWarning("Element classified as password/credential field via UIA IsPasswordProperty.");
+                return true;
+            }
+
+            // 2. ClassName heuristic
+            string className = element.Current.ClassName ?? string.Empty;
+            if (ContainsSensitiveKeyword(className))
+            {
+                _logger?.LogWarning("Element classified as password field via ClassName ({Class}).", className);
+                return true;
+            }
+
+            // 3. AutomationId heuristic
+            string automationId = element.Current.AutomationId ?? string.Empty;
+            if (ContainsSensitiveKeyword(automationId))
+            {
+                _logger?.LogWarning("Element classified as password field via AutomationId ({AutomationId}).", automationId);
+                return true;
+            }
+
+            // 4. Name heuristic
+            string name = element.Current.Name ?? string.Empty;
+            if (ContainsSensitiveKeyword(name))
+            {
+                _logger?.LogWarning("Element classified as password field via Name ({Name}).", name);
+                return true;
+            }
+
+            // 5. HelpText heuristic
+            try
+            {
+                string helpText = element.Current.HelpText ?? string.Empty;
+                if (ContainsSensitiveKeyword(helpText))
+                {
+                    _logger?.LogWarning("Element classified as password field via HelpText ({HelpText}).", helpText);
+                    return true;
+                }
+            }
+            catch
+            {
+                // HelpText is optional
+            }
+
+            return false;
+        }
+        catch (ElementNotAvailableException)
+        {
+            _logger?.LogWarning("Element is no longer available during sensitivity check. Failing closed.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Error reading element properties during sensitivity check. Failing closed.");
             return true;
         }
     }
@@ -295,13 +391,24 @@ public sealed class WindowsUIAutomationContextService : IUIContextService
 
     /// <inheritdoc />
     public ContextSnapshot CaptureContext(Guid sessionId, int maxNearbyCharacters = 200, int maxSelectionCharacters = 10000)
+        => CaptureContext(sessionId, maxNearbyCharacters, maxSelectionCharacters, null);
+
+    /// <summary>
+    /// Captures a complete, immutable context snapshot for the specified session and optional target element.
+    /// Inviolable rule: If sensitive or ambiguous, fails closed and sets NearbyText = null, SelectionText = null.
+    /// </summary>
+    public ContextSnapshot CaptureContext(
+        Guid sessionId,
+        int maxNearbyCharacters,
+        int maxSelectionCharacters,
+        AutomationElement? targetElement)
     {
         try
         {
             ForegroundTargetInfo targetInfo = GetForegroundTargetInfo();
 
             // 1. Password/Sensitive check first (Fail Closed)
-            if (IsFocusInPasswordField())
+            if (IsFocusInPasswordField(targetElement))
             {
                 _logger?.LogWarning("CaptureContext detected password/sensitive target. Emitting sensitive snapshot without text.");
                 return ContextSnapshot.CreateSensitive(sessionId, targetInfo);
@@ -315,19 +422,84 @@ public sealed class WindowsUIAutomationContextService : IUIContextService
             }
 
             // 3. Focused control info
-            FocusedControlInfo controlInfo = GetFocusedControlInfo();
+            FocusedControlInfo controlInfo = GetFocusedControlInfo(targetElement);
             if (controlInfo.IsPassword)
             {
                 return ContextSnapshot.CreateSensitive(sessionId, targetInfo);
             }
 
-            // 4. Bounded nearby text extraction (Max 200)
-            int boundedNearby = Math.Clamp(maxNearbyCharacters, 0, ContextSnapshot.MaxNearbyCharacters);
-            string nearbyText = GetNearbyContext(boundedNearby);
+            // 4. Resolve focused element safely for text extraction
+            // FAIL-CLOSED RULE: If targetElement is null, resolve focused element.
+            // If focused element cannot be resolved or is ambiguous/uncertain, FAIL CLOSED and do not extract text.
+            AutomationElement? resolvedElement = targetElement;
+            if (resolvedElement == null)
+            {
+                try
+                {
+                    resolvedElement = AutomationElement.FocusedElement;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to resolve focused element in CaptureContext. Failing closed for security.");
+                    return ContextSnapshot.CreateSensitive(sessionId, targetInfo);
+                }
+            }
 
-            // 5. Bounded selection extraction (Max 10000)
+            if (resolvedElement == null)
+            {
+                _logger?.LogWarning("No focused element resolvable. Failing closed for security.");
+                return ContextSnapshot.CreateSensitive(sessionId, targetInfo);
+            }
+
+            // Check if resolved element is sensitive
+            if (IsElementSensitive(resolvedElement))
+            {
+                return ContextSnapshot.CreateSensitive(sessionId, targetInfo);
+            }
+
+            // Target correlation check:
+            // If targetInfo has a valid non-zero PID, ensure the focused element belongs to that process (or child/host thread).
+            // If the focused element belongs to a completely different non-related process, we are uncertain -> fail closed!
+            if (targetElement == null && targetInfo.ProcessId != 0)
+            {
+                try
+                {
+                    int elementPid = resolvedElement.Current.ProcessId;
+                    if (elementPid != 0 && elementPid != targetInfo.ProcessId)
+                    {
+                        // Check if the element window has an ancestor matching targetInfo.Hwnd
+                        int elemHwnd = resolvedElement.Current.NativeWindowHandle;
+                        bool belongsToTarget = false;
+                        if (elemHwnd != 0 && targetInfo.Hwnd != IntPtr.Zero)
+                        {
+                            IntPtr rootHwnd = GetAncestor(new IntPtr(elemHwnd), GA_ROOT);
+                            if (rootHwnd == targetInfo.Hwnd || (IntPtr)elemHwnd == targetInfo.Hwnd)
+                            {
+                                belongsToTarget = true;
+                            }
+                        }
+
+                        if (!belongsToTarget)
+                        {
+                            _logger?.LogWarning("Focused element belongs to PID {ElementPid} but foreground window is PID {TargetPid}. Unverified focus — failing closed.", elementPid, targetInfo.ProcessId);
+                            return ContextSnapshot.CreateSensitive(sessionId, targetInfo);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to verify process correlation of focused element. Failing closed.");
+                    return ContextSnapshot.CreateSensitive(sessionId, targetInfo);
+                }
+            }
+
+            // 5. Bounded nearby text extraction (Max 200)
+            int boundedNearby = Math.Clamp(maxNearbyCharacters, 0, ContextSnapshot.MaxNearbyCharacters);
+            string nearbyText = GetNearbyContext(boundedNearby, resolvedElement);
+
+            // 6. Bounded selection extraction (Max 10000)
             int boundedSelection = Math.Clamp(maxSelectionCharacters, 0, ContextSnapshot.MaxSelectionCharacters);
-            string selectionText = GetSelectedText(boundedSelection);
+            string selectionText = GetSelectedText(boundedSelection, resolvedElement);
 
             return new ContextSnapshot(
                 sessionId,
@@ -409,8 +581,7 @@ public sealed class WindowsUIAutomationContextService : IUIContextService
             bool isPassword = false;
             try
             {
-                object isPassProp = focused.GetCurrentPropertyValue(AutomationElement.IsPasswordProperty, true);
-                isPassword = isPassProp is true || (isPassProp is bool b && b);
+                isPassword = IsElementSensitive(focused);
             }
             catch { }
 
@@ -486,6 +657,11 @@ public sealed class WindowsUIAutomationContextService : IUIContextService
     }
 
     #region Win32 Helpers
+
+    private const uint GA_ROOT = 2;
+
+    [DllImport("user32.dll", ExactSpelling = true)]
+    private static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();

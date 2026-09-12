@@ -225,4 +225,44 @@ public class PasswordExclusionTests
 
         public bool ValidateTargetStillActive(ForegroundTargetInfo initialTarget) => true;
     }
+
+    [Fact]
+    public void CaptureContext_WhenSensitive_NearbyTextAndSelectionTextAreNull()
+    {
+        var target = new ForegroundTargetInfo(IntPtr.Zero, 1234, "keepass", "KeePass Password Safe");
+        var snapshot = ContextSnapshot.CreateSensitive(Guid.NewGuid(), target);
+
+        Assert.True(snapshot.IsSensitive);
+        Assert.Null(snapshot.NearbyText);
+        Assert.Null(snapshot.SelectionText);
+        Assert.Equal(ApplicationCategory.Sensitive, snapshot.Category);
+    }
+
+    [Fact]
+    public async Task StartSessionAsync_WhenContextIsSensitive_NeverInsertsOrTranscribes()
+    {
+        var passwordContext = new NullUIContextService(isPasswordField: true);
+        var ringBuffer = new AudioRingBuffer(10.0, 16000.0);
+        var vad = new EnergyVAD(16000.0);
+        var asr = new ASREngineRegistry();
+        var lang = new DeterministicTextSanitizer();
+        var insertion = new TrackingInsertionService();
+
+        var coordinator = new VoiceSessionCoordinator(
+            ringBuffer,
+            vad,
+            asr,
+            lang,
+            insertion,
+            contextService: passwordContext
+        );
+
+        await coordinator.StartSessionAsync();
+        Assert.Equal(SessionState.Cancelled, coordinator.CurrentState);
+
+        bool ended = await coordinator.EndSessionAsync();
+        Assert.False(ended);
+        Assert.False(insertion.InsertCalled);
+        Assert.Null(insertion.LastInsertedText);
+    }
 }

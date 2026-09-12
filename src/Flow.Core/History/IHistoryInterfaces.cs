@@ -21,6 +21,10 @@ public interface IHistoryRepository
     Task<HistorySettings> GetSettingsAsync(CancellationToken ct = default);
     Task SaveSettingsAsync(HistorySettings settings, CancellationToken ct = default);
     Task<IReadOnlyList<DictationEntry>> GetAllForExportAsync(HistoryFilter? filter = null, CancellationToken ct = default);
+    Task<IReadOnlyList<DictationEntry>> GetEntriesForStatisticsAsync(DateTimeOffset? fromDate, CancellationToken ct = default);
+    Task<ProductivityMetrics> GetMetricsAsync(TimeRangeWindow window, DateTimeOffset? fromDate, TimeZoneInfo tz, CancellationToken ct = default);
+    Task<IReadOnlyList<DateOnly>> GetActiveDaysAsync(int minWordsThreshold, TimeZoneInfo tz, CancellationToken ct = default);
+    Task<long> GetMaxDurationMsAsync(DateTimeOffset? fromDate, CancellationToken ct = default);
 }
 
 public interface IHistorySearchService
