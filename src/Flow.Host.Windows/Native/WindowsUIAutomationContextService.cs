@@ -273,6 +273,22 @@ public sealed class WindowsUIAutomationContextService : IUIContextService
         return !string.IsNullOrEmpty(text);
     }
 
+    /// <inheritdoc />
+    public ForegroundTargetInfo GetForegroundTargetInfo()
+    {
+        IntPtr hwnd = GetForegroundWindow();
+        if (hwnd == IntPtr.Zero)
+        {
+            return ForegroundTargetInfo.Empty;
+        }
+
+        GetWindowThreadProcessId(hwnd, out uint pid);
+        string procName = GetProcessName(hwnd);
+        string title = GetWindowTitle(hwnd);
+
+        return new ForegroundTargetInfo(hwnd, pid, string.IsNullOrEmpty(procName) ? "Unknown" : procName, title);
+    }
+
     #region Win32 Helpers
 
     [DllImport("user32.dll")]

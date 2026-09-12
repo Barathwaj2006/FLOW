@@ -12,6 +12,7 @@ public sealed class AudioBuffer
     public float[] Samples { get; }
 
     public double DurationSeconds => SampleRate > 0 ? (double)Samples.Length / SampleRate : 0.0;
+    public bool IsEmpty => Samples.Length == 0;
 
     public AudioBuffer(float[] samples, double sampleRate = 16000.0, int channelCount = 1)
     {

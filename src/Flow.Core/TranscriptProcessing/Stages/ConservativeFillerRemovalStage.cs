@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text.RegularExpressions;
 
 namespace Flow.Core.TranscriptProcessing.Stages;
@@ -21,7 +21,12 @@ public sealed class ConservativeFillerRemovalStage : ITranscriptStage
 
     // Disfluent "like" pattern: only when used as an explicit pause/interjection e.g. ", like," or surrounded by fillers
     private static readonly Regex DisfluentLikeRegex = new(
-        @"(?:,\s*\blike\b\s*,|\b(um|uh)\s+like\b|\blike\s+(um|uh)\b)",
+        @"(?:,\s*\blike\b\s*,|\b(um|uh|hmm|ah)\s+like\b|\blike\s+(um|uh|hmm|ah)\b)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    // Disfluent "you know" pattern: only when used as an explicit interjection e.g. ", you know," or surrounded by fillers
+    private static readonly Regex DisfluentYouKnowRegex = new(
+        @"(?:,\s*\byou know\b\s*,|\b(um|uh|hmm|ah)\s+you know\b|\byou know\s+(um|uh|hmm|ah)\b)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex MultipleSpacesRegex = new(@"[ \t]+", RegexOptions.Compiled);
@@ -35,8 +40,9 @@ public sealed class ConservativeFillerRemovalStage : ITranscriptStage
 
         string result = text;
 
-        // 1. Remove disfluent "like" patterns first
+        // 1. Remove disfluent "like" and "you know" patterns first
         result = DisfluentLikeRegex.Replace(result, " ");
+        result = DisfluentYouKnowRegex.Replace(result, " ");
 
         // 2. Remove fillers with commas e.g. ", um," -> " "
         result = FillersWithCommasRegex.Replace(result, " ");

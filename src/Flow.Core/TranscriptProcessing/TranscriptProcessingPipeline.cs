@@ -94,10 +94,10 @@ public sealed class TranscriptProcessingPipeline : ILanguageEngine
             }
         }
 
-        // Inviolable Zero-Enter guarantee: Post-pipeline verification
+        // Inviolable Zero-Enter guarantee: Post-pipeline verification (FAIL CLOSED)
         if (currentText.Contains('\r') || currentText.Contains('\n'))
         {
-            currentText = currentText.Replace("\r", " ").Replace("\n", " ").Trim();
+            throw new InvalidOperationException("CRITICAL SAFETY VIOLATION: Zero-Enter invariant violated — newline detected post-pipeline.");
         }
 
         return currentText;

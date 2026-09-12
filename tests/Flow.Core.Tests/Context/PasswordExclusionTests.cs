@@ -179,5 +179,10 @@ public class PasswordExclusionTests
         {
             return !_isPasswordFunc();
         }
+
+        public ForegroundTargetInfo GetForegroundTargetInfo()
+        {
+            return new ForegroundTargetInfo(IntPtr.Zero, 0, "TestProcess", "TestTitle");
+        }
     }
 }

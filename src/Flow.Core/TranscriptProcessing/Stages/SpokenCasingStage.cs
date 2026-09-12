@@ -32,8 +32,8 @@ public sealed class SpokenCasingStage : ITranscriptStage
                 return match.Value;
             }
 
-            // Technical token guard: If phrase contains protected entity tokens (e.g. __TECH_ENT_0__), preserve them
-            if (phrase.Contains("__TECH_ENT_"))
+            // Technical token guard: If phrase contains protected entity tokens (e.g. \uE0000\uE001), preserve them
+            if (phrase.Contains('\uE000') || phrase.Contains("__TECH_ENT_"))
             {
                 return match.Value;
             }

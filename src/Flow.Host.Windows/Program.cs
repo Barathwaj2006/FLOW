@@ -96,11 +96,22 @@ public static class Program
         _tray = new TrayIconManager(IntPtr.Zero);
         _tray.Install("FLOW — Local Voice Dictation (Right-Alt to speak, double-tap for hands-free, Shift+Right-Alt to backtrack)");
 
-        // 3. Live WASAPI Audio Capture
+        // 3. Live WASAPI Audio Capture with Device Management
+        var deviceManager = new WasapiDeviceManager(loggerFactory.CreateLogger<WasapiDeviceManager>());
+        var captureLogger = loggerFactory.CreateLogger<WasapiAudioCapture>();
         _capture = new WasapiAudioCapture(chunk =>
         {
             _coordinator.ProcessAudioChunk(chunk);
-        }, loggerFactory.CreateLogger<WasapiAudioCapture>());
+        }, captureLogger, targetDeviceId: null, deviceManager: deviceManager);
+
+        deviceManager.DefaultDeviceChanged += newDefaultId =>
+        {
+            logger.LogInformation("Windows default audio capture endpoint changed to: {DeviceId}", newDefaultId);
+        };
+        deviceManager.DeviceStateChanged += (devId, state) =>
+        {
+            logger.LogInformation("Windows audio capture endpoint state changed: {DeviceId}, state={State}", devId, state);
+        };
 
         _capture.CaptureError += ex =>
         {
@@ -244,9 +255,29 @@ public static class Program
 
         logger.LogInformation("FLOW Voice Core initialized and listening. Push-to-talk: Hold [Right Alt]. Hands-free: Double-tap [Right Alt]. Command Mode: [Ctrl + Right Alt]. Backtrack: [Shift + Right Alt]. Cancel: [Esc].");
 
+        const uint WM_POWERBROADCAST = 0x0218;
+        const int PBT_APMSUSPEND = 0x0004;
+        const int PBT_APMRESUMEAUTOMATIC = 0x0012;
+        const int PBT_APMRESUMESUSPEND = 0x0007;
+
         // Native Windows message loop
         while (GetMessage(out MSG msg, IntPtr.Zero, 0, 0))
         {
+            if (msg.message == WM_POWERBROADCAST)
+            {
+                int powerEvent = msg.wParam.ToInt32();
+                if (powerEvent == PBT_APMSUSPEND)
+                {
+                    logger.LogWarning("System is entering sleep/suspend. Safely stopping audio capture.");
+                    _capture.Stop();
+                    _ = _coordinator.CancelSessionAsync("System sleep");
+                }
+                else if (powerEvent == PBT_APMRESUMEAUTOMATIC || powerEvent == PBT_APMRESUMESUSPEND)
+                {
+                    logger.LogInformation("System resumed from sleep. Verifying audio capture endpoints.");
+                }
+            }
+
             TranslateMessage(ref msg);
             DispatchMessage(ref msg);
         }
@@ -254,6 +285,7 @@ public static class Program
         // Cleanup
         _hotkeyHook.Dispose();
         _capture.Dispose();
+        deviceManager.Dispose();
         _hud.Dispose();
         _tray.Dispose();
         personalizationDb.Dispose();

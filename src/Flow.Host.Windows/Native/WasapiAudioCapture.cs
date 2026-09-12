@@ -25,6 +25,8 @@ public sealed class WasapiAudioCapture : IDisposable
 
     public bool IsCapturing => _isCapturing;
     public string? ActiveDeviceName { get; private set; }
+    public string? TargetDeviceId { get; set; }
+    public WasapiDeviceManager? DeviceManager { get; }
     public Exception? LastError { get; private set; }
     public int DiagnosticWaitCount { get; private set; }
     public int DiagnosticTimeoutCount { get; private set; }
@@ -39,10 +41,16 @@ public sealed class WasapiAudioCapture : IDisposable
 
     public bool WaitForStart(int timeoutMs = 3000) => _startedEvent.Wait(timeoutMs);
 
-    public WasapiAudioCapture(Action<float[]>? onSamplesCaptured = null, ILogger<WasapiAudioCapture>? logger = null)
+    public WasapiAudioCapture(
+        Action<float[]>? onSamplesCaptured = null,
+        ILogger<WasapiAudioCapture>? logger = null,
+        string? targetDeviceId = null,
+        WasapiDeviceManager? deviceManager = null)
     {
         _onSamplesCaptured = onSamplesCaptured;
         _logger = logger;
+        TargetDeviceId = targetDeviceId;
+        DeviceManager = deviceManager;
     }
 
     /// <summary>
@@ -106,11 +114,26 @@ public sealed class WasapiAudioCapture : IDisposable
                 throw new InvalidOperationException("Failed to create IMMDeviceEnumerator.");
             }
 
-            // 2. Get default audio capture endpoint (eCapture = 1, eConsole = 0)
-            int hr = enumerator.GetDefaultAudioEndpoint(1, 0, out device);
+            // 2. Get audio capture endpoint (specific target or default)
+            int hr = 0;
+            if (!string.IsNullOrEmpty(TargetDeviceId))
+            {
+                _logger?.LogInformation("Acquiring specific WASAPI capture device: {DeviceId}", TargetDeviceId);
+                hr = enumerator.GetDevice(TargetDeviceId, out device);
+                if (hr != 0 || device == null)
+                {
+                    _logger?.LogWarning("Target capture device {DeviceId} unavailable (0x{Hr:X8}). Falling back to default.", TargetDeviceId, hr);
+                    hr = enumerator.GetDefaultAudioEndpoint(1, 0, out device);
+                }
+            }
+            else
+            {
+                hr = enumerator.GetDefaultAudioEndpoint(1, 0, out device);
+            }
+
             if (hr != 0 || device == null)
             {
-                throw new InvalidOperationException($"Failed to obtain default audio capture endpoint. HRESULT: 0x{hr:X8}");
+                throw new InvalidOperationException($"Failed to obtain audio capture endpoint. HRESULT: 0x{hr:X8}");
             }
 
             // 3. Activate IAudioClient
@@ -213,7 +236,17 @@ public sealed class WasapiAudioCapture : IDisposable
                             out ulong _
                         );
 
-                        if (hr != 0) break;
+                        if (hr != 0)
+                        {
+                            const int AUDCLNT_E_DEVICE_INVALIDATED = unchecked((int)0x88890004);
+                            const int AUDCLNT_E_RESOURCES_INVALIDATED = unchecked((int)0x88890026);
+                            if (hr == AUDCLNT_E_DEVICE_INVALIDATED || hr == AUDCLNT_E_RESOURCES_INVALIDATED)
+                            {
+                                _logger?.LogWarning("WASAPI capture endpoint invalidated or disconnected (0x{Hr:X8}).", hr);
+                                throw new InvalidOperationException($"WASAPI endpoint invalidated: 0x{hr:X8}");
+                            }
+                            break;
+                        }
 
                         DiagnosticPacketsReceived++;
 
@@ -374,6 +407,8 @@ public sealed class WasapiAudioCapture : IDisposable
         int EnumAudioEndpoints(int dataFlow, int stateMask, out IntPtr ppDevices);
         [PreserveSig]
         int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice ppEndpoint);
+        [PreserveSig]
+        int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string pwstrId, out IMMDevice ppDevice);
     }
 
     [ComImport]

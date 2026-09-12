@@ -81,7 +81,7 @@ Phase Allocation:
 | **WF-017** | Transcription | Zero-Enter Safety Invariant | Standard | Mandatory | Level 5 | Phase 2B | P0 | Inviolable prohibition of Enter verified |
 | **WF-018** | Formatting | Desktop Backtracking & Correction | Standard | Mandatory | Level 5 | Phase 2C | P0 | Mid-speech correction & HWND verified |
 | **WF-019** | Formatting | Spoken Numbered & Bulleted Lists | Standard | Mandatory | Level 5 | Phase 2C | P1 | Spoken numbers to structured list verified |
-| **WF-020A** | Formatting | Number, Date & Currency Norm | Standard | Mandatory | Level 4 | Phase 2C | P1 | Spoken entity normalizer tested |
+| **WF-020A** | Formatting | Number, Date & Currency Norm | Standard | Mandatory | Level 5 | Phase 2C | P1 | Spoken entity normalizer & technical protection physically validated (<0.09ms latency) |
 | **WF-020B** | Formatting | Auto Cleanup Levels | Standard | Mandatory | Level 1 | Phase 2H | P1 | Architecture mapped; pending Hub Style tab |
 | **WF-020C** | Formatting | Undo AI Edit / Raw Revert | Standard | Mandatory | Level 1 | Phase 2H | P1 | History tracking mapped; pending Hub UI |
 | **WF-021** | Multilingual | Manual Multi-Language Selection | Standard | Mandatory | Level 4 | Phase 2E | P1 | Real multilingual ggml-tiny.bin model tested with English & Tamil parameters; physical mic Tamil unverified |

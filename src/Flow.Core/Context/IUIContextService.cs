@@ -32,6 +32,25 @@ public interface IUIContextService
     /// Checks whether an active non-empty text selection exists in the focused control.
     /// </summary>
     bool HasSelectedText();
+
+    /// <summary>
+    /// Queries the currently focused / foreground window information at session start (HWND, PID, process name, window title).
+    /// Used to preserve target application focus and prevent cross-application text leakage during dictation.
+    /// </summary>
+    ForegroundTargetInfo GetForegroundTargetInfo();
+}
+
+/// <summary>
+/// Information describing the foreground application target at session start.
+/// </summary>
+public sealed record ForegroundTargetInfo(
+    IntPtr Hwnd,
+    uint ProcessId,
+    string ProcessName,
+    string WindowTitle
+)
+{
+    public static readonly ForegroundTargetInfo Empty = new(IntPtr.Zero, 0, "Unknown", string.Empty);
 }
 
 /// <summary>
@@ -42,12 +61,18 @@ public sealed class NullUIContextService : IUIContextService
     private readonly bool _isPasswordField;
     private readonly string _nearbyContext;
     private readonly string _selectedText;
+    private readonly ForegroundTargetInfo _targetInfo;
 
-    public NullUIContextService(bool isPasswordField = false, string nearbyContext = "", string selectedText = "")
+    public NullUIContextService(
+        bool isPasswordField = false,
+        string nearbyContext = "",
+        string selectedText = "",
+        ForegroundTargetInfo? targetInfo = null)
     {
         _isPasswordField = isPasswordField;
         _nearbyContext = nearbyContext;
         _selectedText = selectedText;
+        _targetInfo = targetInfo ?? ForegroundTargetInfo.Empty;
     }
 
     public bool IsFocusInPasswordField() => _isPasswordField;
@@ -70,4 +95,6 @@ public sealed class NullUIContextService : IUIContextService
     {
         return !_isPasswordField && !string.IsNullOrEmpty(_selectedText);
     }
+
+    public ForegroundTargetInfo GetForegroundTargetInfo() => _targetInfo;
 }

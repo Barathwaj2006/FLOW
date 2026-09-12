@@ -141,6 +141,12 @@ public sealed class WhisperNetInferenceEngine : IASREngine
                 string text = segmentData.Text?.Trim() ?? string.Empty;
                 if (!string.IsNullOrEmpty(text))
                 {
+                    // Suppress duplicate consecutive segments from Whisper hallucination loops
+                    if (segments.Count > 0 && string.Equals(segments[^1].Text, text, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
                     if (detectedLanguage == null && !string.IsNullOrEmpty(segmentData.Language))
                     {
                         detectedLanguage = segmentData.Language;

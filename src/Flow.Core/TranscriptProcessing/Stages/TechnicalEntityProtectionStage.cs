@@ -14,24 +14,29 @@ public sealed class TechnicalEntityProtectionStage : ITranscriptStage
         @"https?://[^\s]+|\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    // 2. Windows File Paths (e.g. C:\Users\... or .\foo\bar)
+    // 2. Windows File Paths (e.g. C:\Users\... or .\foo\bar or ..\dir)
     private static readonly Regex FilePathRegex = new(
         @"\b[A-Za-z]:\\[A-Za-z0-9._\-\\ ]+|\b(?:\.|\.\.)?\\[A-Za-z0-9._\-\\]+",
         RegexOptions.Compiled);
 
     // 3. Known CLI and PowerShell commands
     private static readonly Regex CliCommandRegex = new(
-        @"\b(dotnet test|dotnet build|dotnet run|npm install|npm run|npm test|git status|git commit|git push|git pull|docker run|docker ps|Get-Process|Remove-Item|Set-Content|Get-Content|Stop-Process|Start-Process)\b",
+        @"\b(dotnet test|dotnet build|dotnet run|npm install|npm run|npm test|git status|git commit|git push|git pull|docker run|docker ps|Get-Process|Remove-Item|Set-Content|Get-Content|Stop-Process|Start-Process|powershell|pwsh|cmd\.exe)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    // 4. Code identifiers: dotted symbols (Flow.Core), camelCase, snake_case, SCREAMING_SNAKE
-    private static readonly Regex CodeIdentifierRegex = new(
-        @"\b[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_.]*\b|\b[a-z]+[A-Z][A-Za-z0-9]*\b|\b[a-z0-9]+_[a-z0-9_]+\b|\b[A-Z0-9]+_[A-Z0-9_]+\b",
+    // 4. Programming Languages & Frameworks
+    private static readonly Regex LangFrameworkRegex = new(
+        @"(?:\bC#\b|\bC\+\+\b|\.NET\b|\bPython\b|\bTypeScript\b|\bJavaScript\b|\bRust\b|\bGolang\b|\bReact\b|\bFlutter\b|\bWinUI\b|\bWPF\b|\bWin32\b)",
         RegexOptions.Compiled);
 
-    // 5. Common Technical Acronyms
+    // 5. Code identifiers: dotted symbols (Flow.Core), camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case
+    private static readonly Regex CodeIdentifierRegex = new(
+        @"\b[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_.]*\b|\b[a-z]+[A-Z][A-Za-z0-9]*\b|\b[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]*)+\b|\b[a-z0-9]+_[a-z0-9_]+\b|\b[A-Z0-9]+_[A-Z0-9_]+\b|\b[a-z0-9]+(?:-[a-z0-9]+)+\b",
+        RegexOptions.Compiled);
+
+    // 6. Common Technical Acronyms
     private static readonly Regex AcronymRegex = new(
-        @"\b(HTTP|HTTPS|JSON|API|ASR|WASAPI|VAD|UIA|CLI|GPU|CPU|AVX2|DPAPI|REST|SDK|URL|RAM|WAV|PCM)\b",
+        @"\b(HTTP|HTTPS|JSON|API|ASR|WASAPI|VAD|UIA|CLI|GPU|CPU|AVX2|DPAPI|REST|SDK|URL|RAM|WAV|PCM|HTML|CSS|SQL|XML|UUID|GUID|HWND|PID|IDE)\b",
         RegexOptions.Compiled);
 
     public string Process(string text, TranscriptProcessingContext context)
@@ -48,10 +53,11 @@ public sealed class TechnicalEntityProtectionStage : ITranscriptStage
             return placeholder;
         }
 
-        // Apply in priority order: URLs -> File Paths -> CLI Commands -> Code Identifiers -> Acronyms
+        // Apply in priority order: URLs -> File Paths -> CLI Commands -> Languages -> Code Identifiers -> Acronyms
         string protectedText = UrlRegex.Replace(text, Mask);
         protectedText = FilePathRegex.Replace(protectedText, Mask);
         protectedText = CliCommandRegex.Replace(protectedText, Mask);
+        protectedText = LangFrameworkRegex.Replace(protectedText, Mask);
         protectedText = CodeIdentifierRegex.Replace(protectedText, Mask);
         protectedText = AcronymRegex.Replace(protectedText, Mask);
 

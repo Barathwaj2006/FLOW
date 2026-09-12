@@ -13,6 +13,10 @@ public sealed class SpokenPunctuationStage : ITranscriptStage
     private static readonly Regex CloseQuoteRegex = new(@"\s*\bclose quote\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex OpenParenRegex = new(@"(?:\s+|^)\b(open parenthesis|open paren)\b\s*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex CloseParenRegex = new(@"\s*\b(close parenthesis|close paren)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex OpenBracketRegex = new(@"(?:\s+|^)\b(open bracket|open square bracket)\b\s*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex CloseBracketRegex = new(@"\s*\b(close bracket|close square bracket)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex OpenBraceRegex = new(@"(?:\s+|^)\b(open brace|open curly brace)\b\s*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex CloseBraceRegex = new(@"\s*\b(close brace|close curly brace)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly (Regex Pattern, string Replacement)[] PunctuationRules = new[]
     {
@@ -39,11 +43,15 @@ public sealed class SpokenPunctuationStage : ITranscriptStage
 
         string result = text;
 
-        // Quotes and parentheses with boundary-aware spacing
+        // Quotes, parentheses, brackets, and braces with boundary-aware spacing
         result = OpenQuoteRegex.Replace(result, m => m.Value.StartsWith(" ") ? " \"" : "\"");
         result = CloseQuoteRegex.Replace(result, "\"");
         result = OpenParenRegex.Replace(result, m => m.Value.StartsWith(" ") ? " (" : "(");
         result = CloseParenRegex.Replace(result, ")");
+        result = OpenBracketRegex.Replace(result, m => m.Value.StartsWith(" ") ? " [" : "[");
+        result = CloseBracketRegex.Replace(result, "]");
+        result = OpenBraceRegex.Replace(result, m => m.Value.StartsWith(" ") ? " {" : "{");
+        result = CloseBraceRegex.Replace(result, "}");
 
         foreach (var (pattern, replacement) in PunctuationRules)
         {
@@ -54,6 +62,8 @@ public sealed class SpokenPunctuationStage : ITranscriptStage
         result = result
             .Replace("..", ".")
             .Replace(",,", ",")
+            .Replace("!!", "!")
+            .Replace("??", "?")
             .Replace(" .", ".")
             .Replace(" ,", ",")
             .Replace(" ?", "?")
@@ -62,6 +72,10 @@ public sealed class SpokenPunctuationStage : ITranscriptStage
             .Replace(" ;", ";")
             .Replace("( ", "(")
             .Replace(" )", ")")
+            .Replace("[ ", "[")
+            .Replace(" ]", "]")
+            .Replace("{ ", "{")
+            .Replace(" }", "}")
             .Replace(" ' ", "'")
             .Replace(" '", "'")
             .Trim();

@@ -103,6 +103,12 @@ public sealed class VoiceSessionCoordinator
     public string? ActiveNearbyContext { get; private set; }
 
     /// <summary>
+    /// Captured foreground window target information at session start (WF-029, WF-035).
+    /// Preserved throughout the session to prevent text leakage into unintended windows.
+    /// </summary>
+    public ForegroundTargetInfo? ActiveTarget { get; private set; }
+
+    /// <summary>
     /// Selected transcription language (WF-021, WF-022).
     /// Default is "auto" for Whisper automatic language detection; or explicit code like "en", "ta".
     /// </summary>
@@ -161,7 +167,7 @@ public sealed class VoiceSessionCoordinator
     }
 
     /// <summary>
-    /// Starts a new recording session.
+    /// Starts a new recording session with concurrency protection.
     /// </summary>
     /// <param name="isHandsFree">True if triggered via hands-free double-tap.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -169,9 +175,9 @@ public sealed class VoiceSessionCoordinator
     {
         lock (_stateLock)
         {
-            if (_currentState == SessionState.Recording)
+            if (_currentState is SessionState.Recording or SessionState.Processing or SessionState.Inserting or SessionState.Backtracking)
             {
-                _logger?.LogWarning("StartSessionAsync called while already recording. Ignoring.");
+                _logger?.LogWarning("StartSessionAsync rejected: session is currently active in state {State}.", _currentState);
                 return Task.CompletedTask;
             }
 
@@ -183,6 +189,9 @@ public sealed class VoiceSessionCoordinator
                 SessionWarning?.Invoke("Password field detected. Voice recording is disabled for your protection.");
                 return Task.CompletedTask;
             }
+
+            // Capture target window at session onset to protect against window switching
+            ActiveTarget = _contextService.GetForegroundTargetInfo();
 
             // WF-031A: Bounded nearby context extraction (pre-session capture, max 200 chars)
             ActiveNearbyContext = _contextService.GetNearbyContext(200);
@@ -219,9 +228,9 @@ public sealed class VoiceSessionCoordinator
     {
         lock (_stateLock)
         {
-            if (_currentState == SessionState.Recording)
+            if (_currentState is SessionState.Recording or SessionState.Processing or SessionState.Inserting or SessionState.Backtracking)
             {
-                _logger?.LogWarning("StartCommandSessionAsync called while already recording. Ignoring.");
+                _logger?.LogWarning("StartCommandSessionAsync rejected: session is currently active in state {State}.", _currentState);
                 return Task.CompletedTask;
             }
 
@@ -233,6 +242,9 @@ public sealed class VoiceSessionCoordinator
                 SessionWarning?.Invoke("Password field detected. Command mode is disabled for your protection.");
                 return Task.CompletedTask;
             }
+
+            // Capture target window at command session onset
+            ActiveTarget = _contextService.GetForegroundTargetInfo();
 
             // WF-037A: Query active text selection
             _activeSelectedText = _contextService.GetSelectedText(10000);
@@ -313,6 +325,7 @@ public sealed class VoiceSessionCoordinator
             {
                 return false;
             }
+            _currentState = SessionState.Processing;
             _isHandsFree = false;
         }
 
@@ -457,12 +470,28 @@ public sealed class VoiceSessionCoordinator
                 return false;
             }
 
+            // Inviolable Zero-Enter Safety Gate: Fail closed if formatted text contains physical newlines
+            if (cleanText.Contains('\r') || cleanText.Contains('\n'))
+            {
+                _logger?.LogError("CRITICAL SAFETY VIOLATION: Sanitized text contains physical newlines! Insertion permanently blocked.");
+                SetState(SessionState.Error, "Zero-Enter violation blocked");
+                return false;
+            }
+
             // WF-030: Secondary defense-in-depth password check before insertion
             if (_contextService.IsFocusInPasswordField())
             {
                 _logger?.LogWarning("EndSessionAsync insertion blocked: Focused UI element is a password or credential field.");
                 SetState(SessionState.Cancelled, "Password field detected — insertion blocked");
                 return false;
+            }
+
+            // Verify foreground target before insertion to detect application switching
+            var currentTarget = _contextService.GetForegroundTargetInfo();
+            if (ActiveTarget != null && ActiveTarget.Hwnd != IntPtr.Zero && currentTarget.Hwnd != IntPtr.Zero && currentTarget.Hwnd != ActiveTarget.Hwnd)
+            {
+                _logger?.LogWarning("Target application changed during dictation: Captured {OriginalApp} (HWND={OriginalHwnd}) -> Now {CurrentApp} (HWND={CurrentHwnd}).",
+                    ActiveTarget.ProcessName, ActiveTarget.Hwnd, currentTarget.ProcessName, currentTarget.Hwnd);
             }
 
             SetState(SessionState.Inserting, "Inserting");

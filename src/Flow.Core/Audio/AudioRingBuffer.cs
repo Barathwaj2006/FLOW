@@ -46,11 +46,27 @@ public sealed class AudioRingBuffer
     public double BufferedDurationSeconds => SampleRate > 0 ? (double)AvailableSamples / SampleRate : 0.0;
 
     /// <summary>
-    /// Initializes an audio ring buffer with specified duration capacity.
+    /// Cumulative count of samples written during the current session.
     /// </summary>
-    /// <param name="capacitySeconds">Maximum buffer capacity in seconds (default: 30 seconds).</param>
+    public long TotalSamplesWritten { get; private set; }
+
+    /// <summary>
+    /// Count of samples dropped due to buffer rollover (should be 0 for sessions <= 20 minutes).
+    /// </summary>
+    public long TotalSamplesDropped { get; private set; }
+
+    /// <summary>
+    /// Peak absolute sample amplitude encountered.
+    /// </summary>
+    public float PeakAmplitude { get; private set; }
+
+    /// <summary>
+    /// Initializes an audio ring buffer with specified duration capacity.
+    /// Default is 1200 seconds (20 minutes) to match the desktop recording limit without audio loss.
+    /// </summary>
+    /// <param name="capacitySeconds">Maximum buffer capacity in seconds (default: 1200.0 seconds / 20 minutes).</param>
     /// <param name="sampleRate">Sample rate in Hz (default: 16000).</param>
-    public AudioRingBuffer(double capacitySeconds = 30.0, double sampleRate = 16000.0)
+    public AudioRingBuffer(double capacitySeconds = 1200.0, double sampleRate = 16000.0)
     {
         if (capacitySeconds <= 0)
             throw new ArgumentOutOfRangeException(nameof(capacitySeconds), "Capacity must be positive.");
@@ -77,10 +93,18 @@ public sealed class AudioRingBuffer
         lock (_syncLock)
         {
             int toWrite = samples.Length;
+            TotalSamplesWritten += toWrite;
+
+            for (int i = 0; i < samples.Length; i++)
+            {
+                float abs = Math.Abs(samples[i]);
+                if (abs > PeakAmplitude) PeakAmplitude = abs;
+            }
 
             // If input is larger than total buffer capacity, only take the latest part
             if (toWrite >= _capacity)
             {
+                TotalSamplesDropped += (toWrite - _capacity) + _count;
                 samples.Slice(toWrite - _capacity).CopyTo(_buffer);
                 _head = 0;
                 _tail = 0;
@@ -99,11 +123,15 @@ public sealed class AudioRingBuffer
 
             _head = (_head + toWrite) % _capacity;
 
-            _count += toWrite;
-            if (_count > _capacity)
+            if (_count + toWrite > _capacity)
             {
+                TotalSamplesDropped += (_count + toWrite) - _capacity;
                 _count = _capacity;
                 _tail = _head; // Tail pushed forward to overwrite oldest
+            }
+            else
+            {
+                _count += toWrite;
             }
         }
     }

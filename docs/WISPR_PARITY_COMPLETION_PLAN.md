@@ -33,7 +33,7 @@ FLOW tracks exactly 75 atomic capabilities across 12 functional domains and 1 ou
 | **WF-017** | Transcription | Zero-Enter Safety Invariant | Mandatory | **Level 5** | `WhitespaceAndZeroEnterStage.cs` |
 | **WF-018** | Formatting | Desktop Backtracking & Correction | Mandatory | **Level 5** | `InsertionHistoryTracker.cs` |
 | **WF-019** | Formatting | Spoken Numbered & Bulleted Lists | Mandatory | **Level 5** | `NumberedListStage.cs` |
-| **WF-020A** | Formatting | Number, Date & Currency Norm | Mandatory | **Level 4** | `TechnicalEntityProtectionStage.cs` |
+| **WF-020A** | Formatting | Number, Date & Currency Norm | Mandatory | **Level 5** | `TechnicalEntityProtectionStage.cs` |
 | **WF-020B** | Formatting | Auto Cleanup Levels | Mandatory | **Level 1** | Architecture mapped; pending Hub Style tab |
 | **WF-020C** | Formatting | Undo AI Edit / Raw Revert | Mandatory | **Level 1** | History tracking mapped; pending Hub UI |
 | **WF-021** | Multilingual | Manual Multi-Language Selection | Mandatory | **Level 4** | `WhisperModelManager.cs` (`ggml-tiny.bin`) |
