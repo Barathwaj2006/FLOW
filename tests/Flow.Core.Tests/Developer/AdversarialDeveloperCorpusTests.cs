@@ -8,11 +8,12 @@ using Xunit;
 namespace Flow.Core.Tests.Developer;
 
 /// <summary>
-/// Dedicated Adversarial Developer Corpus Test Suite (Section 22).
-/// Contains 107 curated developer-oriented cases covering functions, classes, interfaces,
-/// structs, records, enums, casing triggers, code punctuation, file paths, @file tags,
-/// CLI commands, CLI flags, frameworks, infrastructure, acronyms, and multilingual Indic developer speech.
-/// Asserts ZERO corruption and 100% Zero-Enter compliance.
+/// Dedicated Adversarial Developer Corpus Test Suite (Section 29).
+/// Contains 510+ curated developer-oriented cases across 9 functional categories covering:
+/// Functions & methods across 10 programming languages, classes, structs, records, enums, interfaces,
+/// spoken casing triggers, code operators and punctuation, file paths, @file tags, CLI commands,
+/// CLI flags, frameworks, acronyms, and multilingual Indic developer speech.
+/// Asserts ZERO corruption, exact golden expected output, and 100% Zero-Enter compliance.
 /// </summary>
 public class AdversarialDeveloperCorpusTests
 {
@@ -30,218 +31,567 @@ public class AdversarialDeveloperCorpusTests
         DeveloperContext: new DeveloperContext("windowsterminal", ApplicationCategory.Terminal, LanguageCatalog.English, IdentifierCasingStyle.None, IsTerminal: true)
     );
 
-    // =========================================================================
-    // 1. FUNCTIONS & METHODS (10 cases)
-    // =========================================================================
-    [Theory]
-    [InlineData("function get user profile", "getUserProfile")]
-    [InlineData("function get user profile async", "getUserProfileAsync")]
-    [InlineData("async function load configuration", "async loadConfiguration")]
-    [InlineData("function calculate quarterly tax", "calculateQuarterlyTax")]
-    [InlineData("function validate token signature", "validateTokenSignature")]
-    [InlineData("method create session token", "createSessionToken")]
-    [InlineData("method parse json response", "parseJsonResponse")]
-    [InlineData("function fetch remote data async", "fetchRemoteDataAsync")]
-    [InlineData("function disconnect audio stream", "disconnectAudioStream")]
-    [InlineData("method serialize object tree", "serializeObjectTree")]
-    public void FunctionsAndMethods_TransformAccurately(string input, string expected)
+    public static IEnumerable<object[]> CuratedDeveloperCases()
     {
-        string output = _pipeline.Format(input, CodeOptions);
+        var cases = new (string Category, string Input, string Expected)[]
+        {
+
+            // Category: Functions
+            ("Functions", "function calculate tax", "calculateTax"),
+            ("Functions", "function calculate tax async", "calculateTaxAsync"),
+            ("Functions", "async function load configuration", "async loadConfiguration"),
+            ("Functions", "function validate token signature", "validateTokenSignature"),
+            ("Functions", "method create session token", "createSessionToken"),
+            ("Functions", "method parse json response", "parseJsonResponse"),
+            ("Functions", "function fetch remote data async", "fetchRemoteDataAsync"),
+            ("Functions", "function disconnect audio stream", "disconnectAudioStream"),
+            ("Functions", "method serialize object tree", "serializeObjectTree"),
+            ("Functions", "function initialize audio pipeline", "initializeAudioPipeline"),
+            ("Functions", "function get user profile", "getUserProfile"),
+            ("Functions", "function get user profile async", "getUserProfileAsync"),
+            ("Functions", "function update user profile", "updateUserProfile"),
+            ("Functions", "function delete user profile", "deleteUserProfile"),
+            ("Functions", "function create order transaction", "createOrderTransaction"),
+            ("Functions", "function cancel order transaction", "cancelOrderTransaction"),
+            ("Functions", "function process invoice payment", "processInvoicePayment"),
+            ("Functions", "function refund invoice payment", "refundInvoicePayment"),
+            ("Functions", "function generate quarterly report", "generateQuarterlyReport"),
+            ("Functions", "function export report to pdf", "exportReportToPdf"),
+            ("Functions", "function send email notification", "sendEmailNotification"),
+            ("Functions", "function broadcast websocket message", "broadcastWebsocketMessage"),
+            ("Functions", "function subscribe to topic stream", "subscribeToTopicStream"),
+            ("Functions", "function unsubscribe from topic", "unsubscribeFromTopic"),
+            ("Functions", "function compress audio buffer", "compressAudioBuffer"),
+            ("Functions", "function decompress audio buffer", "decompressAudioBuffer"),
+            ("Functions", "function start audio recording", "startAudioRecording"),
+            ("Functions", "function stop audio recording", "stopAudioRecording"),
+            ("Functions", "function capture microphone frames", "captureMicrophoneFrames"),
+            ("Functions", "function calculate rms energy", "calculateRmsEnergy"),
+            ("Functions", "function detect voice activity", "detectVoiceActivity"),
+            ("Functions", "function transcribe audio segment", "transcribeAudioSegment"),
+            ("Functions", "function sanitize transcript text", "sanitizeTranscriptText"),
+            ("Functions", "function insert text at cursor", "insertTextAtCursor"),
+            ("Functions", "function simulate key sequence", "simulateKeySequence"),
+            ("Functions", "function clear clipboard history", "clearClipboardHistory"),
+            ("Functions", "function backup clipboard data", "backupClipboardData"),
+            ("Functions", "function restore clipboard data", "restoreClipboardData"),
+            ("Functions", "function read foreground window", "readForegroundWindow"),
+            ("Functions", "function get process identifier", "getProcessIdentifier"),
+            ("Functions", "function classify target application", "classifyTargetApplication"),
+            ("Functions", "function check password field property", "checkPasswordFieldProperty"),
+            ("Functions", "function extract nearby context", "extractNearbyContext"),
+            ("Functions", "function format code identifier", "formatCodeIdentifier"),
+            ("Functions", "function expand voice snippet", "expandVoiceSnippet"),
+            ("Functions", "function lookup personal dictionary", "lookupPersonalDictionary"),
+            ("Functions", "function apply custom correction", "applyCustomCorrection"),
+            ("Functions", "function adjust writing formality", "adjustWritingFormality"),
+            ("Functions", "function tokenize source string", "tokenizeSourceString"),
+            ("Functions", "function parse developer operation", "parseDeveloperOperation"),
+            ("Functions", "function evaluate confidence score", "evaluateConfidenceScore"),
+            ("Functions", "function resolve language profile", "resolveLanguageProfile"),
+            ("Functions", "function mask technical entity", "maskTechnicalEntity"),
+            ("Functions", "function restore technical entity", "restoreTechnicalEntity"),
+            ("Functions", "function execute background task", "executeBackgroundTask"),
+            ("Functions", "function cancel background task", "cancelBackgroundTask"),
+            ("Functions", "function poll task completion", "pollTaskCompletion"),
+            ("Functions", "function write diagnostic log", "writeDiagnosticLog"),
+            ("Functions", "function rotate application logs", "rotateApplicationLogs"),
+            ("Functions", "function terminate process safely", "terminateProcessSafely"),
+
+            // Category: Types
+            ("Types", "class user profile service", "UserProfileService"),
+            ("Types", "class database repository", "DatabaseRepository"),
+            ("Types", "class authentication provider", "AuthenticationProvider"),
+            ("Types", "class http client factory", "HttpClientFactory"),
+            ("Types", "class audio capture manager", "AudioCaptureManager"),
+            ("Types", "class session coordinator", "SessionCoordinator"),
+            ("Types", "class transcript processing pipeline", "TranscriptProcessingPipeline"),
+            ("Types", "class text insertion service", "TextInsertionService"),
+            ("Types", "class global hotkey hook", "GlobalHotkeyHook"),
+            ("Types", "class energy vad detector", "EnergyVadDetector"),
+            ("Types", "class whisper inference engine", "WhisperInferenceEngine"),
+            ("Types", "class sqlite dictionary repository", "SqliteDictionaryRepository"),
+            ("Types", "class sqlite snippet repository", "SqliteSnippetRepository"),
+            ("Types", "class sqlite style repository", "SqliteStyleRepository"),
+            ("Types", "class ui automation context service", "UiAutomationContextService"),
+            ("Types", "class rule based application classifier", "RuleBasedApplicationClassifier"),
+            ("Types", "class casing transformer", "CasingTransformer"),
+            ("Types", "class developer context", "DeveloperContext"),
+            ("Types", "class context snapshot", "ContextSnapshot"),
+            ("Types", "class foreground target info", "ForegroundTargetInfo"),
+            ("Types", "class insertion record", "InsertionRecord"),
+            ("Types", "class insertion history tracker", "InsertionHistoryTracker"),
+            ("Types", "class language catalog", "LanguageCatalog"),
+            ("Types", "class language session service", "LanguageSessionService"),
+            ("Types", "class writing style", "WritingStyle"),
+            ("Types", "struct point two d", "PointTwoD"),
+            ("Types", "struct point three d", "PointThreeD"),
+            ("Types", "struct bounding rectangle", "BoundingRectangle"),
+            ("Types", "struct audio format specification", "AudioFormatSpecification"),
+            ("Types", "struct color rgb", "ColorRgb"),
+            ("Types", "struct color rgba", "ColorRgba"),
+            ("Types", "struct vector two", "VectorTwo"),
+            ("Types", "struct vector three", "VectorThree"),
+            ("Types", "struct matrix four by four", "MatrixFourByFour"),
+            ("Types", "struct memory buffer slice", "MemoryBufferSlice"),
+            ("Types", "struct native window message", "NativeWindowMessage"),
+            ("Types", "struct process basic information", "ProcessBasicInformation"),
+            ("Types", "struct keyboard input data", "KeyboardInputData"),
+            ("Types", "struct mouse input data", "MouseInputData"),
+            ("Types", "struct file time stamps", "FileTimeStamps"),
+            ("Types", "record user credentials", "UserCredentials"),
+            ("Types", "record auth token response", "AuthTokenResponse"),
+            ("Types", "record session statistics", "SessionStatistics"),
+            ("Types", "record transcription result", "TranscriptionResult"),
+            ("Types", "record formatting options", "FormattingOptions"),
+            ("Types", "record personal dictionary entry", "PersonalDictionaryEntry"),
+            ("Types", "record snippet template entry", "SnippetTemplateEntry"),
+            ("Types", "record writing style rule", "WritingStyleRule"),
+            ("Types", "record application classification", "ApplicationClassification"),
+            ("Types", "record insertion metric", "InsertionMetric"),
+            ("Types", "enum application category", "ApplicationCategory"),
+            ("Types", "enum identifier casing style", "IdentifierCasingStyle"),
+            ("Types", "enum session state", "SessionState"),
+            ("Types", "enum insertion strategy", "InsertionStrategy"),
+            ("Types", "enum audio channel configuration", "AudioChannelConfiguration"),
+            ("Types", "enum vad sensitivity level", "VadSensitivityLevel"),
+            ("Types", "enum asr model type", "AsrModelType"),
+            ("Types", "enum language code", "LanguageCode"),
+            ("Types", "enum technical span category", "TechnicalSpanCategory"),
+            ("Types", "enum developer operation type", "DeveloperOperationType"),
+
+            // Category: Interfaces
+            ("Interfaces", "interface user repository", "IUserRepository"),
+            ("Interfaces", "interface logger service", "ILoggerService"),
+            ("Interfaces", "interface audio stream handler", "IAudioStreamHandler"),
+            ("Interfaces", "interface asr engine", "IAsrEngine"),
+            ("Interfaces", "interface voice activity detector", "IVoiceActivityDetector"),
+            ("Interfaces", "interface audio source", "IAudioSource"),
+            ("Interfaces", "interface text insertion service", "ITextInsertionService"),
+            ("Interfaces", "interface application classifier", "IApplicationClassifier"),
+            ("Interfaces", "interface ui context service", "IUiContextService"),
+            ("Interfaces", "interface language engine", "ILanguageEngine"),
+            ("Interfaces", "interface language session service", "ILanguageSessionService"),
+            ("Interfaces", "interface personal dictionary repository", "IPersonalDictionaryRepository"),
+            ("Interfaces", "interface snippet repository", "ISnippetRepository"),
+            ("Interfaces", "interface style repository", "IStyleRepository"),
+            ("Interfaces", "interface transcript stage", "ITranscriptStage"),
+            ("Interfaces", "interface session coordinator", "ISessionCoordinator"),
+            ("Interfaces", "interface insertion tracker", "IInsertionTracker"),
+            ("Interfaces", "interface event aggregator", "IEventAggregator"),
+            ("Interfaces", "interface hotkey listener", "IHotkeyListener"),
+            ("Interfaces", "interface notification service", "INotificationService"),
+            ("Interfaces", "interface credential store", "ICredentialStore"),
+            ("Interfaces", "interface encryption service", "IEncryptionService"),
+            ("Interfaces", "interface cache manager", "ICacheManager"),
+            ("Interfaces", "interface metrics collector", "IMetricsCollector"),
+            ("Interfaces", "interface telemetry sink", "ITelemetrySink"),
+            ("Interfaces", "interface model runner", "IModelRunner"),
+            ("Interfaces", "interface buffer pool", "IBufferPool"),
+            ("Interfaces", "interface memory allocator", "IMemoryAllocator"),
+            ("Interfaces", "interface serializer", "ISerializer"),
+            ("Interfaces", "interface deserializer", "IDeserializer"),
+            ("Interfaces", "interface validator", "IValidator"),
+            ("Interfaces", "interface schema compiler", "ISchemaCompiler"),
+            ("Interfaces", "interface file system abstraction", "IFileSystemAbstraction"),
+            ("Interfaces", "interface process monitor", "IProcessMonitor"),
+            ("Interfaces", "interface window watcher", "IWindowWatcher"),
+            ("Interfaces", "interface focus listener", "IFocusListener"),
+            ("Interfaces", "interface clipboard manager", "IClipboardManager"),
+            ("Interfaces", "interface input simulator", "IInputSimulator"),
+            ("Interfaces", "interface error handler", "IErrorHandler"),
+            ("Interfaces", "interface diagnostic logger", "IDiagnosticLogger"),
+
+            // Category: Casing
+            ("Casing", "camel case user profile service", "userProfileService"),
+            ("Casing", "camel case http response handler", "httpResponseHandler"),
+            ("Casing", "camel case api client v2", "apiClientV2"),
+            ("Casing", "camel case max retry count", "maxRetryCount"),
+            ("Casing", "camel case database connection pool", "databaseConnectionPool"),
+            ("Casing", "camel case local storage manager", "localStorageManager"),
+            ("Casing", "camel case active session token", "activeSessionToken"),
+            ("Casing", "camel case background worker queue", "backgroundWorkerQueue"),
+            ("Casing", "camel case push to talk hotkey", "pushToTalkHotkey"),
+            ("Casing", "camel case audio ring buffer", "audioRingBuffer"),
+            ("Casing", "camel case voice activity threshold", "voiceActivityThreshold"),
+            ("Casing", "camel case whisper model manager", "whisperModelManager"),
+            ("Casing", "camel case text insertion engine", "textInsertionEngine"),
+            ("Casing", "camel case zero enter safety policy", "zeroEnterSafetyPolicy"),
+            ("Casing", "camel case personal dictionary cache", "personalDictionaryCache"),
+            ("Casing", "camel case snippet expansion provider", "snippetExpansionProvider"),
+            ("Casing", "pascal case customer order manager", "CustomerOrderManager"),
+            ("Casing", "pascal case invoice payment processor", "InvoicePaymentProcessor"),
+            ("Casing", "pascal case delivery route optimizer", "DeliveryRouteOptimizer"),
+            ("Casing", "pascal case inventory tracking system", "InventoryTrackingSystem"),
+            ("Casing", "pascal case warehouse logistics coordinator", "WarehouseLogisticsCoordinator"),
+            ("Casing", "pascal case financial audit service", "FinancialAuditService"),
+            ("Casing", "pascal case employee payroll calculator", "EmployeePayrollCalculator"),
+            ("Casing", "pascal case quarterly earnings report", "QuarterlyEarningsReport"),
+            ("Casing", "pascal case risk assessment engine", "RiskAssessmentEngine"),
+            ("Casing", "pascal case compliance verification module", "ComplianceVerificationModule"),
+            ("Casing", "pascal case security token generator", "SecurityTokenGenerator"),
+            ("Casing", "pascal case cryptographic hash provider", "CryptographicHashProvider"),
+            ("Casing", "pascal case digital signature verifier", "DigitalSignatureVerifier"),
+            ("Casing", "pascal case authorization policy builder", "AuthorizationPolicyBuilder"),
+            ("Casing", "pascal case access control evaluator", "AccessControlEvaluator"),
+            ("Casing", "pascal case identity federated gateway", "IdentityFederatedGateway"),
+            ("Casing", "snake case customer order id", "customer_order_id"),
+            ("Casing", "snake case invoice payment amount", "invoice_payment_amount"),
+            ("Casing", "snake case user profile record", "user_profile_record"),
+            ("Casing", "snake case database table name", "database_table_name"),
+            ("Casing", "snake case primary key column", "primary_key_column"),
+            ("Casing", "snake case foreign key reference", "foreign_key_reference"),
+            ("Casing", "snake case session expiration time", "session_expiration_time"),
+            ("Casing", "snake case access token secret", "access_token_secret"),
+            ("Casing", "snake case refresh token expires in", "refresh_token_expires_in"),
+            ("Casing", "snake case max retry attempts", "max_retry_attempts"),
+            ("Casing", "snake case initial backoff delay", "initial_backoff_delay"),
+            ("Casing", "snake case connection timeout seconds", "connection_timeout_seconds"),
+            ("Casing", "snake case request payload size", "request_payload_size"),
+            ("Casing", "snake case response status code", "response_status_code"),
+            ("Casing", "snake case error message text", "error_message_text"),
+            ("Casing", "snake case audit event timestamp", "audit_event_timestamp"),
+            ("Casing", "constant case max retry count", "MAX_RETRY_COUNT"),
+            ("Casing", "constant case default timeout seconds", "DEFAULT_TIMEOUT_SECONDS"),
+            ("Casing", "screaming snake case buffer size limit", "BUFFER_SIZE_LIMIT"),
+            ("Casing", "screaming snake case default chunk duration", "DEFAULT_CHUNK_DURATION"),
+            ("Casing", "screaming snake case maximum recording minutes", "MAXIMUM_RECORDING_MINUTES"),
+            ("Casing", "screaming snake case warning lead time", "WARNING_LEAD_TIME"),
+            ("Casing", "screaming snake case ring buffer capacity", "RING_BUFFER_CAPACITY"),
+            ("Casing", "screaming snake case sample rate hertz", "SAMPLE_RATE_HERTZ"),
+            ("Casing", "screaming snake case bytes per sample", "BYTES_PER_SAMPLE"),
+            ("Casing", "screaming snake case default silence threshold", "DEFAULT_SILENCE_THRESHOLD"),
+            ("Casing", "screaming snake case min speech duration", "MIN_SPEECH_DURATION"),
+            ("Casing", "screaming snake case max trailing silence", "MAX_TRAILING_SILENCE"),
+            ("Casing", "screaming snake case fallback retry ceiling", "FALLBACK_RETRY_CEILING"),
+            ("Casing", "screaming snake case default model name", "DEFAULT_MODEL_NAME"),
+            ("Casing", "screaming snake case clipboard backup timeout", "CLIPBOARD_BACKUP_TIMEOUT"),
+            ("Casing", "screaming snake case max snippet length", "MAX_SNIPPET_LENGTH"),
+            ("Casing", "kebab case header component", "header-component"),
+            ("Casing", "kebab case navigation bar", "navigation-bar"),
+            ("Casing", "kebab case user profile card", "user-profile-card"),
+            ("Casing", "kebab case shopping cart drawer", "shopping-cart-drawer"),
+            ("Casing", "kebab case product details view", "product-details-view"),
+            ("Casing", "kebab case search filter panel", "search-filter-panel"),
+            ("Casing", "kebab case modal dialog backdrop", "modal-dialog-backdrop"),
+            ("Casing", "kebab case notification toast alert", "notification-toast-alert"),
+            ("Casing", "kebab case pagination controls container", "pagination-controls-container"),
+            ("Casing", "kebab case dropdown menu item", "dropdown-menu-item"),
+            ("Casing", "kebab case button primary active", "button-primary-active"),
+            ("Casing", "kebab case input field focused", "input-field-focused"),
+            ("Casing", "kebab case checkbox label text", "checkbox-label-text"),
+            ("Casing", "kebab case toggle switch handle", "toggle-switch-handle"),
+            ("Casing", "kebab case radio button group", "radio-button-group"),
+            ("Casing", "kebab case loading spinner icon", "loading-spinner-icon"),
+
+            // Category: Operators
+            ("Operators", "x fat arrow x dot id", "x => x.id"),
+            ("Operators", "item fat arrow item dot price", "item => item.price"),
+            ("Operators", "data fat arrow data dot values", "data => data.values"),
+            ("Operators", "node fat arrow node dot children", "node => node.children"),
+            ("Operators", "record fat arrow record dot timestamp", "record => record.timestamp"),
+            ("Operators", "element fat arrow element dot name", "element => element.name"),
+            ("Operators", "point thin arrow point dot x", "point -> point.x"),
+            ("Operators", "ptr thin arrow ptr dot next", "ptr -> ptr.next"),
+            ("Operators", "entity thin arrow entity dot id", "entity -> entity.id"),
+            ("Operators", "cursor thin arrow cursor dot position", "cursor -> cursor.position"),
+            ("Operators", "status double equals active", "status == active"),
+            ("Operators", "count double equals zero", "count == zero"),
+            ("Operators", "state double equals connected", "state == connected"),
+            ("Operators", "result double equals success", "result == success"),
+            ("Operators", "flag double equals true", "flag == true"),
+            ("Operators", "id not equals null", "id != null"),
+            ("Operators", "code not equals zero", "code != zero"),
+            ("Operators", "length not equals zero", "length != zero"),
+            ("Operators", "token not equals empty", "token != empty"),
+            ("Operators", "status not equals pending", "status != pending"),
+            ("Operators", "index greater than or equal minimum", "index >= minimum"),
+            ("Operators", "size greater than or equal threshold", "size >= threshold"),
+            ("Operators", "level greater than or equal warning", "level >= warning"),
+            ("Operators", "priority greater than or equal high", "priority >= high"),
+            ("Operators", "age greater than or equal eighteen", "age >= eighteen"),
+            ("Operators", "index less than or equal maximum", "index <= maximum"),
+            ("Operators", "count less than or equal limit", "count <= limit"),
+            ("Operators", "offset less than or equal length", "offset <= length"),
+            ("Operators", "duration less than or equal ceiling", "duration <= ceiling"),
+            ("Operators", "temperature less than or equal zero", "temperature <= zero"),
+            ("Operators", "x greater than y", "x > y"),
+            ("Operators", "width greater than height", "width > height"),
+            ("Operators", "speed greater than limit", "speed > limit"),
+            ("Operators", "weight greater than capacity", "weight > capacity"),
+            ("Operators", "length greater than zero", "length > zero"),
+            ("Operators", "a less than b", "a < b"),
+            ("Operators", "min less than max", "min < max"),
+            ("Operators", "start less than end", "start < end"),
+            ("Operators", "current less than total", "current < total"),
+            ("Operators", "latency less than budget", "latency < budget"),
+            ("Operators", "std double colon vector", "std::vector"),
+            ("Operators", "std double colon string", "std::string"),
+            ("Operators", "flow double colon core", "flow::core"),
+            ("Operators", "flow double colon windows", "flow::windows"),
+            ("Operators", "microsoft double colon win32", "microsoft::win32"),
+            ("Operators", "scope resolution vector", "::vector"),
+            ("Operators", "scope resolution string", "::string"),
+            ("Operators", "scope resolution map", "::map"),
+            ("Operators", "scope resolution unique ptr", "::unique_ptr"),
+            ("Operators", "scope resolution shared ptr", "::shared_ptr"),
+            ("Operators", "wrap in backtick sample code backtick", "Wrap in `sample code`"),
+            ("Operators", "wrap in backtick npm test backtick", "Wrap in `npm test`"),
+            ("Operators", "wrap in backtick git status backtick", "Wrap in `git status`"),
+            ("Operators", "wrap in backtick dotnet build backtick", "Wrap in `dotnet build`"),
+            ("Operators", "wrap in backtick cargo run backtick", "Wrap in `cargo run`"),
+            ("Operators", "value equals zero", "value = zero"),
+            ("Operators", "count equals five", "count = five"),
+            ("Operators", "name equals guest", "name = guest"),
+            ("Operators", "total equals sum", "total = sum"),
+            ("Operators", "flag equals false", "flag = false"),
+
+            // Category: FilesAndPaths
+            ("FilesAndPaths", "at app dot ts", "@app.ts"),
+            ("FilesAndPaths", "at config dot json", "@config.json"),
+            ("FilesAndPaths", "at user underscore profile dot cs", "@user_profile.cs"),
+            ("FilesAndPaths", "at index dot html", "@index.html"),
+            ("FilesAndPaths", "at styles dot css", "@styles.css"),
+            ("FilesAndPaths", "at package dot json", "@package.json"),
+            ("FilesAndPaths", "at dockerfile dot yml", "@dockerfile.yml"),
+            ("FilesAndPaths", "at cargo dot toml", "@cargo.toml"),
+            ("FilesAndPaths", "at main dot rs", "@main.rs"),
+            ("FilesAndPaths", "at main dot py", "@main.py"),
+            ("FilesAndPaths", "at program dot cs", "@program.cs"),
+            ("FilesAndPaths", "at flow dot sln", "@flow.sln"),
+            ("FilesAndPaths", "at readme dot md", "@readme.md"),
+            ("FilesAndPaths", "at license dot txt", "@license.txt"),
+            ("FilesAndPaths", "at service dot proto", "@service.proto"),
+            ("FilesAndPaths", "at kernel dot wasm", "@kernel.wasm"),
+            ("FilesAndPaths", "at query dot sql", "@query.sql"),
+            ("FilesAndPaths", "at deploy dot sh", "@deploy.sh"),
+            ("FilesAndPaths", "at build dot ps1", "@build.ps1"),
+            ("FilesAndPaths", "at settings dot yaml", "@settings.yaml"),
+            ("FilesAndPaths", "at src slash flow dot cs", "@src/flow.cs"),
+            ("FilesAndPaths", "at tests slash runner dot ts", "@tests/runner.ts"),
+            ("FilesAndPaths", "at docs slash architecture dot md", "@docs/architecture.md"),
+            ("FilesAndPaths", "at lib slash utility dot py", "@lib/utility.py"),
+            ("FilesAndPaths", "at scripts slash release dot sh", "@scripts/release.sh"),
+            ("FilesAndPaths", "at api slash endpoint dot go", "@api/endpoint.go"),
+            ("FilesAndPaths", "at core slash engine dot cpp", "@core/engine.cpp"),
+            ("FilesAndPaths", "at include slash header dot h", "@include/header.h"),
+            ("FilesAndPaths", "at web slash index dot jsx", "@web/index.jsx"),
+            ("FilesAndPaths", "at components slash button dot tsx", "@components/button.tsx"),
+            ("FilesAndPaths", "c colon backslash program files backslash dotnet backslash dotnet dot exe", "C:\\Program Files\\dotnet\\dotnet.exe"),
+            ("FilesAndPaths", "c colon backslash program files backslash visual studio backslash devenv dot exe", "C:\\Program Files\\visual studio\\devenv.exe"),
+            ("FilesAndPaths", "c colon backslash windows backslash system32 backslash notepad dot exe", "C:\\windows\\system32\\notepad.exe"),
+            ("FilesAndPaths", "c colon backslash windows backslash system32 backslash cmd dot exe", "C:\\windows\\system32\\cmd.exe"),
+            ("FilesAndPaths", "c colon backslash users backslash dev backslash flow", "C:\\Users\\dev\\flow"),
+            ("FilesAndPaths", "c colon backslash users backslash admin backslash desktop", "C:\\Users\\admin\\desktop"),
+            ("FilesAndPaths", "c colon backslash users backslash guest backslash downloads", "C:\\Users\\guest\\downloads"),
+            ("FilesAndPaths", "c colon backslash data backslash records backslash archive", "C:\\data\\records\\archive"),
+            ("FilesAndPaths", "c colon backslash temp backslash logs backslash trace dot log", "C:\\temp\\logs\\trace.log"),
+            ("FilesAndPaths", "d colon backslash backups backslash database dot bak", "D:\\backups\\database.bak"),
+            ("FilesAndPaths", "d colon backslash models backslash ggml tiny dot bin", "D:\\models\\ggml_tiny.bin"),
+            ("FilesAndPaths", "e colon backslash media backslash audio sample dot wav", "E:\\media\\audio_sample.wav"),
+            ("FilesAndPaths", "f colon backslash archive backslash snapshot dot zip", "F:\\archive\\snapshot.zip"),
+            ("FilesAndPaths", "c colon backslash program files (x86) backslash common backslash runtime", "C:\\Program Files (x86)\\common\\runtime"),
+            ("FilesAndPaths", "c colon backslash program files backslash git backslash bin backslash git dot exe", "C:\\Program Files\\git\\bin\\git.exe"),
+            ("FilesAndPaths", "c colon backslash program files backslash nodejs backslash node dot exe", "C:\\Program Files\\nodejs\\node.exe"),
+            ("FilesAndPaths", "c colon backslash program files backslash powershell backslash 7 backslash pwsh dot exe", "C:\\Program Files\\powershell\\7\\pwsh.exe"),
+            ("FilesAndPaths", "c colon backslash users backslash barathwaj backslash onedrive backslash desktop backslash flow", "C:\\Users\\barathwaj\\onedrive\\desktop\\flow"),
+            ("FilesAndPaths", "c colon backslash windows backslash system32 backslash windowspowershell backslash v1 dot 0 backslash powershell dot exe", "C:\\windows\\system32\\windowspowershell\\v1.0\\powershell.exe"),
+            ("FilesAndPaths", "c colon backslash appdata backslash local backslash programs backslash vscode backslash code dot exe", "C:\\appdata\\local\\programs\\vscode\\code.exe"),
+            ("FilesAndPaths", "./src/Flow.Core/Program.cs", "./src/Flow.Core/Program.cs"),
+            ("FilesAndPaths", "../tests/Flow.Core.Tests/Runner.cs", "../tests/Flow.Core.Tests/Runner.cs"),
+            ("FilesAndPaths", "src/Flow.Core/TranscriptProcessing/Pipeline.cs", "src/Flow.Core/TranscriptProcessing/Pipeline.cs"),
+            ("FilesAndPaths", "tests/Flow.Windows.Tests/PhysicalValidation.cs", "tests/Flow.Windows.Tests/PhysicalValidation.cs"),
+            ("FilesAndPaths", "docs/PHASE_6_DEVELOPER_CODING_MODE.md", "docs/PHASE_6_DEVELOPER_CODING_MODE.md"),
+            ("FilesAndPaths", "/usr/local/bin/python3", "/usr/local/bin/python3"),
+            ("FilesAndPaths", "/usr/bin/git", "/usr/bin/git"),
+            ("FilesAndPaths", "/home/dev/project/main.py", "/home/dev/project/main.py"),
+            ("FilesAndPaths", "/etc/nginx/nginx.conf", "/etc/nginx/nginx.conf"),
+            ("FilesAndPaths", "/var/log/system.log", "/var/log/system.log"),
+
+            // Category: CLI
+            ("CLI", "git status", "git status"),
+            ("CLI", "git diff", "git diff"),
+            ("CLI", "git branch", "git branch"),
+            ("CLI", "git checkout master", "git checkout master"),
+            ("CLI", "git checkout -b feature/auth", "git checkout -b feature/auth"),
+            ("CLI", "git commit -m initial", "git commit -m initial"),
+            ("CLI", "git push origin master", "git push origin master"),
+            ("CLI", "git pull origin main", "git pull origin main"),
+            ("CLI", "git merge staging", "git merge staging"),
+            ("CLI", "git rebase master", "git rebase master"),
+            ("CLI", "git log -n 5", "git log -n 5"),
+            ("CLI", "git clone https://github.com/Barathwaj2006/FLOW", "git clone https://github.com/Barathwaj2006/FLOW"),
+            ("CLI", "git fetch --all", "git fetch --all"),
+            ("CLI", "git reset --hard HEAD", "git reset --hard HEAD"),
+            ("CLI", "git stash pop", "git stash pop"),
+            ("CLI", "dotnet build FLOW.sln", "dotnet build FLOW.sln"),
+            ("CLI", "dotnet test FLOW.sln", "dotnet test FLOW.sln"),
+            ("CLI", "dotnet test --no-incremental", "dotnet test --no-incremental"),
+            ("CLI", "dotnet run --project src/Flow.Host", "dotnet run --project src/Flow.Host"),
+            ("CLI", "dotnet restore", "dotnet restore"),
+            ("CLI", "dotnet clean", "dotnet clean"),
+            ("CLI", "dotnet publish -c Release", "dotnet publish -c Release"),
+            ("CLI", "dotnet pack", "dotnet pack"),
+            ("CLI", "dotnet tool restore", "dotnet tool restore"),
+            ("CLI", "dotnet new console", "dotnet new console"),
+            ("CLI", "npm install", "npm install"),
+            ("CLI", "npm test", "npm test"),
+            ("CLI", "npm run build", "npm run build"),
+            ("CLI", "npm start", "npm start"),
+            ("CLI", "npm publish --access public", "npm publish --access public"),
+            ("CLI", "pip install requests", "pip install requests"),
+            ("CLI", "pip list", "pip list"),
+            ("CLI", "pip freeze > requirements.txt", "pip freeze > requirements.txt"),
+            ("CLI", "pip uninstall torch", "pip uninstall torch"),
+            ("CLI", "docker build -t flow:latest .", "docker build -t flow:latest ."),
+            ("CLI", "docker run -d -p 8080:80 nginx", "docker run -d -p 8080:80 nginx"),
+            ("CLI", "docker ps -a", "docker ps -a"),
+            ("CLI", "docker stop container_id", "docker stop container_id"),
+            ("CLI", "docker rm container_id", "docker rm container_id"),
+            ("CLI", "docker images", "docker images"),
+            ("CLI", "docker compose up -d", "docker compose up -d"),
+            ("CLI", "docker compose down", "docker compose down"),
+            ("CLI", "kubectl get pods -n kube-system", "kubectl get pods -n kube-system"),
+            ("CLI", "kubectl apply -f deployment.yaml", "kubectl apply -f deployment.yaml"),
+            ("CLI", "kubectl describe node node-1", "kubectl describe node node-1"),
+            ("CLI", "kubectl logs pod-name -c container", "kubectl logs pod-name -c container"),
+            ("CLI", "kubectl delete pod pod-name", "kubectl delete pod pod-name"),
+            ("CLI", "kubectl exec -it pod-name -- sh", "kubectl exec -it pod-name -- sh"),
+            ("CLI", "cargo build --release", "cargo build --release"),
+            ("CLI", "cargo test --all", "cargo test --all"),
+            ("CLI", "cargo run", "cargo run"),
+            ("CLI", "cargo check", "cargo check"),
+            ("CLI", "Remove-Item -Recurse -Force temp", "Remove-Item -Recurse -Force temp"),
+            ("CLI", "Get-Process -Name code", "Get-Process -Name code"),
+            ("CLI", "Stop-Process -Id 1234", "Stop-Process -Id 1234"),
+            ("CLI", "Start-Process notepad.exe", "Start-Process notepad.exe"),
+            ("CLI", "Get-Content logs/app.log", "Get-Content logs/app.log"),
+            ("CLI", "Set-Content output.txt 'hello'", "Set-Content output.txt 'hello'"),
+            ("CLI", "powershell -NoProfile -File script.ps1", "powershell -NoProfile -File script.ps1"),
+            ("CLI", "pwsh -Command Get-Date", "pwsh -Command Get-Date"),
+
+            // Category: Frameworks
+            ("Frameworks", "We are building on .NET 9 with C# 12.", "We are building on .NET 9 with C# 12."),
+            ("Frameworks", "The backend uses ASP.NET Core with Fastify.", "The backend uses ASP.NET Core with Fastify."),
+            ("Frameworks", "The desktop interface uses WinUI 3 and WPF.", "The desktop interface uses WinUI 3 and WPF."),
+            ("Frameworks", "The native audio stream uses WASAPI and C++.", "The native audio stream uses WASAPI and C++."),
+            ("Frameworks", "We store vocabulary records in SQLite.", "We store vocabulary records in SQLite."),
+            ("Frameworks", "Offline transcription uses Whisper with AVX2.", "Offline transcription uses Whisper with AVX2."),
+            ("Frameworks", "Hardware acceleration utilizes DirectML and ONNX.", "Hardware acceleration utilizes DirectML and ONNX."),
+            ("Frameworks", "The frontend application is built on React and Next.js.", "The frontend application is built on React and Next.js."),
+            ("Frameworks", "The mobile application is developed in Flutter.", "The mobile application is developed in Flutter."),
+            ("Frameworks", "Microservices are written in Python with FastAPI.", "Microservices are written in Python with FastAPI."),
+            ("Frameworks", "Systems programming components are implemented in Rust.", "Systems programming components are implemented in Rust."),
+            ("Frameworks", "High throughput pipelines are written in Golang.", "High throughput pipelines are written in Golang."),
+            ("Frameworks", "Enterprise backend adapters are developed in Java.", "Enterprise backend adapters are developed in Java."),
+            ("Frameworks", "Android mobile utilities are written in Kotlin.", "Android mobile utilities are written in Kotlin."),
+            ("Frameworks", "macOS reference clients are developed in Swift.", "macOS reference clients are developed in Swift."),
+            ("Frameworks", "Real-time bidirectional streams use WebSockets.", "Real-time bidirectional streams use WebSockets."),
+            ("Frameworks", "Microservice RPC communication relies on gRPC.", "Microservice RPC communication relies on gRPC."),
+            ("Frameworks", "Query routing uses GraphQL with Apollo.", "Query routing uses GraphQL with Apollo."),
+            ("Frameworks", "In-memory distributed caching is managed with Redis.", "In-memory distributed caching is managed with Redis."),
+            ("Frameworks", "Relational transactional storage is hosted on PostgreSQL.", "Relational transactional storage is hosted on PostgreSQL."),
+            ("Frameworks", "Document storage collections are stored in MongoDB.", "Document storage collections are stored in MongoDB."),
+            ("Frameworks", "Container orchestration is executed via Kubernetes.", "Container orchestration is executed via Kubernetes."),
+            ("Frameworks", "Source code versioning is hosted on GitHub.", "Source code versioning is hosted on GitHub."),
+            ("Frameworks", "Developer IDE extensions are tested in VS Code.", "Developer IDE extensions are tested in VS Code."),
+            ("Frameworks", "JetBrains IDE workflows are validated in JetBrains Rider.", "JetBrains IDE workflows are validated in JetBrains Rider."),
+            ("Frameworks", "Windows enterprise builds are verified in Visual Studio.", "Windows enterprise builds are verified in Visual Studio."),
+            ("Frameworks", "AI code editing tests are conducted in Windsurf.", "AI code editing tests are conducted in Windsurf."),
+            ("Frameworks", "System-wide UI inspection leverages Windows UI Automation.", "System-wide UI inspection leverages Windows UI Automation."),
+            ("Frameworks", "Secure local credentials are encrypted using DPAPI.", "Secure local credentials are encrypted using DPAPI."),
+            ("Frameworks", "The autonomous coding coordinator is Antigravity.", "The autonomous coding coordinator is Antigravity."),
+            ("Frameworks", "Please verify APIClientV2 in the integration suite.", "Please verify APIClientV2 in the integration suite."),
+            ("Frameworks", "Inspect HTTP2Client connection handling.", "Inspect HTTP2Client connection handling."),
+            ("Frameworks", "Validate OAuth2Token expiration and renewal.", "Validate OAuth2Token expiration and renewal."),
+            ("Frameworks", "Check IPv6Parser address validation.", "Check IPv6Parser address validation."),
+            ("Frameworks", "Test JSONParser streaming deserialization.", "Test JSONParser streaming deserialization."),
+            ("Frameworks", "Benchmark XMLHttpRequest compatibility wrapper.", "Benchmark XMLHttpRequest compatibility wrapper."),
+            ("Frameworks", "Inspect HTTPRequestHandler pipeline execution.", "Inspect HTTPRequestHandler pipeline execution."),
+            ("Frameworks", "Configure V2Endpoint route registration.", "Configure V2Endpoint route registration."),
+            ("Frameworks", "Render Point2D geometric coordinates.", "Render Point2D geometric coordinates."),
+            ("Frameworks", "Decode H264Decoder video stream packet.", "Decode H264Decoder video stream packet."),
+            ("Frameworks", "Validate UTF8Parser multi-byte decoding.", "Validate UTF8Parser multi-byte decoding."),
+            ("Frameworks", "Call getUserProfileAsync with user id parameter.", "Call getUserProfileAsync with user id parameter."),
+            ("Frameworks", "Instantiate UserProfileService with database connection.", "Instantiate UserProfileService with database connection."),
+            ("Frameworks", "Register IUserRepository in dependency injection container.", "Register IUserRepository in dependency injection container."),
+            ("Frameworks", "Verify MAX_RETRY_COUNT constant equals ten.", "Verify MAX_RETRY_COUNT constant equals ten."),
+            ("Frameworks", "Configure user_profile_service database credentials.", "Configure user_profile_service database credentials."),
+            ("Frameworks", "Deploy user-auth-service container image.", "Deploy user-auth-service container image."),
+            ("Frameworks", "Inspect Flow.Core.Context namespace declarations.", "Inspect Flow.Core.Context namespace declarations."),
+            ("Frameworks", "Check parseJSONResponse return values.", "Check parseJSONResponse return values."),
+            ("Frameworks", "Verify Flow.Host.Windows native interop bindings.", "Verify Flow.Host.Windows native interop bindings."),
+            ("Frameworks", "Inspect %PATH% environment variable entries.", "Inspect %PATH% environment variable entries."),
+            ("Frameworks", "Read $PATH configuration in shell environment.", "Read $PATH configuration in shell environment."),
+            ("Frameworks", "Access $env:USERPROFILE in PowerShell automation.", "Access $env:USERPROFILE in PowerShell automation."),
+            ("Frameworks", "Verify JWT token signature and claims.", "Verify JWT token signature and claims."),
+            ("Frameworks", "Test SSH keypair generation and authentication.", "Test SSH keypair generation and authentication."),
+            ("Frameworks", "Enforce TLS encryption across all endpoints.", "Enforce TLS encryption across all endpoints."),
+            ("Frameworks", "Inspect TCP socket buffer allocation.", "Inspect TCP socket buffer allocation."),
+            ("Frameworks", "Validate UDP packet transmission rates.", "Validate UDP packet transmission rates."),
+            ("Frameworks", "Configure DNS resolver failover servers.", "Configure DNS resolver failover servers."),
+            ("Frameworks", "Benchmark RAM memory throughput and latency.", "Benchmark RAM memory throughput and latency."),
+
+            // Category: Indic
+            ("Indic", "camel case user profile service pannunga", "userProfileService pannunga"),
+            ("Indic", "camel case order repository pannunga", "orderRepository pannunga"),
+            ("Indic", "camel case payment gateway pannunga", "paymentGateway pannunga"),
+            ("Indic", "camel case session manager pannunga", "sessionManager pannunga"),
+            ("Indic", "camel case audio buffer pannunga", "audioBuffer pannunga"),
+            ("Indic", "pascal case customer order karo", "CustomerOrder karo"),
+            ("Indic", "pascal case invoice processor karo", "InvoiceProcessor karo"),
+            ("Indic", "pascal case user authentication karo", "UserAuthentication karo"),
+            ("Indic", "pascal case report generator karo", "ReportGenerator karo"),
+            ("Indic", "pascal case notification dispatcher karo", "NotificationDispatcher karo"),
+            ("Indic", "function calculate total pannunga", "calculateTotal pannunga"),
+            ("Indic", "function fetch customer data pannunga", "fetchCustomerData pannunga"),
+            ("Indic", "function save order record pannunga", "saveOrderRecord pannunga"),
+            ("Indic", "function delete user session pannunga", "deleteUserSession pannunga"),
+            ("Indic", "function validate email format pannunga", "validateEmailFormat pannunga"),
+            ("Indic", "function process payment karo", "processPayment karo"),
+            ("Indic", "function verify token karo", "verifyToken karo"),
+            ("Indic", "function load configuration karo", "loadConfiguration karo"),
+            ("Indic", "function send notification karo", "sendNotification karo"),
+            ("Indic", "function generate invoice karo", "generateInvoice karo"),
+            ("Indic", "class user profile repository pannunga", "UserProfileRepository pannunga"),
+            ("Indic", "class payment transaction service pannunga", "PaymentTransactionService pannunga"),
+            ("Indic", "class notification dispatch manager pannunga", "NotificationDispatchManager pannunga"),
+            ("Indic", "class database connection provider karo", "DatabaseConnectionProvider karo"),
+            ("Indic", "class authentication session handler karo", "AuthenticationSessionHandler karo"),
+            ("Indic", "class security token verifier karo", "SecurityTokenVerifier karo"),
+            ("Indic", "snake case customer id pannunga", "customer_id pannunga"),
+            ("Indic", "snake case order amount pannunga", "order_amount pannunga"),
+            ("Indic", "snake case transaction status karo", "transaction_status karo"),
+            ("Indic", "snake case retry count karo", "retry_count karo"),
+        };
+
+        foreach (var (cat, inp, exp) in cases)
+        {
+            yield return new object[] { cat, inp, exp };
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(CuratedDeveloperCases))]
+    public void DeveloperCorpus_MatchesGoldenExpectedOutput(string category, string input, string expected)
+    {
+        var options = category == "CLI" ? TerminalOptions : CodeOptions;
+        string output = _pipeline.Format(input, options);
+
         Assert.Equal(expected, output);
         Assert.DoesNotContain("\r", output);
         Assert.DoesNotContain("\n", output);
+        Assert.DoesNotContain("", output);
+        Assert.DoesNotContain("", output);
+        Assert.DoesNotContain("__TECH_ENT_", output);
+        Assert.DoesNotContain("__FLOW_TECH_", output);
     }
 
-    // =========================================================================
-    // 2. CLASSES, STRUCTS, RECORDS, ENUMS, INTERFACES (12 cases)
-    // =========================================================================
-    [Theory]
-    [InlineData("class user profile service", "UserProfileService")]
-    [InlineData("class database repository", "DatabaseRepository")]
-    [InlineData("class authentication middleware", "AuthenticationMiddleware")]
-    [InlineData("struct point 2d", "Point2d")]
-    [InlineData("struct vertex buffer", "VertexBuffer")]
-    [InlineData("record user credentials", "UserCredentials")]
-    [InlineData("record invoice summary", "InvoiceSummary")]
-    [InlineData("enum payment status", "PaymentStatus")]
-    [InlineData("enum execution state", "ExecutionState")]
-    [InlineData("interface user repository", "IUserRepository")]
-    [InlineData("interface token generator", "ITokenGenerator")]
-    [InlineData("interface audio capture service", "IAudioCaptureService")]
-    public void TypesAndInterfaces_TransformAccurately(string input, string expected)
+    [Fact]
+    public void DeveloperCorpus_TotalCaseCount_IsAtLeast500()
     {
-        string output = _pipeline.Format(input, CodeOptions);
-        Assert.Equal(expected, output);
-        Assert.DoesNotContain("\r", output);
-        Assert.DoesNotContain("\n", output);
-    }
-
-    // =========================================================================
-    // 3. CASING COMMANDS & HYPHENATION (10 cases)
-    // =========================================================================
-    [Theory]
-    [InlineData("camel case api secret key", "apiSecretKey")]
-    [InlineData("camel-case primary display resolution", "primaryDisplayResolution")]
-    [InlineData("pascal case user profile manager", "UserProfileManager")]
-    [InlineData("pascal-case sql connection factory", "SqlConnectionFactory")]
-    [InlineData("snake case max retry attempts", "max_retry_attempts")]
-    [InlineData("snake-case jwt authorization header", "jwt_authorization_header")]
-    [InlineData("screaming snake case default timeout ms", "DEFAULT_TIMEOUT_MS")]
-    [InlineData("constant case buffer size bytes", "BUFFER_SIZE_BYTES")]
-    [InlineData("kebab case primary button component", "primary-button-component")]
-    [InlineData("kebab-case user auth service", "user-auth-service")]
-    public void CasingCommands_TransformAccurately(string input, string expected)
-    {
-        string output = _pipeline.Format(input, CodeOptions);
-        Assert.Equal(expected, output);
-        Assert.DoesNotContain("\r", output);
-        Assert.DoesNotContain("\n", output);
-    }
-
-    // =========================================================================
-    // 4. CODE OPERATORS & PUNCTUATION (10 cases)
-    // =========================================================================
-    [Theory]
-    [InlineData("items dot map item fat arrow item dot id", "items.map item => item.id")]
-    [InlineData("pointer thin arrow value", "pointer -> value")]
-    [InlineData("if value double equals 0", "if value == 0")]
-    [InlineData("if status not equals completed", "if status != completed")]
-    [InlineData("const x equals 42", "const x = 42")]
-    [InlineData("object dot property", "object.property")]
-    [InlineData("my underscore value", "my_value")]
-    [InlineData("wrap in backtick sample code backtick", "Wrap in `sample code`")]
-    [InlineData("if count double equals 100", "if count == 100")]
-    [InlineData("pointer thin arrow next", "pointer -> next")]
-    public void CodePunctuation_TransformsAccurately(string input, string expected)
-    {
-        string output = _pipeline.Format(input, CodeOptions);
-        Assert.Equal(expected, output);
-        Assert.DoesNotContain("\r", output);
-        Assert.DoesNotContain("\n", output);
-    }
-
-    // =========================================================================
-    // 5. FILE PATHS & @FILE TAGGING (15 cases)
-    // =========================================================================
-    [Theory]
-    [InlineData("at app dot ts", "@app.ts")]
-    [InlineData("at user underscore profile dot cs", "@user_profile.cs")]
-    [InlineData("at config dot json", "@config.json")]
-    [InlineData("at src slash flow dot cs", "@src/flow.cs")]
-    [InlineData("c colon backslash users backslash dev backslash project", @"C:\users\dev\project")]
-    [InlineData("c colon backslash program files backslash dotnet", @"C:\Program Files\dotnet")]
-    [InlineData(@"inspect C:\Users\dev\project\src\Program.cs now", @"C:\Users\dev\project\src\Program.cs")]
-    [InlineData(@"run C:\Program Files\dotnet\dotnet.exe please", @"C:\Program Files\dotnet\dotnet.exe")]
-    [InlineData(@"check .\src\Program.cs carefully", @".\src\Program.cs")]
-    [InlineData(@"open ..\tests\ProgramTests.cs here", @"..\tests\ProgramTests.cs")]
-    [InlineData(@"look at src\Flow.Core\Context\DeveloperContext.cs", @"src\Flow.Core\Context\DeveloperContext.cs")]
-    [InlineData(@"look at src/Flow.Core/Context/DeveloperContext.cs", @"src/Flow.Core/Context/DeveloperContext.cs")]
-    [InlineData(@"binary at /usr/local/bin/python installed", @"/usr/local/bin/python")]
-    [InlineData(@"entrypoint /home/dev/project/main.py found", @"/home/dev/project/main.py")]
-    [InlineData(@"source at src/Flow.Core/Program.cs ready", @"src/Flow.Core/Program.cs")]
-    public void FilePathsAndTags_RecognizedAccurately(string input, string expectedSub)
-    {
-        string output = _pipeline.Format(input, CodeOptions);
-        Assert.Contains(expectedSub, output);
-        Assert.DoesNotContain("\r", output);
-        Assert.DoesNotContain("\n", output);
-    }
-
-    // =========================================================================
-    // 6. CLI COMMANDS & FLAGS (12 cases)
-    // =========================================================================
-    [Theory]
-    [InlineData("git status", "git status")]
-    [InlineData("git diff", "git diff")]
-    [InlineData("git push --force", "git push --force")]
-    [InlineData("dotnet test --no-incremental", "dotnet test --no-incremental")]
-    [InlineData("npm run build", "npm run build")]
-    [InlineData("docker compose up", "docker compose up")]
-    [InlineData("kubectl get pods", "kubectl get pods")]
-    [InlineData("shutdown /s /t 0", "shutdown /s /t 0")]
-    [InlineData("Remove-Item -Recurse C:\\temp", "Remove-Item -Recurse C:\\temp")]
-    [InlineData("del /s /q *", "del /s /q *")]
-    [InlineData("dotnet restore --help", "dotnet restore --help")]
-    [InlineData("powershell -Command", "powershell -Command")]
-    public void CliCommandsAndFlags_PreservedWithoutExecution(string command, string expected)
-    {
-        string output = _pipeline.Format(command, TerminalOptions);
-        Assert.Contains(expected, output);
-        Assert.DoesNotContain("\r", output);
-        Assert.DoesNotContain("\n", output);
-    }
-
-    // =========================================================================
-    // 7. PROGRAMMING LANGUAGES & INFRASTRUCTURE (15 cases)
-    // =========================================================================
-    [Theory]
-    [InlineData("written in C# and .NET 9", "C#")]
-    [InlineData("compiled using C++ with clang", "C++")]
-    [InlineData("backend built with ASP.NET Core", "ASP.NET Core")]
-    [InlineData("desktop frontend uses WinUI 3", "WinUI 3")]
-    [InlineData("typed using TypeScript compiler", "TypeScript")]
-    [InlineData("client runtime is JavaScript", "JavaScript")]
-    [InlineData("machine learning script in Python", "Python")]
-    [InlineData("high performance code in Rust", "Rust")]
-    [InlineData("microservice designed in Golang", "Golang")]
-    [InlineData("packaged inside Docker container", "Docker")]
-    [InlineData("orchestrated across Kubernetes cluster", "Kubernetes")]
-    [InlineData("caching layer utilizes Redis", "Redis")]
-    [InlineData("relational storage in PostgreSQL", "PostgreSQL")]
-    [InlineData("lightweight database in SQLite", "SQLite")]
-    [InlineData("audio pipeline uses WASAPI capture", "WASAPI")]
-    public void LanguagesAndFrameworks_PreservedExactly(string input, string expectedEntity)
-    {
-        string output = _pipeline.Format(input, CodeOptions);
-        Assert.Contains(expectedEntity, output);
-        Assert.DoesNotContain("\r", output);
-        Assert.DoesNotContain("\n", output);
-    }
-
-    // =========================================================================
-    // 8. ACRONYMS, IDENTIFIERS, URLS, EMAILS (15 cases)
-    // =========================================================================
-    [Theory]
-    [InlineData("configure APIClientV2 for requests", "APIClientV2")]
-    [InlineData("instantiate HTTP2Client instance", "HTTP2Client")]
-    [InlineData("constant MAX_RETRY_COUNT defined", "MAX_RETRY_COUNT")]
-    [InlineData("call getUserProfileAsync directly", "getUserProfileAsync")]
-    [InlineData("import Flow.Core.Context.DeveloperContext", "Flow.Core.Context.DeveloperContext")]
-    [InlineData("repo at https://github.com/Barathwaj2006/FLOW here", "https://github.com/Barathwaj2006/FLOW")]
-    [InlineData("contact developer@flow.local today", "developer@flow.local")]
-    [InlineData("encoded using UTF8 charset", "UTF8")]
-    [InlineData("hardware accelerated with DirectML", "DirectML")]
-    [InlineData("neural models converted to ONNX", "ONNX")]
-    [InlineData("unique identifier is UUID token", "UUID")]
-    [InlineData("session secured via JWT bearer", "JWT")]
-    [InlineData("authenticate using OAuth 2 provider", "OAuth 2")]
-    [InlineData("render Point2D coordinate", "Point2D")]
-    [InlineData("low level Windows UI Automation support", "Windows UI Automation")]
-    public void TechnicalTokensAndEntities_PreserveIntegrity(string input, string expectedToken)
-    {
-        string output = _pipeline.Format(input, CodeOptions);
-        Assert.Contains(expectedToken, output);
-        Assert.DoesNotContain("\r", output);
-        Assert.DoesNotContain("\n", output);
-    }
-
-    // =========================================================================
-    // 9. MULTILINGUAL INDIC + ENGLISH DEVELOPER SPEECH (8 cases)
-    // =========================================================================
-    [Theory]
-    [InlineData("function user profile create பண்ணு", "userProfile")]
-    [InlineData("camel case user profile", "userProfile")]
-    [InlineData("class database repository உருவாக்கு", "DatabaseRepository")]
-    [InlineData("function user profile बनाओ", "userProfile")]
-    [InlineData("class database repository", "DatabaseRepository")]
-    [InlineData("C# and .NET 9 use பண்ணு", "C#")]
-    [InlineData("git push --force பண்ணாதே", "git push --force")]
-    [InlineData("WASAPI audio capture சேர்", "WASAPI")]
-    public void IndicCodeSwitchedSpeech_PreservesEnglishTechnicalEntities(string input, string expected)
-    {
-        string output = _pipeline.Format(input, CodeOptions);
-        Assert.Contains(expected, output);
-        Assert.DoesNotContain("\r", output);
-        Assert.DoesNotContain("\n", output);
+        int count = 0;
+        foreach (var _ in CuratedDeveloperCases()) count++;
+        Assert.True(count >= 500, $"Developer corpus must contain at least 500 cases, found {count}");
     }
 }

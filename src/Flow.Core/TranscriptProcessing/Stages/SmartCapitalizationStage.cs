@@ -49,12 +49,15 @@ public sealed class SmartCapitalizationStage : ITranscriptStage
 
         string result = text;
 
-        // Code context: do not capitalize if starting with a lowercase code keyword or identifier
+        // Code context: do not capitalize if starting with a lowercase code keyword, identifier, or containing code operators
         if (context.Options.Category == ApplicationCategory.Code || context.DeveloperContext.IsCodeEditor)
         {
             string firstWord = GetFirstWord(result);
             if (LowercaseCodeKeywords.Contains(firstWord) ||
-                firstWord.Contains('.') || firstWord.Contains('_') || firstWord.Contains("=>") || firstWord.Contains("->"))
+                firstWord.Contains('.') || firstWord.Contains('_') || firstWord.Contains("=>") || firstWord.Contains("->") ||
+                result.Contains(" == ") || result.Contains(" != ") || result.Contains(" <= ") || result.Contains(" >= ") ||
+                result.Contains(" < ") || result.Contains(" > ") || result.Contains("::") || result.Contains(" => ") || result.Contains(" -> ") ||
+                result.Contains(" = "))
             {
                 return text;
             }

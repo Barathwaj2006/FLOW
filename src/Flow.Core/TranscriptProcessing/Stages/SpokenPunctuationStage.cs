@@ -1,5 +1,6 @@
 using System;
 using System.Text.RegularExpressions;
+using Flow.Core.Context;
 
 namespace Flow.Core.TranscriptProcessing.Stages;
 
@@ -63,8 +64,18 @@ public sealed class SpokenPunctuationStage : ITranscriptStage
             .Replace("..", ".")
             .Replace(",,", ",")
             .Replace("!!", "!")
-            .Replace("??", "?")
-            .Replace(" .", ".")
+            .Replace("??", "?");
+
+        if (context.Options.Category != ApplicationCategory.Terminal && !context.DeveloperContext.IsTerminal)
+        {
+            result = result.Replace(" .", ".");
+        }
+        else
+        {
+            result = Regex.Replace(result, @"\s+\.(?=[a-zA-Z0-9])", ".");
+        }
+
+        result = result
             .Replace(" ,", ",")
             .Replace(" ?", "?")
             .Replace(" :", ":")
@@ -76,10 +87,9 @@ public sealed class SpokenPunctuationStage : ITranscriptStage
             .Replace("[ ", "[")
             .Replace(" ]", "]")
             .Replace("{ ", "{")
-            .Replace(" }", "}")
-            .Replace(" ' ", "'")
-            .Replace(" '", "'")
-            .Trim();
+            .Replace(" }", "}");
+        result = Regex.Replace(result, @"(?<=[a-zA-Z])\s+'\s*(?=[a-zA-Z])", "'");
+        result = result.Trim();
 
         return result;
     }

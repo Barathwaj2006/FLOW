@@ -90,10 +90,10 @@
 
 | ID | Capability | Wispr Windows Behavior | FLOW Level | FLOW Architecture & Module | Phase | Verification Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **WF-032** | **Casing Transformations** | Converts spoken commands to `camelCase`, `snake_case`, `PascalCase`, `kebab-case`, `SCREAMING_SNAKE_CASE`. | **Level 5** | `CasingTransformer.cs`, `SpokenCasingStage.cs` | Phase 6 | Hardened & Certified; idempotent regex transforms + spoken commands tested against 105 prose & 107 developer corpora |
-| **WF-033** | **Technical Identifier Shield**| Guarantees symbols (`_`, `-`, `.`), code variables, and paths are not mangled. | **Level 5** | `TechnicalEntityProtectionStage.cs` | Phase 6 | Hardened & Certified; protects 10+ languages, 20+ frameworks, paths, URLs, CLI flags; 0 corruptions |
-| **WF-034** | **Voice File Tagging** | Speaking *"at filename dot ts"* outputs `@filename.ts` in IDE chat/editors. | **Level 5** | `VoiceFileTaggingStage.cs` | Phase 6 | Hardened & Certified; `@file.ext`, Windows paths with spaces (`C:\Program Files\...`), relative paths |
-| **WF-035** | **IDE Terminal Compatibility**| Safe text injection directly into VS Code, Cursor, and Windows Terminal. | **Level 5** | `DeveloperSyntaxStage.cs`, `WindowsTextInsertionService.cs` | Phase 6 | Hardened & Certified; terminal inert plain text, zero command execution, honest physical host inventory audited |
+| **WF-032** | **Casing Transformations** | Converts spoken commands to `camelCase`, `snake_case`, `PascalCase`, `kebab-case`, `SCREAMING_SNAKE_CASE`. | **Level 5** | `CasingTransformer.cs`, `SpokenCasingStage.cs` | Phase 6/6.5 | Fully Hardened & Certified; algebraic idempotence proven, 37 property tests, 70 casing corpus tests, compound casing pre-shielding |
+| **WF-033** | **Technical Identifier Shield**| Guarantees symbols (`_`, `-`, `.`), code variables, and paths are not mangled. | **Level 5** | `TechnicalEntityProtectionStage.cs` | Phase 6/6.5 | Fully Hardened & Certified; protects 10+ languages, 20+ frameworks, paths, URLs, CLI flags; 0 corruptions across 511 developer tests |
+| **WF-034** | **Voice File Tagging** | Speaking *"at filename dot ts"* outputs `@filename.ts` in IDE chat/editors. | **Level 5** | `VoiceFileTaggingStage.cs` | Phase 6/6.5 | Fully Hardened & Certified; `@file.ext`, Windows paths with spaces (`C:\Program Files (x86)\...`), relative paths, no trailing periods |
+| **WF-035** | **IDE Terminal Compatibility**| Safe text injection directly into VS Code, Cursor, and Windows Terminal. | **Level 5** | `DeveloperSyntaxStage.cs`, `WindowsTextInsertionService.cs` | Phase 6/6.5 | Fully Hardened & Certified; terminal inert plain text, zero command execution, isolated Notepad and live Terminal automated verification |
 
 ---
 

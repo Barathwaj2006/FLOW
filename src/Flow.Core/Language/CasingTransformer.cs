@@ -19,12 +19,13 @@ public static class CasingTransformer
         "API", "HTTP", "HTTPS", "URL", "URI", "JSON", "XML", "SQL", "ID", "UI",
         "SDK", "CLI", "IP", "DB", "IO", "HTML", "CSS", "REST", "GUID", "UUID",
         "HWND", "PID", "VAD", "ASR", "UTF8", "ASCII", "JWT", "SSH", "SSL", "TLS",
-        "DNS", "TCP", "UDP", "FIFO", "LRU", "RAM", "CPU", "GPU", "WAV", "PCM"
+        "DNS", "TCP", "UDP", "FIFO", "LRU", "RAM", "CPU", "GPU", "WAV", "PCM",
+        "OAUTH", "IPV6", "IPV4", "H264", "H265"
     };
 
-    private static readonly Regex DelimiterRegex = new(@"[\t_.\-,;:!?/\\()\[\]{}]+|\s+", RegexOptions.Compiled);
-    private static readonly Regex CamelBoundaryRegex = new(@"(?<=[a-z0-9])(?=[A-Z])", RegexOptions.Compiled);
-    private static readonly Regex AcronymBoundaryRegex = new(@"(?<=[A-Z])(?=[A-Z][a-z])", RegexOptions.Compiled);
+    private static readonly Regex DelimiterRegex = new(@"[	_.\-,;:!?/\()\[\]{}]+|\s+", RegexOptions.Compiled);
+    private static readonly Regex CamelBoundaryRegex = new(@"(?<=[a-z])(?=[A-Z])|(?<=[0-9])(?=[A-Z][a-z])", RegexOptions.Compiled);
+    private static readonly Regex AcronymBoundaryRegex = new(@"(?<=[A-Z])(?=(?!(?:Auth|Pv6|Pv4)\b)[A-Z][a-z])", RegexOptions.Compiled);
 
     public static string ToTitleCase(string text)
     {
@@ -81,12 +82,11 @@ public static class CasingTransformer
             string w = words[i];
             if (i == 0)
             {
-                sb.Append(w.ToLowerInvariant());
+                sb.Append(FormatWordForCamelStart(w));
             }
             else
             {
-                sb.Append(char.ToUpperInvariant(w[0]));
-                if (w.Length > 1) sb.Append(w[1..].ToLowerInvariant());
+                sb.Append(FormatWordForPascal(w));
             }
         }
         return sb.ToString();
@@ -101,8 +101,7 @@ public static class CasingTransformer
         var sb = new StringBuilder();
         foreach (var w in words)
         {
-            sb.Append(char.ToUpperInvariant(w[0]));
-            if (w.Length > 1) sb.Append(w[1..].ToLowerInvariant());
+            sb.Append(FormatWordForPascal(w));
         }
         return sb.ToString();
     }
@@ -139,14 +138,35 @@ public static class CasingTransformer
 
     public static string ToScreamingSnakeCase(string text) => ToConstantCase(text);
 
-    private static bool IsAllUpper(string s)
+    private static string FormatWordForCamelStart(string w)
     {
-        if (string.IsNullOrEmpty(s) || s.Length < 2) return false;
-        foreach (char c in s)
+        if (string.Equals(w, "OAuth", StringComparison.OrdinalIgnoreCase)) return "oauth";
+        if (string.Equals(w, "IPv6", StringComparison.OrdinalIgnoreCase)) return "ipv6";
+        if (string.Equals(w, "IPv4", StringComparison.OrdinalIgnoreCase)) return "ipv4";
+        if (string.Equals(w, "H264", StringComparison.OrdinalIgnoreCase)) return "h264";
+        if (string.Equals(w, "H265", StringComparison.OrdinalIgnoreCase)) return "h265";
+        return w.ToLowerInvariant();
+    }
+
+    private static string FormatWordForPascal(string w)
+    {
+        if (string.Equals(w, "OAuth", StringComparison.OrdinalIgnoreCase)) return "OAuth";
+        if (string.Equals(w, "IPv6", StringComparison.OrdinalIgnoreCase)) return "IPv6";
+        if (string.Equals(w, "IPv4", StringComparison.OrdinalIgnoreCase)) return "IPv4";
+        if (string.Equals(w, "H264", StringComparison.OrdinalIgnoreCase)) return "H264";
+        if (string.Equals(w, "H265", StringComparison.OrdinalIgnoreCase)) return "H265";
+        if (string.Equals(w, "2D", StringComparison.OrdinalIgnoreCase)) return "2D";
+        if (string.Equals(w, "3D", StringComparison.OrdinalIgnoreCase)) return "3D";
+
+        if (w.Length == 1) return w.ToUpperInvariant();
+
+        // If word is like "v2", format as "V2"
+        if (w.Length == 2 && (w[0] == 'v' || w[0] == 'V') && char.IsDigit(w[1]))
         {
-            if (char.IsLetter(c) && !char.IsUpper(c)) return false;
+            return "V" + w[1];
         }
-        return true;
+
+        return char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant();
     }
 
     private static string[] ExtractWords(string text)
@@ -156,10 +176,14 @@ public static class CasingTransformer
         // 1. Replace delimiters with space
         string s = DelimiterRegex.Replace(text, " ");
 
-        // 2. Split on camelCase and digit boundaries e.g. "getUser" -> "get User", "v2Api" -> "v2 Api"
+        // 2. Protect 2D and 3D tokens and version tokens like v2
+        s = Regex.Replace(s, @"(?<=[a-zA-Z])(?=(?:2D|3D|2d|3d))", " ");
+        s = Regex.Replace(s, @"(?<=(?:2D|3D|2d|3d))(?=[A-Za-z])", " ");
+
+        // 3. Split on camelCase transitions e.g. "getUser" -> "get User", "v2Api" -> "v2 Api"
         s = CamelBoundaryRegex.Replace(s, " ");
 
-        // 3. Split on acronym transitions e.g. "APIClient" -> "API Client", "HTTPServer" -> "HTTP Server"
+        // 4. Split on acronym transitions e.g. "APIClient" -> "API Client", "HTTPServer" -> "HTTP Server"
         s = AcronymBoundaryRegex.Replace(s, " ");
 
         var rawWords = s.Split(' ', StringSplitOptions.RemoveEmptyEntries);

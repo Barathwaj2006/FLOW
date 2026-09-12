@@ -18,13 +18,23 @@ public sealed class EntityRestorationStage : ITranscriptStage
 
         string result = text;
 
-        // 1. Clean up duplicate punctuation and spacing BEFORE restoring tokens
+        // 1. Spacing cleanup
         result = result
             .Replace("..", ".")
             .Replace(",,", ",")
             .Replace("!!", "!")
-            .Replace("??", "?")
-            .Replace(" .", ".")
+            .Replace("??", "?");
+
+        if (context.Options.Category != ApplicationCategory.Terminal && !context.DeveloperContext.IsTerminal)
+        {
+            result = result.Replace(" .", ".");
+        }
+        else
+        {
+            result = Regex.Replace(result, @"\s+\.(?=[a-zA-Z0-9])", ".");
+        }
+
+        result = result
             .Replace(" ,", ",")
             .Replace(" ?", "?")
             .Replace(" :", ":")
@@ -55,14 +65,23 @@ public sealed class EntityRestorationStage : ITranscriptStage
                 return result;
             }
 
-            // Code context: NEVER add a terminal period if the line is code (contains =>, ->, ==, !=, =, ., or is an identifier)
+            // File paths: NEVER add a terminal period to Windows or Unix file paths
+            if (Regex.IsMatch(result, @"^(?:[a-zA-Z]:\\|\.{1,2}[\/\\]|\/)"))
+            {
+                return result;
+            }
+
+            // Code context: NEVER add a terminal period if the line is code (contains =>, ->, ==, !=, =, ., operators, or is an identifier)
             if (context.Options.Category == ApplicationCategory.Code || context.DeveloperContext.IsCodeEditor)
             {
                 if (!result.Contains(' ') ||
                     result.Contains("=>") || result.Contains("->") || result.Contains("==") ||
                     result.Contains("!=") || result.Contains('=') || result.Contains('.') ||
+                    result.Contains("<=") || result.Contains(">=") || result.Contains(" < ") ||
+                    result.Contains(" > ") || result.Contains("::") ||
                     result.StartsWith("async ") || result.StartsWith("const ") || result.StartsWith("let ") ||
-                    result.StartsWith("var ") || result.StartsWith("if ") || result.StartsWith("wrap in `"))
+                    result.StartsWith("var ") || result.StartsWith("if ") || result.StartsWith("wrap in `") ||
+                    Regex.IsMatch(result, @"(?i)\b(?:karo|karlo|kijie|karein|pannunga|pannu|seiyunga|podu|hai|irukku)$"))
                 {
                     return result;
                 }

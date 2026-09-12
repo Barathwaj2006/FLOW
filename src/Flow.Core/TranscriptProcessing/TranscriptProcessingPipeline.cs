@@ -45,6 +45,7 @@ public sealed class TranscriptProcessingPipeline : ILanguageEngine
         {
             new WhitespaceAndZeroEnterStage(),
             new VoiceFileTaggingStage(),
+            new SpokenCasingStage(),
             new DeveloperSyntaxStage(),
             new TechnicalEntityProtectionStage(),
             new SpokenPunctuationStage(),
@@ -52,7 +53,6 @@ public sealed class TranscriptProcessingPipeline : ILanguageEngine
             new PersonalDictionaryStage(dictionaryEngine),
             new ConservativeFillerRemovalStage(),
             new NumberedListStage(),
-            new SpokenCasingStage(),
             new StyleFormattingStage(styleEngine),
             new SmartCapitalizationStage(),
             new EntityRestorationStage()

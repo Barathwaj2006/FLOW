@@ -6,6 +6,7 @@
 *.userosscache
 *.sln.docstates
 .vs/
+[Tt]est[Rr]esults/
 
 # Models and Binary Assets (Do not commit heavy weights)
 models/

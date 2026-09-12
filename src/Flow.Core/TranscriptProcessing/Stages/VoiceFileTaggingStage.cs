@@ -24,7 +24,7 @@ public sealed class VoiceFileTaggingStage : ITranscriptStage
     );
 
     private static readonly Regex SpokenWindowsPathRegex = new(
-        @"(?i)\b(?<drive>[a-zA-Z])\s*(?:colon|:)\s*(?:backslash|slash|\/|\\)\s*(?<rest>[a-zA-Z0-9_\-\s\/\\]+)\b",
+        @"(?i)\b(?<drive>[a-zA-Z])\s*(?:colon|:)\s*(?:backslash|slash|\/|\\)\s*(?<rest>[a-zA-Z0-9_\-\s\/\\(\)]+)\b",
         RegexOptions.Compiled
     );
 
@@ -48,20 +48,49 @@ public sealed class VoiceFileTaggingStage : ITranscriptStage
             if (segments.Length == 0) return match.Value;
 
             var cleanSegments = new List<string>();
-            foreach (var seg in segments)
+            for (int i = 0; i < segments.Length; i++)
             {
-                string trimmed = seg.Trim();
-                if (trimmed.Equals("program files", StringComparison.OrdinalIgnoreCase))
+                string seg = segments[i].Trim();
+                bool isLastSegment = (i == segments.Length - 1);
+
+                if (seg.Equals("program files", StringComparison.OrdinalIgnoreCase))
                 {
                     cleanSegments.Add("Program Files");
                 }
-                else if (trimmed.Equals("program files (x86)", StringComparison.OrdinalIgnoreCase))
+                else if (seg.Equals("program files (x86)", StringComparison.OrdinalIgnoreCase))
                 {
                     cleanSegments.Add("Program Files (x86)");
                 }
+                else if (seg.Equals("users", StringComparison.OrdinalIgnoreCase))
+                {
+                    cleanSegments.Add("Users");
+                }
+                else if (seg.Equals("visual studio", StringComparison.OrdinalIgnoreCase))
+                {
+                    cleanSegments.Add("visual studio");
+                }
+                else if (isLastSegment && Regex.IsMatch(seg, @"(?i)\s+(?:dot|\.)\s+[a-zA-Z0-9]+$"))
+                {
+                    var fileMatch = Regex.Match(seg, @"(?i)^(?<name>.+?)\s+(?:dot|\.)\s+(?<ext>[a-zA-Z0-9]+)$");
+                    if (fileMatch.Success)
+                    {
+                        string name = fileMatch.Groups["name"].Value.Trim();
+                        string ext = fileMatch.Groups["ext"].Value.ToLowerInvariant();
+                        if (name.Contains(' '))
+                        {
+                            name = name.Replace(" ", "_");
+                        }
+                        cleanSegments.Add($"{name}.{ext}");
+                    }
+                    else
+                    {
+                        cleanSegments.Add(seg.Replace(" ", ""));
+                    }
+                }
                 else
                 {
-                    string s = trimmed.Replace(" ", "");
+                    string s = Regex.Replace(seg, @"(?i)\b([a-zA-Z0-9]+)\s+dot\s+([a-zA-Z0-9]+)\b", "$1.$2");
+                    s = s.Replace(" ", "");
                     if (!string.IsNullOrEmpty(s))
                     {
                         cleanSegments.Add(s);

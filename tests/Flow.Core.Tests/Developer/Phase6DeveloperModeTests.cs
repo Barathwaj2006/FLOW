@@ -150,7 +150,7 @@ public class Phase6DeveloperModeTests
     [InlineData("class database repository", "DatabaseRepository")]
     [InlineData("class API client", "ApiClient")]
     [InlineData("class HTTP server", "HttpServer")]
-    [InlineData("struct point 2d", "Point2d")]
+    [InlineData("struct point 2d", "Point2D")]
     [InlineData("enum user status", "UserStatus")]
     public void ClassRecognition_TransformsToPascalCase(string input, string expected)
     {
@@ -188,7 +188,7 @@ public class Phase6DeveloperModeTests
     {
         string input = "c colon backslash users backslash barathwaj backslash desktop backslash flow";
         string output = _pipeline.Format(input, CodeOptions);
-        Assert.Equal(@"C:\users\barathwaj\desktop\flow", output);
+        Assert.Equal(@"C:\Users\barathwaj\desktop\flow", output);
     }
 
     [Theory]

@@ -1,11 +1,12 @@
 using System;
 using System.Text.RegularExpressions;
+using Flow.Core.Developer.Spans;
 
 namespace Flow.Core.TranscriptProcessing.Stages;
 
 /// <summary>
-/// Identifies and masks technical tokens (file paths, URLs, code identifiers, CLI commands, acronyms)
-/// so that subsequent punctuation, filler-removal, and capitalization stages do not corrupt them (WF-033).
+/// Identifies and shields technical tokens (file paths, URLs, code identifiers, CLI commands, acronyms)
+/// using structured spans so that subsequent stages do not corrupt them (WF-033).
 /// </summary>
 public sealed class TechnicalEntityProtectionStage : ITranscriptStage
 {
@@ -35,7 +36,7 @@ public sealed class TechnicalEntityProtectionStage : ITranscriptStage
         @"format\s+[A-Za-z]:|del\s+/[a-zA-Z0-9\s/*]+|powershell|pwsh|cmd\.exe)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    // 4. CLI Flags: e.g. --no-incremental, --help, --force, -v, /s, /t
+    // 4. CLI Flags: e.g. --no-incremental, --help, --force, -v, /s, /t, -p 8080
     private static readonly Regex CliFlagRegex = new(
         @"(?<=\s|^)(?:--[a-zA-Z0-9_\-]+|-[a-zA-Z0-9]|/[a-zA-Z0-9])(?=[\s,;:\.\?!]|$)",
         RegexOptions.Compiled);
@@ -55,22 +56,37 @@ public sealed class TechnicalEntityProtectionStage : ITranscriptStage
         @"\b[a-zA-Z0-9_\-]+\.(?:cs|csproj|json|yaml|yml|ts|tsx|js|jsx|py|rs|go|cpp|h|hpp|html|css|scss|less|sql|toml|sln|md|env|sh|ps1|proto|wasm)\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    // 7. Code identifiers with optional Indic postposition/case suffixes (Tamil \u0B80-\u0BFF, Devanagari \u0900-\u097F)
+    // 7. Environment Variables: e.g. %PATH%, $PATH, $env:USERPROFILE
+    private static readonly Regex EnvVarRegex = new(
+        @"%[A-Za-z0-9_]+%|\$[A-Za-z_][A-Za-z0-9_]*|\$env:[A-Za-z0-9_]+",
+        RegexOptions.Compiled);
+
+    // 8. Code identifiers with optional Indic postposition/case suffixes (Tamil \u0B80-\u0BFF, Devanagari \u0900-\u097F)
     private static readonly Regex CodeSwitchedIndicSuffixRegex = new(
         @"\b[A-Za-z0-9_]+(?=-?[\u0900-\u097F\u0B80-\u0BFF]+)",
         RegexOptions.Compiled);
 
-    // 8. Code identifiers: dotted symbols (Flow.Core), camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case
+    // 9. Structured Code Identifiers (WF-033):
+    //    - Dotted namespaces: Flow.Core.Context
+    //    - camelCase: getUserProfile, parseJSONResponse, apiClientV2
+    //    - PascalCase: UserProfileService, IUserRepository, Point2D
+    //    - Acronym-prefix PascalCase: APIClient, APIClientV2, JSONParser, XMLHttpRequest, HTTPRequestHandler
+    //    - Acronym-number identifiers: HTTP2Client, UTF8Parser, IPv6Parser, H264Decoder, V2Endpoint, OAuth2Token
+    //    - snake_case & SCREAMING_SNAKE_CASE: user_profile_service, MAX_RETRY_COUNT
+    //    - kebab-case: user-auth-service, header-component
     private static readonly Regex CodeIdentifierRegex = new(
         @"\b[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_.]*\b|" +
-        @"\b[a-z]+[A-Z][A-Za-z0-9]*\b|" +
-        @"\b[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]*)+\b|" +
+        @"\b[a-z]+[A-Z0-9][A-Za-z0-9]*\b|" +
+        @"\b[A-Z][a-z0-9]+(?:[A-Z0-9][a-z0-9]*)+\b|" +
+        @"\b[A-Z]{2,}[a-z0-9]+[A-Za-z0-9]*\b|" +
+        @"\b[A-Z]{2,}[0-9]+[A-Za-z0-9]*\b|" +
+        @"\b(?:OAuth|OAuth2|IPv4|IPv6|H264|H265|V2|V3|I18N|L10N)[A-Za-z0-9]*\b|" +
         @"\b[a-z0-9]+_[a-z0-9_]+\b|" +
         @"\b[A-Z0-9]+_[A-Z0-9_]+\b|" +
         @"(?!(?:camel|snake|pascal|kebab|constant|screaming-snake|upper-snake)-case\b)\b[a-z0-9]+(?:-[a-z0-9]+)+\b",
         RegexOptions.Compiled);
 
-    // 9. Common Technical Acronyms
+    // 10. Common Technical Acronyms
     private static readonly Regex AcronymRegex = new(
         @"\b(HTTP|HTTPS|JSON|API|ASR|WASAPI|VAD|UIA|CLI|GPU|CPU|AVX2|DPAPI|REST|SDK|URL|RAM|WAV|PCM|HTML|CSS|SQL|XML|UUID|GUID|HWND|PID|IDE|SSH|SSL|TLS|DNS|TCP|UDP|JWT|FIFO|LRU)\b",
         RegexOptions.Compiled);
@@ -81,7 +97,7 @@ public sealed class TechnicalEntityProtectionStage : ITranscriptStage
 
         int tokenCounter = context.ProtectedTokens.Count;
 
-        string Mask(Match m)
+        string Mask(Match m, TechnicalSpanCategory category)
         {
             string original = m.Value;
             string placeholder = $"\uE000{tokenCounter++}\uE001";
@@ -89,17 +105,18 @@ public sealed class TechnicalEntityProtectionStage : ITranscriptStage
             return placeholder;
         }
 
-        // Apply in priority order: URLs -> File Paths -> CLI Commands -> CLI Flags -> Languages/Frameworks -> File Names -> Indic Code-Switched -> Code Identifiers -> Acronyms
-        string protectedText = UrlRegex.Replace(text, Mask);
-        protectedText = FilePathRegex.Replace(protectedText, Mask);
-        protectedText = CliCommandRegex.Replace(protectedText, Mask);
-        protectedText = CliFlagRegex.Replace(protectedText, Mask);
-        protectedText = LangFrameworkRegex.Replace(protectedText, Mask);
-        protectedText = FileNameRegex.Replace(protectedText, Mask);
-        protectedText = CodeSwitchedIndicSuffixRegex.Replace(protectedText, Mask);
-        protectedText = CodeIdentifierRegex.Replace(protectedText, Mask);
-        protectedText = AcronymRegex.Replace(protectedText, Mask);
+        string result = text;
+        result = UrlRegex.Replace(result, m => Mask(m, TechnicalSpanCategory.URLToken));
+        result = FilePathRegex.Replace(result, m => Mask(m, TechnicalSpanCategory.PathToken));
+        result = CliCommandRegex.Replace(result, m => Mask(m, TechnicalSpanCategory.FlagToken));
+        result = CliFlagRegex.Replace(result, m => Mask(m, TechnicalSpanCategory.FlagToken));
+        result = LangFrameworkRegex.Replace(result, m => Mask(m, TechnicalSpanCategory.FrameworkToken));
+        result = FileNameRegex.Replace(result, m => Mask(m, TechnicalSpanCategory.PathToken));
+        result = EnvVarRegex.Replace(result, m => Mask(m, TechnicalSpanCategory.EnvVarToken));
+        result = CodeSwitchedIndicSuffixRegex.Replace(result, m => Mask(m, TechnicalSpanCategory.IdentifierToken));
+        result = CodeIdentifierRegex.Replace(result, m => Mask(m, TechnicalSpanCategory.IdentifierToken));
+        result = AcronymRegex.Replace(result, m => Mask(m, TechnicalSpanCategory.AcronymToken));
 
-        return protectedText;
+        return result;
     }
 }
