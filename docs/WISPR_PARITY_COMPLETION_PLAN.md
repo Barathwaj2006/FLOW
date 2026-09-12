@@ -48,7 +48,7 @@ FLOW tracks exactly 75 atomic capabilities across 12 functional domains and 1 ou
 | **WF-027A** | Personalization| Writing Styles Engine | Mandatory | **Level 5** | `SqliteStyleRepository.cs` (formality, contractions, app/language scope) |
 | **WF-027B** | Personalization| Writing Styles Hub GUI | Mandatory | **Level 0** | WinUI 3 profile editor pending |
 | **WF-028** | Personalization| Auto-Learned Vocabulary | Optional/Beta | **Level 0** | User correction frequency tracker |
-| **WF-029** | Context | Active App Detection (HWND/PID) | Mandatory | **Level 4** | `WindowsTextInsertionService.cs` |
+| **WF-029** | Context | Active App Detection (HWND/PID) | Mandatory | **Level 5** | `WindowsTextInsertionService.cs`, `WindowsUIAutomationContextService.cs`, `RuleBasedApplicationClassifier.cs` |
 | **WF-030** | Context | Password Field Exclusion | Mandatory | **Level 5** | `WindowsUIAutomationContextService.cs` |
 | **WF-031A** | Context | Nearby Context Extraction | Mandatory | **Level 5** | `WindowsUIAutomationContextService.cs` |
 | **WF-031B** | Context | Contextual Routing | Mandatory | **Level 5** | `WindowsTextInsertionService.cs` |

@@ -1,4 +1,5 @@
 using System;
+using Flow.Core.Context;
 
 namespace Flow.Core.Language;
 
@@ -12,7 +13,9 @@ public sealed record FormattingOptions(
     bool ReplaceSpokenPunctuation = true,
     bool FormatNumberedLists = true,
     LanguageInfo? Language = null,
-    string? TargetApplication = null
+    string? TargetApplication = null,
+    ApplicationCategory Category = ApplicationCategory.Unknown,
+    string? NearbyContext = null
 );
 
 /// <summary>

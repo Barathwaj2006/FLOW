@@ -3,8 +3,8 @@ using System;
 namespace Flow.Core.Context;
 
 /// <summary>
-/// Service interface for querying Windows UI context, including active control safety
-/// and surrounding text context via Windows UI Automation.
+/// Service interface for querying Windows UI context, including active control safety,
+/// application category classification, and surrounding text context via Windows UI Automation.
 /// </summary>
 public interface IUIContextService
 {
@@ -38,6 +38,27 @@ public interface IUIContextService
     /// Used to preserve target application focus and prevent cross-application text leakage during dictation.
     /// </summary>
     ForegroundTargetInfo GetForegroundTargetInfo();
+
+    /// <summary>
+    /// Captures a complete, immutable context snapshot for the specified session (WF-029, WF-030, WF-031A, WF-031B).
+    /// Evaluates target window, application category, focused control, password exclusion, nearby text, and selection.
+    /// </summary>
+    ContextSnapshot CaptureContext(Guid sessionId, int maxNearbyCharacters = 200, int maxSelectionCharacters = 10000);
+
+    /// <summary>
+    /// Gets information describing the currently focused UI control.
+    /// </summary>
+    FocusedControlInfo GetFocusedControlInfo();
+
+    /// <summary>
+    /// Classifies the application category for the given target info.
+    /// </summary>
+    ApplicationCategory GetApplicationCategory(ForegroundTargetInfo targetInfo);
+
+    /// <summary>
+    /// Validates whether the initial foreground target is still active and valid before text insertion.
+    /// </summary>
+    bool ValidateTargetStillActive(ForegroundTargetInfo initialTarget);
 }
 
 /// <summary>
@@ -62,17 +83,31 @@ public sealed class NullUIContextService : IUIContextService
     private readonly string _nearbyContext;
     private readonly string _selectedText;
     private readonly ForegroundTargetInfo _targetInfo;
+    private readonly ApplicationCategory _category;
+    private readonly FocusedControlInfo _focusedControl;
+    private readonly bool _isTargetActive;
+    private readonly IApplicationClassifier _classifier;
 
     public NullUIContextService(
         bool isPasswordField = false,
         string nearbyContext = "",
         string selectedText = "",
-        ForegroundTargetInfo? targetInfo = null)
+        ForegroundTargetInfo? targetInfo = null,
+        ApplicationCategory? category = null,
+        FocusedControlInfo? focusedControl = null,
+        bool isTargetActive = true,
+        IApplicationClassifier? classifier = null)
     {
         _isPasswordField = isPasswordField;
         _nearbyContext = nearbyContext;
         _selectedText = selectedText;
         _targetInfo = targetInfo ?? ForegroundTargetInfo.Empty;
+        _classifier = classifier ?? new RuleBasedApplicationClassifier();
+        _category = category ?? _classifier.Classify(_targetInfo);
+        _focusedControl = focusedControl ?? (isPasswordField
+            ? new FocusedControlInfo("PasswordBox", string.Empty, string.Empty, string.Empty, true, false, false)
+            : new FocusedControlInfo("TextBox", string.Empty, string.Empty, string.Empty, false, true, false));
+        _isTargetActive = isTargetActive;
     }
 
     public bool IsFocusInPasswordField() => _isPasswordField;
@@ -97,4 +132,40 @@ public sealed class NullUIContextService : IUIContextService
     }
 
     public ForegroundTargetInfo GetForegroundTargetInfo() => _targetInfo;
+
+    public ContextSnapshot CaptureContext(Guid sessionId, int maxNearbyCharacters = 200, int maxSelectionCharacters = 10000)
+    {
+        if (_isPasswordField)
+        {
+            return ContextSnapshot.CreateSensitive(sessionId, _targetInfo);
+        }
+
+        string nearby = GetNearbyContext(maxNearbyCharacters);
+        string selection = GetSelectedText(maxSelectionCharacters);
+
+        return new ContextSnapshot(
+            sessionId,
+            DateTimeOffset.UtcNow,
+            _targetInfo,
+            _category,
+            _focusedControl,
+            false,
+            string.IsNullOrEmpty(nearby) ? null : nearby,
+            string.IsNullOrEmpty(selection) ? null : selection,
+            null,
+            1.0f,
+            "NullUIContextService"
+        );
+    }
+
+    public FocusedControlInfo GetFocusedControlInfo() => _focusedControl;
+
+    public ApplicationCategory GetApplicationCategory(ForegroundTargetInfo targetInfo) => _classifier.Classify(targetInfo);
+
+    public bool ValidateTargetStillActive(ForegroundTargetInfo initialTarget)
+    {
+        if (!_isTargetActive) return false;
+        if (initialTarget == null || initialTarget.Hwnd == IntPtr.Zero) return true;
+        return _targetInfo.Hwnd == initialTarget.Hwnd && _targetInfo.ProcessId == initialTarget.ProcessId;
+    }
 }

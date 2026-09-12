@@ -100,6 +100,11 @@ public sealed class VoiceSessionCoordinator
     }
 
     /// <summary>
+    /// Captured context snapshot at session onset (WF-029, WF-030, WF-031A, WF-031B).
+    /// </summary>
+    public ContextSnapshot? ActiveContext { get; private set; }
+
+    /// <summary>
     /// Bounded surrounding text context extracted before recording started (WF-031A).
     /// Up to 200 characters preceding the caret in the active editable control.
     /// </summary>
@@ -222,20 +227,25 @@ public sealed class VoiceSessionCoordinator
                 return Task.CompletedTask;
             }
 
-            // WF-030: Inviolable Password Field Exclusion Check
-            if (_contextService.IsFocusInPasswordField())
+            Guid sessionId = Guid.NewGuid();
+            var contextSnapshot = _contextService.CaptureContext(sessionId, 200, 10000);
+            ActiveContext = contextSnapshot;
+
+            // WF-030: Inviolable Password Field Exclusion Check (Fail Closed)
+            if (contextSnapshot.IsSensitive || _contextService.IsFocusInPasswordField())
             {
                 _logger?.LogWarning("StartSessionAsync blocked: Focused UI element is a password or credential field.");
                 SetState(SessionState.Cancelled, "Password field detected — recording blocked");
                 SessionWarning?.Invoke("Password field detected. Voice recording is disabled for your protection.");
+                InvalidateContext();
                 return Task.CompletedTask;
             }
 
             // Capture target window at session onset to protect against window switching
-            ActiveTarget = _contextService.GetForegroundTargetInfo();
+            ActiveTarget = contextSnapshot.TargetInfo;
 
             // WF-031A: Bounded nearby context extraction (pre-session capture, max 200 chars)
-            ActiveNearbyContext = _contextService.GetNearbyContext(200);
+            ActiveNearbyContext = contextSnapshot.NearbyText;
 
             _sessionCts?.Cancel();
             _sessionCts?.Dispose();
@@ -275,21 +285,26 @@ public sealed class VoiceSessionCoordinator
                 return Task.CompletedTask;
             }
 
-            // WF-030: Inviolable Password Field Exclusion Check
-            if (_contextService.IsFocusInPasswordField())
+            Guid sessionId = Guid.NewGuid();
+            var contextSnapshot = _contextService.CaptureContext(sessionId, 200, 10000);
+            ActiveContext = contextSnapshot;
+
+            // WF-030: Inviolable Password Field Exclusion Check (Fail Closed)
+            if (contextSnapshot.IsSensitive || _contextService.IsFocusInPasswordField())
             {
                 _logger?.LogWarning("StartCommandSessionAsync blocked: Focused UI element is a password or credential field.");
                 SetState(SessionState.Cancelled, "Password field detected — command mode blocked");
                 SessionWarning?.Invoke("Password field detected. Command mode is disabled for your protection.");
+                InvalidateContext();
                 return Task.CompletedTask;
             }
 
             // Capture target window at command session onset
-            ActiveTarget = _contextService.GetForegroundTargetInfo();
+            ActiveTarget = contextSnapshot.TargetInfo;
 
             // WF-037A: Query active text selection
-            _activeSelectedText = _contextService.GetSelectedText(10000);
-            ActiveNearbyContext = _contextService.GetNearbyContext(200);
+            _activeSelectedText = contextSnapshot.SelectionText ?? _contextService.GetSelectedText(10000);
+            ActiveNearbyContext = contextSnapshot.NearbyText;
 
             _sessionCts?.Cancel();
             _sessionCts?.Dispose();
@@ -394,11 +409,16 @@ public sealed class VoiceSessionCoordinator
             });
 
             // 1. Transcribe via ASR engine registry (executing real local Whisper backend)
-            string? biasingPrompt = _biasingService?.BuildPrompt(
-                _languageSessionService.ActiveLanguage.WhisperCode,
-                ActiveTarget?.ProcessName,
-                CodeSwitchingBiasingPrompt
-            ) ?? CodeSwitchingBiasingPrompt;
+            // Privacy & Safety: Never provide biasing if context is sensitive
+            string? biasingPrompt = null;
+            if (ActiveContext?.IsSensitive != true)
+            {
+                biasingPrompt = _biasingService?.BuildPrompt(
+                    _languageSessionService.ActiveLanguage.WhisperCode,
+                    ActiveTarget?.ProcessName,
+                    CodeSwitchingBiasingPrompt
+                ) ?? CodeSwitchingBiasingPrompt;
+            }
 
             var asrOptions = new ASROptions(
                 Language: _languageSessionService.ActiveLanguage.WhisperCode,
@@ -520,13 +540,16 @@ public sealed class VoiceSessionCoordinator
             // 2. Deterministic sanitization & Zero-Enter guarantee
             var formattingOptions = new FormattingOptions(
                 Language: _languageSessionService.ActiveLanguage,
-                TargetApplication: ActiveTarget?.ProcessName
+                TargetApplication: ActiveTarget?.ProcessName,
+                Category: ActiveContext?.Category ?? ApplicationCategory.Unknown,
+                NearbyContext: ActiveNearbyContext
             );
             string cleanText = _languageEngine.Format(asrResult.Text, formattingOptions);
 
             if (string.IsNullOrWhiteSpace(cleanText))
             {
                 SetState(SessionState.Cancelled, "Cleaned text empty");
+                InvalidateContext();
                 return false;
             }
 
@@ -535,6 +558,7 @@ public sealed class VoiceSessionCoordinator
             {
                 _logger?.LogError("CRITICAL SAFETY VIOLATION: Sanitized text contains physical newlines! Insertion permanently blocked.");
                 SetState(SessionState.Error, "Zero-Enter violation blocked");
+                InvalidateContext();
                 return false;
             }
 
@@ -543,15 +567,19 @@ public sealed class VoiceSessionCoordinator
             {
                 _logger?.LogWarning("EndSessionAsync insertion blocked: Focused UI element is a password or credential field.");
                 SetState(SessionState.Cancelled, "Password field detected — insertion blocked");
+                InvalidateContext();
                 return false;
             }
 
-            // Verify foreground target before insertion to detect application switching
-            var currentTarget = _contextService.GetForegroundTargetInfo();
-            if (ActiveTarget != null && ActiveTarget.Hwnd != IntPtr.Zero && currentTarget.Hwnd != IntPtr.Zero && currentTarget.Hwnd != ActiveTarget.Hwnd)
+            // Verify foreground target before insertion to detect application switching (WF-029, Context Invalidation)
+            if (ActiveTarget != null && !_contextService.ValidateTargetStillActive(ActiveTarget))
             {
-                _logger?.LogWarning("Target application changed during dictation: Captured {OriginalApp} (HWND={OriginalHwnd}) -> Now {CurrentApp} (HWND={CurrentHwnd}).",
+                var currentTarget = _contextService.GetForegroundTargetInfo();
+                _logger?.LogWarning("Target application changed or closed during dictation: Captured {OriginalApp} (HWND={OriginalHwnd}) -> Now {CurrentApp} (HWND={CurrentHwnd}). Insertion cancelled for safety.",
                     ActiveTarget.ProcessName, ActiveTarget.Hwnd, currentTarget.ProcessName, currentTarget.Hwnd);
+                SetState(SessionState.Cancelled, "Target window changed during dictation — insertion aborted for safety");
+                InvalidateContext();
+                return false;
             }
 
             SetState(SessionState.Inserting, "Inserting");
@@ -609,6 +637,7 @@ public sealed class VoiceSessionCoordinator
                     {
                         _sessionMode = SessionMode.Dictation;
                         _activeSelectedText = null;
+                        InvalidateContext();
                         SetState(SessionState.Idle);
                     }
                 }
@@ -626,6 +655,7 @@ public sealed class VoiceSessionCoordinator
             _isHandsFree = false;
             _sessionMode = SessionMode.Dictation;
             _activeSelectedText = null;
+            InvalidateContext();
         }
 
         _languageSessionService.ResetSession();
@@ -647,6 +677,17 @@ public sealed class VoiceSessionCoordinator
         });
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Invalidates and clears active session context, preventing cross-session leakage.
+    /// </summary>
+    public void InvalidateContext()
+    {
+        ActiveContext = null;
+        ActiveTarget = null;
+        ActiveNearbyContext = null;
+        _activeSelectedText = null;
     }
 
     /// <summary>

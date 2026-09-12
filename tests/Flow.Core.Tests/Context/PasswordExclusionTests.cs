@@ -184,5 +184,45 @@ public class PasswordExclusionTests
         {
             return new ForegroundTargetInfo(IntPtr.Zero, 0, "TestProcess", "TestTitle");
         }
+
+        public ContextSnapshot CaptureContext(Guid sessionId, int maxNearbyCharacters = 200, int maxSelectionCharacters = 10000)
+        {
+            if (_isPasswordFunc())
+            {
+                return ContextSnapshot.CreateSensitive(sessionId, GetForegroundTargetInfo());
+            }
+
+            return new ContextSnapshot(
+                sessionId,
+                DateTimeOffset.UtcNow,
+                GetForegroundTargetInfo(),
+                ApplicationCategory.GeneralProse,
+                GetFocusedControlInfo(),
+                false,
+                GetNearbyContext(maxNearbyCharacters),
+                GetSelectedText(maxSelectionCharacters)
+            );
+        }
+
+        public FocusedControlInfo GetFocusedControlInfo()
+        {
+            bool isPass = _isPasswordFunc();
+            return new FocusedControlInfo(
+                isPass ? "PasswordBox" : "TextBox",
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                isPass,
+                !isPass,
+                false
+            );
+        }
+
+        public ApplicationCategory GetApplicationCategory(ForegroundTargetInfo targetInfo)
+        {
+            return _isPasswordFunc() ? ApplicationCategory.Sensitive : ApplicationCategory.GeneralProse;
+        }
+
+        public bool ValidateTargetStillActive(ForegroundTargetInfo initialTarget) => true;
     }
 }

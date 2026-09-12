@@ -80,7 +80,7 @@
 
 | ID | Capability | Wispr Windows Behavior | FLOW Level | FLOW Architecture & Module | Phase | Verification Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **WF-029** | **Active App Detection** | Identifies foreground process name and window title at dictation start. | **Level 4** | `WindowsTextInsertionService.GetForegroundProcessInfo` | Phase 2C | Passing; HWND & PID extraction verified |
+| **WF-029** | **Active App Detection** | Identifies foreground process name and window title at dictation start. | **Level 5** | `WindowsUIAutomationContextService.cs` + `RuleBasedApplicationClassifier.cs` | Phase 5 | Passing; HWND, PID, classification, and physical validation verified |
 | **WF-030** | **Password Field Exclusion** | Automatically detects password fields via UIA and refuses audio capture / logging. | **Level 1** | `IUIAutomationElement::CurrentIsPassword` COM check | Phase 2E | Architecture mapped |
 | **WF-031** | **Nearby Context Extraction**| Reads surrounding text in focused text field via UIA `TextPattern` to bias formatting. | **Level 1** | UIA `IUIAutomationTextPattern` integration | Phase 2E | Architecture mapped |
 

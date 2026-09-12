@@ -10,16 +10,20 @@ namespace Flow.Host.Windows.Native;
 
 /// <summary>
 /// Production Windows UI Automation Context Service.
-/// Provides real-time query of active focused control security (password/credential exclusion)
-/// and extracts bounded surrounding text context before the caret via UIA TextPattern.
+/// Provides real-time query of active focused control security (password/credential exclusion),
+/// application classification, context snapshot capture, and surrounding text context via UIA.
 /// </summary>
 public sealed class WindowsUIAutomationContextService : IUIContextService
 {
     private readonly ILogger<WindowsUIAutomationContextService>? _logger;
+    private readonly IApplicationClassifier _classifier;
 
-    public WindowsUIAutomationContextService(ILogger<WindowsUIAutomationContextService>? logger = null)
+    public WindowsUIAutomationContextService(
+        ILogger<WindowsUIAutomationContextService>? logger = null,
+        IApplicationClassifier? classifier = null)
     {
         _logger = logger;
+        _classifier = classifier ?? new RuleBasedApplicationClassifier();
     }
 
     /// <inheritdoc />
@@ -289,6 +293,198 @@ public sealed class WindowsUIAutomationContextService : IUIContextService
         return new ForegroundTargetInfo(hwnd, pid, string.IsNullOrEmpty(procName) ? "Unknown" : procName, title);
     }
 
+    /// <inheritdoc />
+    public ContextSnapshot CaptureContext(Guid sessionId, int maxNearbyCharacters = 200, int maxSelectionCharacters = 10000)
+    {
+        try
+        {
+            ForegroundTargetInfo targetInfo = GetForegroundTargetInfo();
+
+            // 1. Password/Sensitive check first (Fail Closed)
+            if (IsFocusInPasswordField())
+            {
+                _logger?.LogWarning("CaptureContext detected password/sensitive target. Emitting sensitive snapshot without text.");
+                return ContextSnapshot.CreateSensitive(sessionId, targetInfo);
+            }
+
+            // 2. Classify application category
+            ApplicationCategory category = _classifier.Classify(targetInfo);
+            if (category == ApplicationCategory.Sensitive)
+            {
+                return ContextSnapshot.CreateSensitive(sessionId, targetInfo);
+            }
+
+            // 3. Focused control info
+            FocusedControlInfo controlInfo = GetFocusedControlInfo();
+            if (controlInfo.IsPassword)
+            {
+                return ContextSnapshot.CreateSensitive(sessionId, targetInfo);
+            }
+
+            // 4. Bounded nearby text extraction (Max 200)
+            int boundedNearby = Math.Clamp(maxNearbyCharacters, 0, ContextSnapshot.MaxNearbyCharacters);
+            string nearbyText = GetNearbyContext(boundedNearby);
+
+            // 5. Bounded selection extraction (Max 10000)
+            int boundedSelection = Math.Clamp(maxSelectionCharacters, 0, ContextSnapshot.MaxSelectionCharacters);
+            string selectionText = GetSelectedText(boundedSelection);
+
+            return new ContextSnapshot(
+                sessionId,
+                DateTimeOffset.UtcNow,
+                targetInfo,
+                category,
+                controlInfo,
+                false,
+                string.IsNullOrEmpty(nearbyText) ? null : nearbyText,
+                string.IsNullOrEmpty(selectionText) ? null : selectionText,
+                null,
+                1.0f,
+                "Windows.UIAutomation"
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Exception in CaptureContext; falling back to safe Empty snapshot.");
+            return ContextSnapshot.CreateEmpty(sessionId);
+        }
+    }
+
+    /// <inheritdoc />
+    public FocusedControlInfo GetFocusedControlInfo() => GetFocusedControlInfo(null);
+
+    /// <summary>
+    /// Gets focused control info for the specified element or active element.
+    /// </summary>
+    public FocusedControlInfo GetFocusedControlInfo(AutomationElement? targetElement)
+    {
+        try
+        {
+            AutomationElement? focused = targetElement;
+            if (focused == null)
+            {
+                try
+                {
+                    focused = AutomationElement.FocusedElement;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogDebug(ex, "Unable to query AutomationElement.FocusedElement.");
+                }
+            }
+
+            if (focused == null)
+            {
+                return FocusedControlInfo.Empty;
+            }
+
+            string controlType = "Unknown";
+            try
+            {
+                controlType = focused.Current.ControlType?.ProgrammaticName ?? "Unknown";
+            }
+            catch { }
+
+            string automationId = string.Empty;
+            try
+            {
+                automationId = focused.Current.AutomationId ?? string.Empty;
+            }
+            catch { }
+
+            string className = string.Empty;
+            try
+            {
+                className = focused.Current.ClassName ?? string.Empty;
+            }
+            catch { }
+
+            string name = string.Empty;
+            try
+            {
+                name = focused.Current.Name ?? string.Empty;
+            }
+            catch { }
+
+            bool isPassword = false;
+            try
+            {
+                object isPassProp = focused.GetCurrentPropertyValue(AutomationElement.IsPasswordProperty, true);
+                isPassword = isPassProp is true || (isPassProp is bool b && b);
+            }
+            catch { }
+
+            bool hasText = false;
+            try
+            {
+                hasText = focused.TryGetCurrentPattern(TextPattern.Pattern, out _);
+            }
+            catch { }
+
+            bool hasValue = false;
+            try
+            {
+                hasValue = focused.TryGetCurrentPattern(ValuePattern.Pattern, out _);
+            }
+            catch { }
+
+            return new FocusedControlInfo(controlType, automationId, className, name, isPassword, hasText, hasValue);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogDebug(ex, "Exception in GetFocusedControlInfo; returning Empty.");
+            return FocusedControlInfo.Empty;
+        }
+    }
+
+    /// <inheritdoc />
+    public ApplicationCategory GetApplicationCategory(ForegroundTargetInfo targetInfo)
+    {
+        return _classifier.Classify(targetInfo);
+    }
+
+    /// <inheritdoc />
+    public bool ValidateTargetStillActive(ForegroundTargetInfo initialTarget)
+    {
+        if (initialTarget == null || initialTarget.Hwnd == IntPtr.Zero)
+        {
+            return true;
+        }
+
+        try
+        {
+            // 1. Is the window handle still a valid window?
+            if (!IsWindow(initialTarget.Hwnd))
+            {
+                _logger?.LogWarning("Target window HWND {Hwnd} is no longer valid.", initialTarget.Hwnd);
+                return false;
+            }
+
+            // 2. Is it still the active foreground window?
+            IntPtr currentForeground = GetForegroundWindow();
+            if (currentForeground != initialTarget.Hwnd)
+            {
+                _logger?.LogWarning("Foreground window changed from HWND {InitialHwnd} to {CurrentHwnd}.", initialTarget.Hwnd, currentForeground);
+                return false;
+            }
+
+            // 3. Is the process still alive and matching?
+            GetWindowThreadProcessId(currentForeground, out uint currentPid);
+            if (currentPid != initialTarget.ProcessId)
+            {
+                _logger?.LogWarning("Target PID changed from {InitialPid} to {CurrentPid}.", initialTarget.ProcessId, currentPid);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error validating target window liveness.");
+            return false;
+        }
+    }
+
     #region Win32 Helpers
 
     [DllImport("user32.dll")]
@@ -299,6 +495,10 @@ public sealed class WindowsUIAutomationContextService : IUIContextService
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     private static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindow(IntPtr hWnd);
 
     private static string GetWindowTitle(IntPtr hWnd)
     {

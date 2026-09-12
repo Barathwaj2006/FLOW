@@ -96,7 +96,7 @@ Phase Allocation:
 | **WF-027A** | Personalization| Writing Styles Engine | Standard | Mandatory | Level 5 | Phase 4 | P1 | Formality (formal/casual) transforms, contraction expansion/contraction, app-specific mappings, language-scoped style resolution verified |
 | **WF-027B** | Personalization| Writing Styles Hub GUI | Standard | Mandatory | Level 0 | Phase 2H | P1 | WinUI 3 profile editor & app mapping pending |
 | **WF-028** | Personalization| Auto-Learned Vocabulary | Beta | Optional | Level 0 | Phase 2G | P2 | User correction frequency tracker mapped |
-| **WF-029** | Context | Active App Detection (HWND/PID) | Standard | Mandatory | Level 4 | Phase 2C | P0 | HWND, PID, and process name tested |
+| **WF-029** | Context | Active App Detection (HWND/PID) | Standard | Mandatory | Level 5 | Phase 5 | P0 | HWND, PID, process name, application classification (Code/Terminal/Document/Browser/Prose/Sensitive), and live foreground validation verified |
 | **WF-030** | Context | Password Field Exclusion | Standard | Mandatory | Level 5 | Phase 2E | P0 | Physical WPF PasswordBox UIA IsPasswordProperty verified; fails closed, blocks dictation, zeroes audio |
 | **WF-031A** | Context | Nearby Context Extraction | Standard | Mandatory | Level 5 | Phase 2E | P1 | Physical WPF TextBox UIA TextPattern verified; bounded to 200 chars, Unicode preserved, caret unmoved |
 | **WF-031B** | Context | Contextual Routing | Standard | Mandatory | Level 5 | Phase 2B | P0 | Injects directly into focused control |
