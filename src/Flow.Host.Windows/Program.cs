@@ -12,6 +12,8 @@ using Flow.Core.Personalization.Snippets;
 using Flow.Core.Personalization.Styles;
 using Flow.Core.Storage;
 using Flow.Core.TranscriptProcessing;
+using Flow.Core.History;
+using Flow.Host.Windows.History;
 using Flow.Host.Windows.Native;
 using Flow.Host.Windows.Tray;
 using Flow.Host.Windows.UI;
@@ -69,6 +71,22 @@ public static class Program
             await styleEngine.ReloadAsync();
         }).GetAwaiter().GetResult();
 
+        // History & Productivity Services (Phase 8)
+        var historyRepo = new SqliteHistoryRepository(personalizationDb);
+        var privacyService = new HistoryPrivacyService();
+        var retentionService = new HistoryRetentionService(historyRepo);
+        var statsService = new ProductivityStatisticsService(historyRepo);
+        var exportService = new HistoryExportService(historyRepo);
+
+        var historyService = new HistoryService(
+            historyRepo,
+            historyRepo,
+            statsService,
+            retentionService,
+            exportService,
+            privacyService
+        );
+
         // Production Multi-Pass Formatting Pipeline: Whitespace normalization, entity protection,
         // spoken punctuation, snippets expansion, personal dictionary, conservative filler removal,
         // numbered lists, style formatting, smart capitalization, and Zero-Enter invariant.
@@ -88,13 +106,27 @@ public static class Program
             coordinatorLogger,
             maxRecordingSeconds: 1200.0,  // 20 minutes
             warningThresholdSeconds: 1140.0, // 19 minutes
-            contextService: contextService
+            contextService: contextService,
+            historyService: historyService
         );
 
         // 2. Windows UI & System Tray
         _hud = new FloatingHudController();
-        _tray = new TrayIconManager(IntPtr.Zero);
+        _tray = new TrayIconManager(_hud.Handle);
+        _hud.WindowMessageReceived += (msg, lParam) => _tray.ProcessMessage(msg, lParam);
         _tray.Install("FLOW — Local Voice Dictation (Right-Alt to speak, double-tap for hands-free, Shift+Right-Alt to backtrack)");
+
+        _tray.HistoryRequested += () =>
+        {
+            logger.LogInformation("History & Productivity window requested.");
+            HistoryWindowManager.ShowWindow(historyService);
+        };
+
+        _tray.ExitRequested += () =>
+        {
+            logger.LogInformation("Exit requested from system tray.");
+            PostQuitMessage(0);
+        };
 
         // 3. Live WASAPI Audio Capture with Device Management
         var deviceManager = new WasapiDeviceManager(loggerFactory.CreateLogger<WasapiDeviceManager>());
@@ -283,6 +315,7 @@ public static class Program
         }
 
         // Cleanup
+        HistoryWindowManager.CloseWindow();
         _hotkeyHook.Dispose();
         _capture.Dispose();
         deviceManager.Dispose();
@@ -315,6 +348,9 @@ public static class Program
 
     [DllImport("user32.dll")]
     private static extern IntPtr DispatchMessage([In] ref MSG lpMsg);
+
+    [DllImport("user32.dll")]
+    private static extern void PostQuitMessage(int nExitCode);
 
     #endregion
 }

@@ -34,6 +34,7 @@ public sealed class FloatingHudController : IDisposable
     public string StatusText => _statusText;
     public bool IsCommandMode => _isCommandMode;
     public float AudioLevel => _audioLevel;
+    public event Action<uint, IntPtr>? WindowMessageReceived;
 
     public FloatingHudController()
     {
@@ -200,6 +201,12 @@ public sealed class FloatingHudController : IDisposable
             case WM_PAINT:
                 PaintHud(hWnd);
                 return IntPtr.Zero;
+        }
+
+        if (msg >= 0x8000)
+        {
+            WindowMessageReceived?.Invoke(msg, lParam);
+            return IntPtr.Zero;
         }
 
         return DefWindowProc(hWnd, msg, wParam, lParam);

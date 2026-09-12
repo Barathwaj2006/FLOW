@@ -315,7 +315,7 @@ public sealed class WindowsTextInsertionService : ITextInsertionService
 
     private static string? ReadClipboardText()
     {
-        for (int attempt = 0; attempt < 5; attempt++)
+        for (int attempt = 0; attempt < 15; attempt++)
         {
             if (OpenClipboard(IntPtr.Zero))
             {
@@ -344,14 +344,14 @@ public sealed class WindowsTextInsertionService : ITextInsertionService
                     CloseClipboard();
                 }
             }
-            Thread.Sleep(10);
+            Thread.Sleep(20 * (attempt + 1));
         }
         return null;
     }
 
     private static bool WriteClipboardText(string text)
     {
-        for (int attempt = 0; attempt < 5; attempt++)
+        for (int attempt = 0; attempt < 15; attempt++)
         {
             if (OpenClipboard(IntPtr.Zero))
             {
@@ -360,29 +360,42 @@ public sealed class WindowsTextInsertionService : ITextInsertionService
                     EmptyClipboard();
                     int bytesNeeded = (text.Length + 1) * sizeof(char);
                     IntPtr hGlobal = GlobalAlloc(GMEM_MOVEABLE, (UIntPtr)bytesNeeded);
-                    if (hGlobal == IntPtr.Zero) return false;
-
-                    IntPtr target = GlobalLock(hGlobal);
-                    if (target == IntPtr.Zero) return false;
-
-                    try
+                    if (hGlobal != IntPtr.Zero)
                     {
-                        Marshal.Copy(text.ToCharArray(), 0, target, text.Length);
-                        Marshal.WriteInt16(target, text.Length * sizeof(char), 0); // Null terminator
-                    }
-                    finally
-                    {
-                        GlobalUnlock(hGlobal);
-                    }
+                        IntPtr target = GlobalLock(hGlobal);
+                        if (target != IntPtr.Zero)
+                        {
+                            try
+                            {
+                                Marshal.Copy(text.ToCharArray(), 0, target, text.Length);
+                                Marshal.WriteInt16(target, text.Length * sizeof(char), 0); // Null terminator
+                            }
+                            finally
+                            {
+                                GlobalUnlock(hGlobal);
+                            }
 
-                    return SetClipboardData(CF_UNICODETEXT, hGlobal) != IntPtr.Zero;
+                            if (SetClipboardData(CF_UNICODETEXT, hGlobal) != IntPtr.Zero)
+                            {
+                                return true;
+                            }
+                            else
+                            {
+                                GlobalFree(hGlobal);
+                            }
+                        }
+                        else
+                        {
+                            GlobalFree(hGlobal);
+                        }
+                    }
                 }
                 finally
                 {
                     CloseClipboard();
                 }
             }
-            Thread.Sleep(10);
+            Thread.Sleep(20 * (attempt + 1));
         }
         return false;
     }
@@ -475,6 +488,9 @@ public sealed class WindowsTextInsertionService : ITextInsertionService
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GlobalUnlock(IntPtr hMem);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GlobalFree(IntPtr hMem);
 
     private static readonly System.Collections.Generic.HashSet<string> KnownIdeProcessNames = new(StringComparer.OrdinalIgnoreCase)
     {

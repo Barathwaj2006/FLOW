@@ -285,6 +285,7 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
                 CREATE INDEX IF NOT EXISTS idx_history_stats_cov ON DictationHistory(IsDeleted, State, CreatedAt, WordCount, CharacterCount, DurationMs);
                 CREATE INDEX IF NOT EXISTS idx_history_app_stats ON DictationHistory(IsDeleted, State, CreatedAt, Application);
                 CREATE INDEX IF NOT EXISTS idx_history_lang_stats ON DictationHistory(IsDeleted, State, CreatedAt, Language);
+                CREATE INDEX IF NOT EXISTS idx_history_daily_cov ON DictationHistory(IsDeleted, State, substr(CreatedAt, 1, 10), WordCount, CharacterCount, DurationMs);
 
                 CREATE TABLE IF NOT EXISTS HistorySettings (
                     Key TEXT PRIMARY KEY,

@@ -6,6 +6,7 @@ namespace Flow.Host.Windows.Tray;
 /// <summary>
 /// Native Windows notification area (System Tray) manager using Win32 Shell_NotifyIcon.
 /// Ensures zero-dependency, ultra-lightweight presence in the Windows taskbar.
+/// Supports context menu for History &amp; Productivity and safe exit.
 /// </summary>
 public sealed class TrayIconManager : IDisposable
 {
@@ -15,6 +16,7 @@ public sealed class TrayIconManager : IDisposable
     private bool _isDisposed;
 
     public event Action? TrayClicked;
+    public event Action? HistoryRequested;
     public event Action? ExitRequested;
 
     public TrayIconManager(IntPtr hwnd, uint callbackMessage = 0x8001)
@@ -31,14 +33,63 @@ public sealed class TrayIconManager : IDisposable
         if (msg == _callbackMessage)
         {
             int eventId = lParam.ToInt32();
-            if (eventId is 0x0202 or 0x0201) // WM_LBUTTONUP or WM_LBUTTONDOWN
+            if (eventId is 0x0202 or 0x0203) // WM_LBUTTONUP or WM_LBUTTONDBLCLK
             {
                 TrayClicked?.Invoke();
+                HistoryRequested?.Invoke();
             }
             else if (eventId == 0x0205) // WM_RBUTTONUP
             {
+                ShowContextMenu();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Displays native Win32 context menu at the mouse cursor position.
+    /// </summary>
+    private void ShowContextMenu()
+    {
+        IntPtr hMenu = CreatePopupMenu();
+        if (hMenu == IntPtr.Zero)
+        {
+            ExitRequested?.Invoke();
+            return;
+        }
+
+        try
+        {
+            const uint MF_STRING = 0x00000000;
+            const uint MF_SEPARATOR = 0x00000800;
+            const uint TPM_RETURNCMD = 0x0100;
+            const uint TPM_RIGHTBUTTON = 0x0002;
+
+            const uint CMD_HISTORY = 101;
+            const uint CMD_EXIT = 102;
+
+            AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_HISTORY, "History & Productivity");
+            AppendMenu(hMenu, MF_SEPARATOR, UIntPtr.Zero, string.Empty);
+            AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_EXIT, "Exit FLOW");
+
+            GetCursorPos(out POINT pt);
+            if (_hwnd != IntPtr.Zero)
+            {
+                SetForegroundWindow(_hwnd);
+            }
+
+            uint selected = TrackPopupMenuEx(hMenu, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.X, pt.Y, _hwnd, IntPtr.Zero);
+            if (selected == CMD_HISTORY)
+            {
+                HistoryRequested?.Invoke();
+            }
+            else if (selected == CMD_EXIT)
+            {
                 ExitRequested?.Invoke();
             }
+        }
+        finally
+        {
+            DestroyMenu(hMenu);
         }
     }
 
@@ -143,8 +194,33 @@ public sealed class TrayIconManager : IDisposable
         public IntPtr hBalloonIcon;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern bool Shell_NotifyIcon(uint dwMessage, ref NOTIFYICONDATA lpData);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr CreatePopupMenu();
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool AppendMenu(IntPtr hMenu, uint uFlags, UIntPtr uIDNewItem, string lpNewItem);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint TrackPopupMenuEx(IntPtr hMenu, uint uFlags, int x, int y, IntPtr hWnd, IntPtr lpTPMParams);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyMenu(IntPtr hMenu);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT lpPoint);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     #endregion
 }
