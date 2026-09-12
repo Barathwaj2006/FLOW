@@ -111,11 +111,11 @@
 
 | ID | Capability | Wispr Windows Behavior | FLOW Level | FLOW Architecture & Module | Phase | Verification Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **WF-039** | **Local Transcript History** | Saves every dictation with timestamp, app name, audio duration, and word count. | **Level 1** | `SqliteDictationHistoryRepository.cs` schema mapped | Phase 2G | Architecture mapped |
-| **WF-040** | **Full-Text History Search** | Fast full-text search across past dictations. | **Level 0** | SQLite FTS5 virtual table | Phase 2G | Scheduled |
-| **WF-041** | **Paste-Last-Transcript** | Global hotkey to re-paste the most recent dictation. | **Level 1** | Insertion tracker replay | Phase 2G | Scheduled |
-| **WF-042** | **Productivity Statistics** | Displays Words Per Minute (WPM), total word count, and daily streak in Hub. | **Level 0** | History aggregator | Phase 2G | Scheduled |
-| **WF-043** | **Desktop Scratchpad** | Quick scratchpad text area in Hub to dictate notes before inserting. | **Level 0** | WinUI 3 draft editor | Phase 2G | Scheduled |
+| **WF-039** | **Local Transcript History** | Saves every dictation with timestamp, app name, audio duration, and word count. | **Level 4** | `SqliteHistoryRepository.cs` (Schema v3) | Phase 8 | Passing; parameterized SQLite + WAL mode |
+| **WF-040** | **Full-Text History Search** | Fast full-text search across past dictations. | **Level 4** | `SqliteHistoryRepository.cs` (FTS5 + Triggers) | Phase 8 | Passing; FTS5 + indexed fallback + 10k fuzz |
+| **WF-041** | **History Local Export** | Secure export of transcripts to JSON, CSV, PlainText. | **Level 4** | `HistoryExportService.cs` | Phase 8 | Passing; path traversal & device defense |
+| **WF-042** | **Productivity Statistics** | Displays Words Per Minute (WPM), total word count, and daily streak in Hub. | **Level 4** | `ProductivityStatisticsService.cs` | Phase 8 | Passing; real WPM formula, streak, insights |
+| **WF-043** | **History Privacy & Secret Shield** | Excludes passwords, credential managers, and sensitive apps from persistence. | **Level 4** | `HistoryPrivacyService.cs` | Phase 8 | Passing; zero password leak, SHA-256 hash |
 
 ---
 

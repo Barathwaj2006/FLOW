@@ -106,6 +106,19 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
     }
 
     /// <summary>
+    /// Executes a scalar SQL query directly on a new connection.
+    /// </summary>
+    public async Task<T?> ExecuteScalarAsync<T>(string sql, System.Threading.CancellationToken ct = default)
+    {
+        await using var conn = CreateConnection();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        object? result = await cmd.ExecuteScalarAsync(ct);
+        if (result == null || result is DBNull) return default;
+        return (T)Convert.ChangeType(result, typeof(T));
+    }
+
+    /// <summary>
     /// Creates and opens a new SQLite connection with foreign keys and WAL enabled.
     /// </summary>
     public SqliteConnection CreateConnection()
@@ -229,6 +242,115 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
             using var setVerCmd = conn.CreateCommand();
             setVerCmd.CommandText = "PRAGMA user_version = 2;";
             setVerCmd.ExecuteNonQuery();
+            version = 2;
+        }
+
+        if (version < 3)
+        {
+            // Version 3 Migration (Phase 8: History & Productivity, WF-039 through WF-045)
+            using var v3Cmd = conn.CreateCommand();
+            v3Cmd.CommandText = @"
+                CREATE TABLE IF NOT EXISTS DictationHistory (
+                    Id TEXT PRIMARY KEY,
+                    SessionId TEXT NOT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    DurationMs INTEGER NOT NULL,
+                    CharacterCount INTEGER NOT NULL,
+                    WordCount INTEGER NOT NULL,
+                    Language TEXT NOT NULL,
+                    Application TEXT NOT NULL,
+                    ApplicationCategory TEXT NOT NULL,
+                    Mode TEXT NOT NULL,
+                    State TEXT NOT NULL,
+                    WasEdited INTEGER NOT NULL DEFAULT 0,
+                    IsFavorite INTEGER NOT NULL DEFAULT 0,
+                    Text TEXT,
+                    TextHash TEXT,
+                    MetadataJson TEXT,
+                    IsDeleted INTEGER NOT NULL DEFAULT 0,
+                    DeletedAt TEXT
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_history_created ON DictationHistory(CreatedAt DESC);
+                CREATE INDEX IF NOT EXISTS idx_history_app ON DictationHistory(Application);
+                CREATE INDEX IF NOT EXISTS idx_history_lang ON DictationHistory(Language);
+                CREATE INDEX IF NOT EXISTS idx_history_fav ON DictationHistory(IsFavorite);
+                CREATE INDEX IF NOT EXISTS idx_history_mode ON DictationHistory(Mode);
+                CREATE INDEX IF NOT EXISTS idx_history_state ON DictationHistory(State);
+                CREATE INDEX IF NOT EXISTS idx_history_deleted ON DictationHistory(IsDeleted);
+
+                CREATE TABLE IF NOT EXISTS HistorySettings (
+                    Key TEXT PRIMARY KEY,
+                    Value TEXT NOT NULL,
+                    UpdatedAt TEXT NOT NULL
+                );
+            ";
+            v3Cmd.ExecuteNonQuery();
+
+            // Setup FTS5 virtual table with content-sync triggers if supported
+            try
+            {
+                using var ftsCmd = conn.CreateCommand();
+                ftsCmd.CommandText = @"
+                    CREATE VIRTUAL TABLE IF NOT EXISTS DictationHistoryFts USING fts5(
+                        Id UNINDEXED,
+                        Text,
+                        content='DictationHistory',
+                        content_rowid='rowid'
+                    );
+
+                    CREATE TRIGGER IF NOT EXISTS trg_history_ai AFTER INSERT ON DictationHistory BEGIN
+                        INSERT INTO DictationHistoryFts(rowid, Id, Text) VALUES (new.rowid, new.Id, new.Text);
+                    END;
+
+                    CREATE TRIGGER IF NOT EXISTS trg_history_ad AFTER DELETE ON DictationHistory BEGIN
+                        INSERT INTO DictationHistoryFts(DictationHistoryFts, rowid, Id, Text) VALUES('delete', old.rowid, old.Id, old.Text);
+                    END;
+
+                    CREATE TRIGGER IF NOT EXISTS trg_history_au AFTER UPDATE ON DictationHistory BEGIN
+                        INSERT INTO DictationHistoryFts(DictationHistoryFts, rowid, Id, Text) VALUES('delete', old.rowid, old.Id, old.Text);
+                        INSERT INTO DictationHistoryFts(rowid, Id, Text) VALUES (new.rowid, new.Id, new.Text);
+                    END;
+                ";
+                ftsCmd.ExecuteNonQuery();
+            }
+            catch (SqliteException)
+            {
+                // Fallback to indexed search when FTS5 virtual table module is unavailable
+            }
+
+            SeedDefaultHistorySettings(conn);
+
+            using var setVer3Cmd = conn.CreateCommand();
+            setVer3Cmd.CommandText = "PRAGMA user_version = 3;";
+            setVer3Cmd.ExecuteNonQuery();
+        }
+    }
+
+    private static void SeedDefaultHistorySettings(SqliteConnection conn)
+    {
+        string now = DateTime.UtcNow.ToString("O");
+        var defaults = new (string Key, string Value)[]
+        {
+            ("HistoryEnabled", "true"),
+            ("SaveTranscriptText", "true"),
+            ("StatisticsCollectionEnabled", "true"),
+            ("RetentionPolicy", "Unlimited"),
+            ("MaxHistoryEntries", "10000"),
+            ("ExportPermissions", "LocalOnly")
+        };
+
+        foreach (var (k, v) in defaults)
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                INSERT OR IGNORE INTO HistorySettings (Key, Value, UpdatedAt)
+                VALUES (@k, @v, @now);
+            ";
+            cmd.Parameters.AddWithValue("@k", k);
+            cmd.Parameters.AddWithValue("@v", v);
+            cmd.Parameters.AddWithValue("@now", now);
+            cmd.ExecuteNonQuery();
         }
     }
 

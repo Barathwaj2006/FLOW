@@ -101,12 +101,17 @@ The objective is to implement the complete set of applicable capabilities curren
 * **Inviolable Safety Rule**: Never silently send, submit, execute, confirm, or perform irreversible destructive actions.
 * Production Certification: 3,729 solution tests passing (3,574 Core + 155 Windows, 100% pass, 0 failed, 0 skipped); 1,000-case prose safety corpus (100% text-only inert dictation), 1,000-case command corpus (100% recognition), 1,000-case ambiguous corpus (100% fail-closed), 42 dangerous shell tokens blocked, 19 idempotent transforms verified, 10,000-iteration seeded fuzzing suite, 2,000-session sequential stability verified, 8 live Windows system physical validation tests. Static scan confirms 0 execution primitives in `src/`, zero Enter keys emitted. Normal dictation remains strictly text-only. Phase 7 certified and frozen.
 
-#### 2F — History & Productivity
-* Transcript history log with full-text search.
-* Copy, edit, delete, and re-insert past transcripts.
-* Favorites / flags.
-* Productivity statistics: WPM, word count, active streaks.
-* Desktop Scratchpad & "Paste Last Transcript" global shortcut.
+#### 2F — History & Productivity (Phase 8 — Completed & Certified)
+* Persistent dictation history & session metadata (WF-039).
+* FTS5 full-text search with multi-attribute filtering & prefix wildcard matching (WF-040).
+* Productivity statistics derived strictly from real history: WPM formula, session duration, top apps/languages (WF-042).
+* Daily streak engine with timezone/DST resilience and deterministic productivity insights (WF-042, WF-044).
+* Starred/favorite entry protection against auto-purge and deletion (WF-039).
+* History privacy gate: automatic password & credential exclusion, SHA-256 hash, sensitive target redaction (WF-043).
+* Configurable retention schedules (30, 90, 180, 365 days, Unlimited) and max entry count pruning (WF-040).
+* Secure local export to JSON, CSV, and PlainText with strict path traversal, device namespace, and UNC network defense (WF-041).
+* Soft deletion with single-action undo restore and confirmation-gated permanent purge (WF-039).
+* Certified with 3,787/3,787 passing tests (3,628 Core + 159 Windows, 100% pass, 0 failed, 0 skipped), 10,000-iteration seeded search fuzzing suite, 32-thread concurrency verification, and physical Windows validation tests. Phase 8 complete and frozen.
 
 #### 2G — Windows Integration
 * Windows notification area (System Tray) with status and quick controls.

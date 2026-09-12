@@ -7,6 +7,7 @@ using Flow.Core.Audio;
 using Flow.Core.Backtrack;
 using Flow.Core.Commands;
 using Flow.Core.Context;
+using Flow.Core.History;
 using Flow.Core.Language;
 using Flow.Core.Personalization;
 using Flow.Core.TextInsertion;
@@ -46,6 +47,7 @@ public sealed class VoiceSessionCoordinator
     private readonly ITextTransformEngine _transformEngine;
     private readonly ILanguageSessionService _languageSessionService;
     private readonly IASRBiasingService? _biasingService;
+    private readonly IHistoryService? _historyService;
     private readonly ILogger<VoiceSessionCoordinator>? _logger;
 
     private readonly double _maxRecordingDurationSeconds;
@@ -154,7 +156,15 @@ public sealed class VoiceSessionCoordinator
     /// <summary>
     /// Personalized ASR prompt biasing service for vocabulary and application adaptation (WF-023, Phase 4).
     /// </summary>
+    /// <summary>
+    /// Personalized ASR prompt biasing service for vocabulary and application adaptation (WF-023, Phase 4).
+    /// </summary>
     public IASRBiasingService? BiasingService => _biasingService;
+
+    /// <summary>
+    /// Local persistent history and productivity service (WF-039 through WF-045, Phase 8).
+    /// </summary>
+    public IHistoryService? HistoryService => _historyService;
 
     public event Action<SessionState, string?>? StateChanged;
     public event Action<float>? AudioLevelChanged;
@@ -183,7 +193,8 @@ public sealed class VoiceSessionCoordinator
         ICommandSafetyPolicy? safetyPolicy = null,
         ITextTransformEngine? transformEngine = null,
         ILanguageSessionService? languageSessionService = null,
-        IASRBiasingService? biasingService = null)
+        IASRBiasingService? biasingService = null,
+        IHistoryService? historyService = null)
     {
         _ringBuffer = ringBuffer ?? throw new ArgumentNullException(nameof(ringBuffer));
         _vad = vad ?? throw new ArgumentNullException(nameof(vad));
@@ -197,6 +208,7 @@ public sealed class VoiceSessionCoordinator
         _transformEngine = transformEngine ?? new DeterministicTextTransformEngine();
         _languageSessionService = languageSessionService ?? new LanguageSessionService();
         _biasingService = biasingService;
+        _historyService = historyService;
         _logger = logger;
         _maxRecordingDurationSeconds = maxRecordingSeconds;
         _warningDurationSeconds = warningThresholdSeconds;
@@ -520,6 +532,38 @@ public sealed class VoiceSessionCoordinator
                             );
                             _historyTracker.RecordInsertion(record);
 
+                            if (_historyService != null)
+                            {
+                                double sessionDurationMs = (double)(Stopwatch.GetTimestamp() - _sessionStartTimestamp) * 1000.0 / Stopwatch.Frequency;
+                                string metadata = System.Text.Json.JsonSerializer.Serialize(new
+                                {
+                                    Intent = transformIntent.Type.ToString(),
+                                    Transform = transformIntent.Transform.ToString(),
+                                    Result = "Success"
+                                });
+
+                                _ = Task.Run(async () =>
+                                {
+                                    try
+                                    {
+                                        await _historyService.RecordDictationAsync(
+                                            sessionId: record.Id,
+                                            text: "", // Never store raw selection
+                                            duration: TimeSpan.FromMilliseconds(sessionDurationMs),
+                                            language: _languageSessionService.ActiveLanguage.Code.Value,
+                                            context: ActiveContext,
+                                            mode: "Command",
+                                            state: HistoryState.Completed,
+                                            metadataJson: metadata
+                                        );
+                                    }
+                                    catch
+                                    {
+                                        // Fail closed
+                                    }
+                                });
+                            }
+
                             FinalTextInserted?.Invoke(transformed);
                             CommandProcessed?.Invoke(transformIntent, intentSafety);
                             SetState(SessionState.Completed, $"Transformed: {transformIntent.Transform}");
@@ -624,6 +668,30 @@ public sealed class VoiceSessionCoordinator
                     insertionResult.StrategyUsed
                 );
                 _historyTracker.RecordInsertion(record);
+
+                if (_historyService != null)
+                {
+                    double sessionDurationMs = (double)(Stopwatch.GetTimestamp() - _sessionStartTimestamp) * 1000.0 / Stopwatch.Frequency;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _historyService.RecordDictationAsync(
+                                sessionId: record.Id,
+                                text: cleanText,
+                                duration: TimeSpan.FromMilliseconds(sessionDurationMs),
+                                language: _languageSessionService.ActiveLanguage.Code.Value,
+                                context: ActiveContext,
+                                mode: "Dictation",
+                                state: HistoryState.Completed
+                            );
+                        }
+                        catch
+                        {
+                            // Fail closed
+                        }
+                    });
+                }
 
                 FinalTextInserted?.Invoke(cleanText);
                 SetState(SessionState.Completed, "Success");
