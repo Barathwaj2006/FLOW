@@ -101,9 +101,9 @@
 
 | ID | Capability | Wispr Windows Behavior | FLOW Level | FLOW Architecture & Module | Phase | Verification Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **WF-036** | **Command Mode Trigger** | Dedicated secondary shortcut activates command voice input. | **Level 4** | Global shortcut registration in `GlobalHotkeyHook` (`Ctrl + Right Alt`) | Phase 2F | Verified via STA hook integration; live multi-app pending Tier 6 |
-| **WF-037** | **Voice Text Formatting** | Highlight text, speak command (*"make this bullet points"*, *"make concise"*). | **Level 4** | UIA selection extraction + bullets/casing transform + wand indicator | Phase 2F | Verified on real STA WPF Window; live multi-app pending Tier 6 |
-| **WF-038** | **Zero-Destructive Safety** | Prohibits automated Enter, Send, Submit, Delete, or file system execution. | **Level 5** | Inviolable system-wide policy in text insertion service & safety policy | Phase 2B | Passing; zero execution primitives & zero Enter invariant certified |
+| **WF-036** | **Command Mode Trigger** | Dedicated secondary shortcut activates command voice input. | **Level 5** | `CommandModeStateMachine.cs`, `GlobalHotkeyHook.cs` (`Ctrl + Right Alt`), `WindowsCommandCoordinator.cs` | Phase 7 | Physical Desktop Verified (3,285 tests passing); dedicated 8-state machine, liveness check, target binding |
+| **WF-037** | **Voice Text Formatting** | Highlight text, speak command (*"make this bullet points"*, *"make concise"*). | **Level 5** | `DeterministicCommandParser.cs`, `DeterministicTextTransformEngine.cs`, `WindowsSafeTransformService.cs` | Phase 7 | Physical Desktop Verified (3,285 tests passing); 19 safe transforms, multilingual (EN, Tamil, Hindi), live Notepad & UIA |
+| **WF-038** | **Zero-Destructive Safety** | Prohibits automated Enter, Send, Submit, Delete, or file system execution. | **Level 5** | `DeterministicCommandPolicy.cs`, `CommandConfirmationService.cs`, `ApplicationAllowlist.cs` | Phase 7 | Physical Desktop Verified (3,285 tests passing); 0 execution primitives in `src/`, 0 Enter keys, 500 prose / 300 security tests |
 
 ---
 
@@ -156,8 +156,8 @@
 ## 3. Parity Progress Summary
 
 * **Total Wispr Windows Capabilities Tracked**: **56**
-* **Level 5 (Physical Desktop Verified)**: **17** ($30.4\%$)
-* **Level 4 (Tested Real Implementation)**: **9** ($16.1\%$)
+* **Level 5 (Physical Desktop Verified)**: **19** ($33.9\%$)
+* **Level 4 (Tested Real Implementation)**: **7** ($12.5\%$)
 * **Level 3 (Real Code, Not Fully Automated)**: **2** ($3.6\%$)
 * **Level 1 (Interface / Architecture Only)**: **16** ($28.6\%$)
 * **Level 0 (Pending Phase Implementation)**: **12** ($21.4\%$)

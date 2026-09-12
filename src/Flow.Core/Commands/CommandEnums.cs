@@ -69,7 +69,19 @@ public enum TransformType
     MakeConcise,
 
     /// <summary>Expand contractions and apply formal vocabulary styling.</summary>
-    MakeFormal
+    MakeFormal,
+
+    /// <summary>Normalize whitespace and line endings.</summary>
+    FixWhitespace,
+
+    /// <summary>Ensure consistent punctuation spacing and capitalization.</summary>
+    FixPunctuation,
+
+    /// <summary>Normalize spaces between words, punctuation, and parentheses.</summary>
+    NormalizeSpacing,
+
+    /// <summary>Normalize smart quotes to standard quotes or vice-versa.</summary>
+    NormalizeQuotes
 }
 
 /// <summary>

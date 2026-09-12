@@ -11,7 +11,7 @@ namespace Flow.Core.Commands;
 /// Deterministic text transformation engine for Selection-Aware Voice Editing (WF-037A).
 /// Applies structured transforms to selected text without inventing content or hallucinating.
 /// </summary>
-public sealed class DeterministicTextTransformEngine : ITextTransformEngine
+public sealed class DeterministicTextTransformEngine : ITextTransformEngine, ITextTransformProvider
 {
     private static readonly Dictionary<string, string> ContractionExpansions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -75,9 +75,17 @@ public sealed class DeterministicTextTransformEngine : ITextTransformEngine
             TransformType.TrimWhitespace => CollapseWhitespace(selectedText),
             TransformType.MakeConcise => MakeConcise(selectedText),
             TransformType.MakeFormal => MakeFormal(selectedText),
+            TransformType.FixWhitespace => FixWhitespace(selectedText),
+            TransformType.FixPunctuation => FixPunctuation(selectedText),
+            TransformType.NormalizeSpacing => NormalizeSpacing(selectedText),
+            TransformType.NormalizeQuotes => NormalizeQuotes(selectedText),
             _ => selectedText
         };
     }
+
+    /// <inheritdoc />
+    public bool Supports(TransformType type) => type != TransformType.None;
+
 
     private static string FormatBulletList(string text)
     {
@@ -224,5 +232,48 @@ public sealed class DeterministicTextTransformEngine : ITextTransformEngine
         if (string.IsNullOrEmpty(s)) return s;
         if (char.IsUpper(s[0])) return s;
         return char.ToUpperInvariant(s[0]) + s[1..];
+    }
+
+    private static string FixWhitespace(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        // Normalize newlines to spaces (Zero-Enter safe) and collapse multiple spaces
+        string s = Regex.Replace(text, @"[\r\n]+", " ");
+        s = Regex.Replace(s, @"\s+", " ");
+        return s.Trim();
+    }
+
+    private static string FixPunctuation(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        // Remove spaces before punctuation
+        string s = Regex.Replace(text, @"\s+([,.:;?!])", "$1");
+        // Ensure single space after punctuation if followed by letter/digit
+        s = Regex.Replace(s, @"([,.:;?!])([a-zA-Z0-9])", "$1 $2");
+        // Capitalize letter following sentence punctuation
+        s = Regex.Replace(s, @"(?<=[.!?]\s+)([a-z])", m => m.Value.ToUpperInvariant());
+        return CapitalizeFirstLetter(s.Trim());
+    }
+
+    private static string NormalizeSpacing(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        // Normalize inside parentheses
+        string s = Regex.Replace(text, @"\(\s+", "(");
+        s = Regex.Replace(s, @"\s+\)", ")");
+        // Normalize before punctuation
+        s = Regex.Replace(s, @"\s+([,.:;?!])", "$1");
+        s = Regex.Replace(s, @"[ \t]+", " ");
+        return s.Trim();
+    }
+
+    private static string NormalizeQuotes(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        // Normalize smart double quotes to standard double quote
+        string s = Regex.Replace(text, @"[“”„«»]", "\"");
+        // Normalize smart single quotes to standard single quote
+        s = Regex.Replace(s, @"[‘’‚`]", "'");
+        return s.Trim();
     }
 }
