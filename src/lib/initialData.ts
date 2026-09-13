@@ -144,7 +144,40 @@ export const INITIAL_SNIPPETS: SnippetEntry[] = [
   },
 ];
 
-export const INITIAL_HISTORY: DictationEntry[] = [];
+export const INITIAL_HISTORY: DictationEntry[] = [
+  {
+    id: 'hist-user-1',
+    text: "I want to make these components a little smaller and make the flow bar glassomorphic. It should be a glass-like structure, not a solid structure, and enhance the structure, its hapticity, and all those things. I also want to implement wave-like structures when the mic is on and when I'm trying to speak, and remove the timing that shows how many minutes the speaker has used. This timing is running while speaking, right? Remove those things.",
+    rawText: "i want to make these components a little smaller and make the flow bar glassomorphic it should be a glass-like structure not a solid structure and enhance the structure its hapticity and all those things i also want to implement wave-like structures when the mic is on and when i'm trying to speak and remove the timing that shows how many minutes the speaker has used this timing is running while speaking right remove those things",
+    application: 'Google Chrome',
+    appName: 'Chrome',
+    styleApplied: 'Balanced',
+    durationMs: 14800,
+    durationSeconds: 14.8,
+    wordCount: 71,
+    latencyMs: 168,
+    zeroEnterGuaranteed: true,
+    isFavorite: false,
+    timestamp: '2026-09-13T16:31:00Z',
+    timeShort: '4:31 pm',
+  },
+  {
+    id: 'hist-user-2',
+    text: "yeah, I don't feel my application is good enough because the voice-to-speech conversion that I am using now is done using Wispr Flow. The prompt I am generating for you now is also done using Wispr Flow, and I want you to know how good this prompt is. Before that, you have to generate me a very good prompt which is used in anti-gravity to build a production grade Windows native voice productivity platform with local-first Whisper inference and strict zero-enter invariant.",
+    rawText: "yeah i dont feel my application is good enough because the voice to speech conversion that i am using now is done using wispr flow the prompt i am generating for you now is also done using wispr flow and i want you to know how good this prompt is before that you have to generate me a very good prompt which is used in anti-gravity to build a production grade windows native voice productivity platform with local-first whisper inference and strict zero-enter invariant",
+    application: 'Visual Studio Code',
+    appName: 'VS Code',
+    styleApplied: 'Developer',
+    durationMs: 22400,
+    durationSeconds: 22.4,
+    wordCount: 84,
+    latencyMs: 182,
+    zeroEnterGuaranteed: true,
+    isFavorite: true,
+    timestamp: '2026-09-13T14:40:00Z',
+    timeShort: '2:40 pm',
+  },
+];
 
 export const INITIAL_SCRATCHPAD: ScratchpadEntry[] = [
   {

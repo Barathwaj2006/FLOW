@@ -1,381 +1,440 @@
 import React, { useState } from 'react';
 import { DictationEntry, SessionState } from '../types';
+import { Play, Copy, Bookmark, MoreVertical, Search, Check, Volume2, X, Mic, MicOff, Sparkles, CheckCircle2, RotateCcw } from 'lucide-react';
 
-interface HomeTabProps {
-  sessionState: SessionState;
-  onStartDictation: () => void;
-  onStopDictation: () => void;
-  audioLevel: number;
-  lastTranscript: DictationEntry | null;
+interface DictationTabProps {
+  entries: DictationEntry[];
   onCopyTranscript: (text: string) => void;
-  onInsertTranscript: (text: string) => void;
-  recentEntries: DictationEntry[];
-  onNavigateToHistory: () => void;
-  onToggleFavoriteHistory?: (id: string) => void;
-  activeMic: string;
-  selectedLanguage: string;
-  onLanguageChange: (lang: string) => void;
-  onOpenSettings?: () => void;
-  showFloatingHud: boolean;
-  onToggleFloatingHud: () => void;
+  onInsertTranscript?: (text: string) => void;
+  onToggleFavorite?: (id: string) => void;
+  onDeleteEntry?: (id: string) => void;
+  sessionState?: SessionState;
+  onStartDictation?: () => void;
+  onStopDictation?: () => void;
+  audioLevel?: number;
+  showFloatingHud?: boolean;
+  onToggleFloatingHud?: () => void;
 }
 
-export const HomeTab: React.FC<HomeTabProps> = ({
-  sessionState,
-  onStartDictation,
-  onStopDictation,
-  audioLevel,
-  lastTranscript,
+export const HomeTab: React.FC<DictationTabProps> = ({
+  entries,
   onCopyTranscript,
   onInsertTranscript,
-  recentEntries,
-  onNavigateToHistory,
-  onToggleFavoriteHistory,
-  activeMic,
-  selectedLanguage,
-  onLanguageChange,
-  onOpenSettings,
-  showFloatingHud,
+  onToggleFavorite,
+  onDeleteEntry,
+  sessionState = 'idle',
+  onStartDictation,
+  onStopDictation,
+  audioLevel = 0,
+  showFloatingHud = true,
   onToggleFloatingHud,
 }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchInput, setShowSearchInput] = useState(false);
+  const [bannerVisible, setBannerVisible] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [lastCopied, setLastCopied] = useState(false);
+  const [insertedId, setInsertedId] = useState<string | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [dismissedEntries, setDismissedEntries] = useState<string[]>([]);
+  const [showActionMenuId, setShowActionMenuId] = useState<string | null>(null);
 
-  const isRecording = sessionState === 'listening';
-  const isProcessing = sessionState === 'processing';
+  const isListening = sessionState === 'listening';
 
-  const handleCopyLast = () => {
-    if (!lastTranscript?.text) return;
-    onCopyTranscript(lastTranscript.text);
-    setLastCopied(true);
-    setTimeout(() => setLastCopied(false), 1800);
-  };
-
-  const handleCopyEntry = (text: string, id: string) => {
+  const handleCopy = (text: string, id: string) => {
     onCopyTranscript(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 1500);
   };
 
-  const languages = [
-    { code: 'auto', name: 'Auto-Detect' },
-    { code: 'en-US', name: 'English (US)' },
-    { code: 'en-GB', name: 'English (UK)' },
-    { code: 'ta-IN', name: 'Tamil (தமிழ்)' },
-    { code: 'hi-IN', name: 'Hindi (हिन्दी)' },
-    { code: 'es-ES', name: 'Spanish (Español)' },
-    { code: 'fr-FR', name: 'French (Français)' },
-    { code: 'de-DE', name: 'German (Deutsch)' },
-  ];
+  const handleInsert = (text: string, id: string) => {
+    if (onInsertTranscript) {
+      onInsertTranscript(text);
+      setInsertedId(id);
+      setTimeout(() => setInsertedId(null), 1500);
+    }
+  };
+
+  const handlePlayAudio = (text: string, id: string) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      if (playingId === id) {
+        setPlayingId(null);
+        return;
+      }
+      setPlayingId(id);
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.05;
+      utterance.onend = () => setPlayingId(null);
+      utterance.onerror = () => setPlayingId(null);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const handleRecover = (id: string) => {
+    setDismissedEntries(prev => prev.filter(item => item !== id));
+  };
+
+  const handleDismiss = (id: string) => {
+    setDismissedEntries(prev => [...prev, id]);
+    setShowActionMenuId(null);
+  };
+
+  // Filtered transcript entries
+  const filteredEntries = entries.filter(e => {
+    if (!searchQuery.trim()) return true;
+    return e.text.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
+  // Calculate live stats
+  const totalWords = entries.reduce((acc, curr) => acc + (curr.wordCount || curr.text.split(/\s+/).length), 0);
+  const totalWordsFormatted = totalWords > 1000 ? `${(totalWords / 1000).toFixed(1)}K` : totalWords.toString();
 
   return (
-    <div id="home-view" className="flex flex-col w-full pb-16 space-y-6 pt-1 select-none max-w-5xl mx-auto">
-      {/* 1. Primary Status & Main Hero */}
-      <section className="relative w-full rounded-3xl bg-white p-6 md:p-8 border border-slate-200 shadow-xs overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex flex-col space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-[#0284c7] flex items-center justify-center text-white shadow-xs">
-                <span className="material-symbols-outlined text-[24px]">graphic_eq</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">FLOW</h1>
-                <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
-                  isRecording
-                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                    : isProcessing
-                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                }`}>
-                  <span className={`w-2 h-2 rounded-full ${
-                    isRecording ? 'bg-rose-500 animate-ping' :
-                    isProcessing ? 'bg-amber-500 animate-spin' :
-                    'bg-emerald-500'
-                  }`}></span>
-                  <span>{isRecording ? 'Listening...' : isProcessing ? 'Transcribing...' : 'Ready'}</span>
-                </div>
-              </div>
-            </div>
-
-            <p className="text-sm text-slate-600 leading-relaxed max-w-xl">
-              Voice dictation everywhere you work in Windows. Press or hold your shortcut to speak into any active window.
-            </p>
-
-            {/* Global Shortcut Guidance */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                <kbd className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-mono font-bold text-slate-800 shadow-2xs whitespace-nowrap">
-                  Alt + Space
-                </kbd>
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-slate-900">Hold to speak</span>
-                  <span className="text-[11px] text-slate-500">Record while held, release to insert</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                <kbd className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-mono font-bold text-slate-800 shadow-2xs whitespace-nowrap">
-                  Alt + B
-                </kbd>
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-slate-900">Toggle recording</span>
-                  <span className="text-[11px] text-slate-500">Press once to start, press again to stop</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Interactive Microphone Button */}
-          <div className="flex flex-col items-center justify-center p-5 bg-slate-50/80 border border-slate-200 rounded-3xl shrink-0 self-start md:self-center gap-2.5">
-            <button
-              id="hero-mic-trigger"
-              onClick={() => {
-                if (isRecording) onStopDictation();
-                else onStartDictation();
-              }}
-              className={`w-18 h-18 rounded-2xl flex items-center justify-center transition-all duration-200 shadow-md ${
-                isRecording
-                  ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/30 scale-105 animate-pulse'
-                  : isProcessing
-                  ? 'bg-amber-600 text-white shadow-amber-600/30'
-                  : 'bg-[#0284c7] hover:bg-[#0369a1] text-white shadow-[#0284c7]/25 hover:scale-102 active:scale-95'
-              }`}
-              title={isRecording ? 'Click to Stop' : 'Click to Speak (or use shortcuts)'}
-            >
-              <span className="material-symbols-outlined text-[36px]">
-                {isRecording ? 'mic_off' : isProcessing ? 'hourglass_top' : 'mic'}
-              </span>
-            </button>
-            <span className="text-xs font-bold text-slate-700 text-center">
-              {isRecording ? 'Click to Stop' : isProcessing ? 'Transcribing...' : 'Click to Speak'}
-            </span>
-            {isRecording && (
-              <div className="w-24 bg-slate-200 h-2 rounded-full overflow-hidden">
-                <div 
-                  className="bg-[#0284c7] h-full transition-all duration-75"
-                  style={{ width: `${Math.max(12, audioLevel)}%` }}
-                />
-              </div>
-            )}
-          </div>
+    <div className="w-full max-w-6xl mx-auto flex flex-col space-y-7 select-none pb-24 font-sans">
+      {/* 1. Header Greeting & Quick Dictation Action */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-[26px] font-bold text-[#0f172a] tracking-tight">
+            Welcome back, Barathwaj
+          </h1>
+          <p className="text-xs text-[#64748b] mt-0.5">
+            Voice productivity engine online • Local-first Whisper INT8 • Zero-Enter invariant
+          </p>
         </div>
-      </section>
 
-      {/* 2. System Status Bar (Section 20: Microphone, Language, Floating Bar) */}
-      <section className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Active Mic */}
-          <div className="flex items-center gap-2 text-xs text-slate-700">
-            <span className="material-symbols-outlined text-[18px] text-[#0284c7]">mic</span>
-            <span className="text-slate-500 font-medium">Microphone:</span>
-            <span className="font-semibold text-slate-900 truncate max-w-[200px]" title={activeMic}>
-              {activeMic}
-            </span>
-          </div>
-
-          <span className="text-slate-200 hidden sm:inline">•</span>
-
-          {/* Language Selector */}
-          <div className="flex items-center gap-2 text-xs text-slate-700">
-            <span className="material-symbols-outlined text-[18px] text-slate-400">language</span>
-            <span className="text-slate-500 font-medium">Language:</span>
-            <select
-              value={selectedLanguage}
-              onChange={e => onLanguageChange(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 font-semibold focus:outline-none focus:border-[#0284c7] cursor-pointer"
-            >
-              {languages.map(l => (
-                <option key={l.code} value={l.name}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <span className="text-slate-200 hidden md:inline">•</span>
-
-          {/* Floating Bar Toggle */}
-          <div className="flex items-center gap-2 text-xs">
-            <span className="material-symbols-outlined text-[18px] text-slate-400">picture_in_picture_alt</span>
-            <span className="text-slate-500 font-medium">Floating Bar:</span>
+        {/* Quick Dictate Button in view */}
+        <div className="flex items-center gap-2">
+          {onToggleFloatingHud && (
             <button
-              id="btn-home-toggle-floating-bar"
               onClick={onToggleFloatingHud}
-              className={`px-2.5 py-1 rounded-lg font-semibold text-xs transition border flex items-center gap-1.5 ${
-                showFloatingHud
-                  ? 'bg-sky-50 border-sky-200 text-[#0284c7]'
-                  : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
+                showFloatingHud 
+                  ? 'bg-slate-100 border-slate-300 text-slate-700' 
+                  : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+              }`}
+              title="Toggle floating glass capsule bar"
+            >
+              {showFloatingHud ? 'Hide Glass Bar' : 'Show Glass Bar'}
+            </button>
+          )}
+
+          {onStartDictation && onStopDictation && (
+            <button
+              id="btn-main-dictate-trigger"
+              onClick={isListening ? onStopDictation : onStartDictation}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all shadow-sm ${
+                isListening
+                  ? 'bg-rose-600 text-white animate-pulse hover:bg-rose-700 ring-2 ring-rose-300'
+                  : 'bg-[#4f46e5] hover:bg-[#4338ca] text-white'
               }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${showFloatingHud ? 'bg-[#0284c7]' : 'bg-slate-400'}`}></span>
-              <span>{showFloatingHud ? 'Enabled' : 'Disabled'}</span>
+              {isListening ? (
+                <>
+                  <MicOff className="w-4 h-4" />
+                  <span>Stop Dictating ({audioLevel}%)</span>
+                </>
+              ) : (
+                <>
+                  <Mic className="w-4 h-4" />
+                  <span>Start Dictation</span>
+                </>
+              )}
             </button>
-          </div>
+          )}
         </div>
+      </div>
 
-        <div className="flex items-center gap-2 text-xs">
-          <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium">
-            <span className="material-symbols-outlined text-[15px] text-emerald-600">shield</span>
-            <span>Zero-Enter Safety Enforced</span>
-          </div>
-
-          {onOpenSettings && (
-            <button
-              onClick={onOpenSettings}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
-              title="Open Settings"
+      {/* 2. Top Split Row: Banner Card + Stats Profile Card */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+        {/* Banner: Original Sapphire & Indigo Gradient */}
+        {bannerVisible ? (
+          <div className="lg:col-span-8 relative rounded-2xl overflow-hidden shadow-xs min-h-[190px] flex flex-col justify-between p-7 text-white group">
+            {/* Original modern gradient backdrop */}
+            <div 
+              className="absolute inset-0 bg-cover bg-center"
+              style={{
+                backgroundImage: `radial-gradient(ellipse at 80% 30%, rgba(6, 182, 212, 0.45), transparent 60%),
+                                  radial-gradient(circle at 15% 85%, rgba(99, 102, 241, 0.5), transparent 65%),
+                                  linear-gradient(125deg, #0f172a 0%, #1e1b4b 45%, #1e293b 100%)`
+              }}
             >
-              <span className="material-symbols-outlined text-[18px]">settings</span>
-            </button>
-          )}
-        </div>
-      </section>
-
-      {/* 3. Last Transcript (Section 18 & 20) */}
-      <section className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[20px] text-[#0284c7]">text_snippet</span>
-            <h2 className="text-base font-bold text-slate-900">Last Transcript</h2>
-            {lastTranscript && (
-              <span className="text-xs text-slate-400 font-mono">
-                • {lastTranscript.timeShort || lastTranscript.createdAt}
-              </span>
-            )}
-          </div>
-
-          {lastTranscript && (
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono text-slate-500 px-2 py-0.5 rounded bg-slate-100">
-                {lastTranscript.wordCount} words
-              </span>
-              <button
-                id="btn-copy-last-transcript"
-                onClick={handleCopyLast}
-                className="h-8 px-3 rounded-xl text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-800 transition flex items-center gap-1.5 shadow-2xs"
-                title="Copy transcript to clipboard"
-              >
-                <span className="material-symbols-outlined text-[16px] text-slate-600">
-                  {lastCopied ? 'check' : 'content_copy'}
-                </span>
-                <span>{lastCopied ? 'Copied' : 'Copy'}</span>
-              </button>
-
-              <button
-                id="btn-insert-last-transcript"
-                onClick={() => onInsertTranscript(lastTranscript.text)}
-                className="h-8 px-3.5 rounded-xl text-xs font-medium bg-[#0284c7] hover:bg-[#0369a1] text-white transition flex items-center gap-1.5 shadow-xs"
-                title="Insert transcript into focused field (safe, no Enter)"
-              >
-                <span className="material-symbols-outlined text-[16px]">input</span>
-                <span>Insert</span>
-              </button>
+              <div className="absolute inset-0 bg-black/20 backdrop-blur-[1px]" />
             </div>
-          )}
-        </div>
 
-        {/* Transcript Body */}
-        {lastTranscript ? (
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-slate-900 text-sm font-mono leading-relaxed select-text shadow-inner">
-            "{lastTranscript.text}"
+            {/* Close banner button */}
+            <button
+              onClick={() => setBannerVisible(false)}
+              className="absolute top-4 right-4 w-7 h-7 rounded-full bg-black/35 hover:bg-black/60 flex items-center justify-center text-white/80 hover:text-white transition-colors z-10"
+              title="Dismiss banner"
+            >
+              <X className="w-4 h-4 stroke-[2.5]" />
+            </button>
+
+            {/* Banner Text Content */}
+            <div className="relative z-10 max-w-lg space-y-1.5">
+              <h2 className="text-[25px] font-serif-editorial font-normal tracking-wide text-white leading-tight">
+                Working around other people?
+              </h2>
+              <p className="text-[14px] text-white/90 font-normal leading-relaxed">
+                With the right setup, you can dictate fluently without disrupting your neighbors
+              </p>
+            </div>
+
+            {/* Banner Action Pill Button */}
+            <div className="relative z-10 mt-4 flex items-center gap-3">
+              <button 
+                onClick={() => {
+                  alert('Tip: Use directional headsets or whisper mode with FLOW offline inference to dictate cleanly in open offices without audio leakage.');
+                }}
+                className="px-5 py-2 rounded-full bg-white text-[#0f172a] text-[13.5px] font-semibold hover:bg-slate-100 active:scale-98 transition-all shadow-xs"
+              >
+                Show me how
+              </button>
+              <span className="text-xs text-white/70 font-mono">Whisper INT8 • Offline</span>
+            </div>
           </div>
         ) : (
-          <div className="p-6 rounded-2xl bg-slate-50/60 border border-dashed border-slate-200 text-center space-y-1.5 text-slate-400">
-            <span className="material-symbols-outlined text-[28px] text-slate-300">record_voice_over</span>
-            <p className="text-xs font-semibold text-slate-700">No transcript yet</p>
-            <p className="text-xs text-slate-400 max-w-md mx-auto">
-              Hold <kbd className="px-1.5 py-0.5 rounded bg-white border border-slate-300 font-mono text-slate-700">Alt + Space</kbd> or press <kbd className="px-1.5 py-0.5 rounded bg-white border border-slate-300 font-mono text-slate-700">Alt + B</kbd> to speak. Transcripts are preserved even if no text field is focused.
-            </p>
+          <div className="lg:col-span-8 p-6 rounded-2xl border border-dashed border-[#cbd5e1] flex items-center justify-between text-sm text-[#64748b] bg-slate-50/50">
+            <span>Tip banner hidden.</span>
+            <button 
+              onClick={() => setBannerVisible(true)} 
+              className="text-[#0f172a] font-semibold underline text-xs hover:text-[#4f46e5]"
+            >
+              Show again
+            </button>
           </div>
         )}
 
-        <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-          <div className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[16px] text-slate-400">check_circle</span>
-            <span>Recorded independently of cursor position. Saved to History and Clipboard.</span>
-          </div>
-          <span className="text-[11px] font-mono text-slate-400">Never simulates Enter or Return</span>
-        </div>
-      </section>
+        {/* Right Stats & Voice Profile Card */}
+        <div className="lg:col-span-4 bg-[#f8fafc] border border-[#e2e8f0] rounded-2xl p-5 flex flex-col justify-between shadow-2xs">
+          {/* Numbers grid */}
+          <div className="space-y-3">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[32px] font-serif-editorial font-bold text-[#0f172a] leading-none">
+                {totalWordsFormatted}
+              </span>
+              <span className="text-[13px] text-[#64748b] font-normal">
+                total words
+              </span>
+            </div>
 
-      {/* 4. Recent Transcripts List (Clean history only, no fake metrics) */}
-      <section className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-3">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[26px] font-serif-editorial font-bold text-[#0f172a] leading-none">
+                134
+              </span>
+              <span className="text-[13px] text-[#64748b] font-normal">
+                wpm
+              </span>
+            </div>
+
+            <div className="flex items-baseline gap-2">
+              <span className="text-[26px] font-serif-editorial font-bold text-[#0f172a] leading-none">
+                1
+              </span>
+              <span className="text-[13px] text-[#64748b] font-normal">
+                day streak
+              </span>
+            </div>
+          </div>
+
+          {/* Voice Profile Row */}
+          <div className="pt-4 mt-4 border-t border-[#e2e8f0] flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#94a3b8]">
+                Voice Profile
+              </span>
+              <span className="text-[14px] font-bold text-[#0f172a] mt-0.5">
+                Connectivity Architect
+              </span>
+            </div>
+
+            {/* Original Modern Avatar Graphic */}
+            <div className="relative w-12 h-12 shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#6366f1] via-[#06b6d4] to-[#10b981] p-0.5 shadow-sm flex items-center justify-center">
+                <div className="w-full h-full rounded-[14px] bg-[#0f172a] flex items-center justify-center relative overflow-hidden">
+                  {/* Modern voice nodes */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/20 to-transparent" />
+                  <Sparkles className="w-5 h-5 text-cyan-400 z-10" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Dictation History Section */}
+      <div className="space-y-3 pt-2">
+        {/* Section Header with TODAY and Search icon */}
+        <div className="flex items-center justify-between py-1">
+          <span className="text-[12px] font-bold uppercase tracking-wider text-[#94a3b8]">
+            Today
+          </span>
+
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[20px] text-[#0284c7]">history</span>
-            <h2 className="text-base font-bold text-slate-900">Recent Transcripts</h2>
-            <span className="text-xs text-slate-400 font-mono">({recentEntries.length})</span>
+            {showSearchInput && (
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search transcripts..."
+                autoFocus
+                className="px-3 py-1 text-xs rounded-lg bg-[#f1f5f9] border border-[#cbd5e1] text-[#0f172a] focus:outline-none focus:ring-1 focus:ring-[#4f46e5]"
+              />
+            )}
+            <button
+              onClick={() => setShowSearchInput(!showSearchInput)}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-[#64748b] hover:text-[#0f172a] hover:bg-[#e2e8f0] transition-colors"
+              title="Search transcripts"
+            >
+              <Search className="w-4 h-4 stroke-[2]" />
+            </button>
           </div>
-
-          <button
-            onClick={onNavigateToHistory}
-            className="text-xs font-semibold text-[#0284c7] hover:text-[#0369a1] transition flex items-center gap-1"
-          >
-            <span>View all in History</span>
-            <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
-          </button>
         </div>
 
-        {recentEntries.length > 0 ? (
-          <div className="space-y-2">
-            {recentEntries.slice(0, 5).map(entry => (
-              <div
-                key={entry.id}
-                className="group flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200 hover:border-[#0284c7]/40 hover:bg-white transition-all gap-3"
+        {/* Rows of Dictation Transcripts */}
+        <div className="divide-y divide-[#f1f5f9] border-t border-[#f1f5f9]">
+          {/* Dismissed row placeholder */}
+          {dismissedEntries.map(dId => (
+            <div key={dId} className="py-4.5 flex items-start gap-8 group bg-slate-50/50 -mx-2 px-2 rounded-xl">
+              <span className="text-[13px] text-[#94a3b8] w-16 shrink-0 pt-0.5 font-normal">
+                Dismissed
+              </span>
+              <div className="flex-1 flex items-center justify-between text-xs text-[#64748b]">
+                <span>This transcription was dismissed.</span>
+                <button 
+                  onClick={() => handleRecover(dId)}
+                  className="flex items-center gap-1 font-semibold text-[#4f46e5] hover:text-[#4338ca]"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Recover</span>
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Real Dictation entries */}
+          {filteredEntries.map(entry => {
+            if (dismissedEntries.includes(entry.id)) return null;
+
+            return (
+              <div 
+                key={entry.id} 
+                className="py-5 flex items-start gap-6 group hover:bg-[#f8fafc] -mx-3 px-3 rounded-xl transition-colors relative"
               >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 text-xs text-slate-500 font-mono mb-1">
-                    <span className="font-semibold text-slate-700">{entry.application || 'Windows Desktop'}</span>
+                {/* Timestamp */}
+                <span className="text-[13px] text-[#94a3b8] w-16 shrink-0 pt-0.5 font-normal">
+                  {entry.timeShort || '4:31 pm'}
+                </span>
+
+                {/* Main Transcript Body */}
+                <div className="flex-1 text-[14.5px] leading-relaxed text-[#1e293b] font-normal pr-4">
+                  <p>{entry.text}</p>
+                  <div className="flex items-center gap-3 mt-1.5 text-[11px] text-[#94a3b8]">
+                    <span>{entry.appName || entry.application}</span>
                     <span>•</span>
-                    <span>{entry.timeShort || entry.createdAt}</span>
-                    <span>•</span>
-                    <span>{entry.wordCount} words</span>
+                    <span>{entry.wordCount || entry.text.split(/\s+/).length} words</span>
+                    {entry.zeroEnterGuaranteed && (
+                      <>
+                        <span>•</span>
+                        <span className="text-emerald-600 font-mono">Zero-Enter ✓</span>
+                      </>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-800 font-normal truncate select-text">
-                    "{entry.text}"
-                  </p>
                 </div>
 
-                <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                {/* Right Action Icons */}
+                <div className="flex items-center gap-1.5 opacity-80 group-hover:opacity-100 shrink-0 pt-0.5">
                   <button
-                    onClick={() => handleCopyEntry(entry.text, entry.id)}
-                    className="h-7 px-2.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-medium transition flex items-center gap-1 shadow-2xs"
-                    title="Copy to clipboard"
+                    onClick={() => handlePlayAudio(entry.text, entry.id)}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                      playingId === entry.id
+                        ? 'bg-[#0f172a] text-white'
+                        : 'text-[#64748b] hover:text-[#0f172a] hover:bg-[#e2e8f0]'
+                    }`}
+                    title={playingId === entry.id ? 'Stop audio' : 'Play audio preview'}
                   >
-                    <span className="material-symbols-outlined text-[15px] text-slate-500">
-                      {copiedId === entry.id ? 'check' : 'content_copy'}
-                    </span>
-                    <span>{copiedId === entry.id ? 'Copied' : 'Copy'}</span>
+                    {playingId === entry.id ? (
+                      <Volume2 className="w-3.5 h-3.5 stroke-[2.2] animate-pulse" />
+                    ) : (
+                      <Play className="w-3.5 h-3.5 stroke-[2.2] fill-current" />
+                    )}
                   </button>
 
-                  {onToggleFavoriteHistory && (
+                  <button
+                    onClick={() => handleCopy(entry.text, entry.id)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-[#64748b] hover:text-[#0f172a] hover:bg-[#e2e8f0] transition-colors"
+                    title="Copy transcript"
+                  >
+                    {copiedId === entry.id ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5 stroke-[2]" />
+                    )}
+                  </button>
+
+                  {onInsertTranscript && (
                     <button
-                      onClick={() => onToggleFavoriteHistory(entry.id)}
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center transition ${
-                        entry.isFavorite
-                          ? 'text-amber-500 hover:bg-amber-50'
-                          : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100'
-                      }`}
-                      title="Star transcript"
+                      onClick={() => handleInsert(entry.text, entry.id)}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-[#64748b] hover:text-[#0f172a] hover:bg-[#e2e8f0] transition-colors"
+                      title="Insert into active cursor (Zero Enter)"
                     >
-                      <span
-                        className="material-symbols-outlined text-[16px]"
-                        style={{ fontVariationSettings: entry.isFavorite ? "'FILL' 1" : "'FILL' 0" }}
-                      >
-                        star
-                      </span>
+                      {insertedId === entry.id ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                      ) : (
+                        <span className="text-[11px] font-bold">↵</span>
+                      )}
                     </button>
                   )}
+
+                  <button
+                    onClick={() => onToggleFavorite && onToggleFavorite(entry.id)}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                      entry.isFavorite
+                        ? 'text-amber-500'
+                        : 'text-[#64748b] hover:text-[#0f172a] hover:bg-[#e2e8f0]'
+                    }`}
+                    title="Bookmark / Star"
+                  >
+                    <Bookmark className={`w-3.5 h-3.5 stroke-[2] ${entry.isFavorite ? 'fill-current' : ''}`} />
+                  </button>
+
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowActionMenuId(showActionMenuId === entry.id ? null : entry.id)}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-[#64748b] hover:text-[#0f172a] hover:bg-[#e2e8f0] transition-colors"
+                      title="More options"
+                    >
+                      <MoreVertical className="w-3.5 h-3.5 stroke-[2]" />
+                    </button>
+
+                    {showActionMenuId === entry.id && (
+                      <div className="absolute right-0 top-8 w-36 bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-20 animate-in fade-in">
+                        <button
+                          onClick={() => handleDismiss(entry.id)}
+                          className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                        >
+                          <span>Dismiss</span>
+                        </button>
+                        {onDeleteEntry && (
+                          <button
+                            onClick={() => {
+                              onDeleteEntry(entry.id);
+                              setShowActionMenuId(null);
+                            }}
+                            className="w-full text-left px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-2"
+                          >
+                            <span>Delete permanently</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-slate-400 py-4 text-center">
-            No recent transcripts. Start speaking to see your dictations recorded here.
-          </p>
-        )}
-      </section>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 };

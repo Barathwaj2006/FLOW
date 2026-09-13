@@ -1,9 +1,14 @@
 export type TabType = 
+  | 'dictation'
   | 'home'
   | 'history'
+  | 'notetaker'
+  | 'insights'
   | 'dictionary'
   | 'snippets'
+  | 'style'
   | 'styles'
+  | 'transforms'
   | 'scratchpad'
   | 'settings'
   | 'about';
@@ -12,23 +17,30 @@ export type SessionState = 'idle' | 'listening' | 'processing' | 'inserted';
 
 export interface DictationEntry {
   id: string;
-  sessionId: string;
-  createdAt: string;
+  sessionId?: string;
+  createdAt?: string;
+  timestamp?: string;
   timeShort?: string;
   durationMs: number;
+  durationSeconds?: number;
   durationText?: string;
-  characterCount: number;
-  wordCount: number;
-  language: string;
+  characterCount?: number;
+  wordCount?: number;
+  language?: string;
   application: string;
-  applicationCategory: string;
+  appName?: string;
+  applicationCategory?: string;
   target?: string;
-  mode: string;
-  state: 'Completed' | 'Cancelled' | 'Failed';
+  mode?: string;
+  state?: 'Completed' | 'Cancelled' | 'Failed';
   isFavorite: boolean;
   text: string;
+  rawText?: string;
   isDeleted?: boolean;
   latency?: string;
+  latencyMs?: number;
+  styleApplied?: string;
+  zeroEnterGuaranteed?: boolean;
   engine?: string;
 }
 

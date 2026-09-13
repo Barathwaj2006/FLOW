@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ScratchpadEntry } from '../types';
+import { Search, Plus, RotateCw, Info, FileText, Trash2, Edit3, Check, X, Maximize2 } from 'lucide-react';
 
 interface ScratchpadTabProps {
   notes: ScratchpadEntry[];
@@ -8,8 +9,6 @@ interface ScratchpadTabProps {
   onSaveNoteContent: (id: string, title: string, content: string) => void;
   onCreateNote: () => void;
   onDeleteNote: (id: string) => void;
-  onTogglePin: (id: string) => void;
-  onInsertDictationIntoScratchpad: (text: string) => void;
 }
 
 export const ScratchpadTab: React.FC<ScratchpadTabProps> = ({
@@ -19,214 +18,259 @@ export const ScratchpadTab: React.FC<ScratchpadTabProps> = ({
   onSaveNoteContent,
   onCreateNote,
   onDeleteNote,
-  onTogglePin,
 }) => {
+  const [addToFlowBar, setAddToFlowBar] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isEditingModalOpen, setIsEditingModalOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   const activeNote = notes.find(n => n.id === activeNoteId) || notes[0];
-  const [content, setContent] = useState(activeNote?.content || '');
-  const [title, setTitle] = useState(activeNote?.title || 'Untitled Note');
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
-  const [copied, setCopied] = useState(false);
 
-  // Sync state when active note changes
-  useEffect(() => {
-    if (activeNote) {
-      setContent(activeNote.content);
-      setTitle(activeNote.title);
-      setSaveStatus('saved');
+  const handleStartNewNote = () => {
+    onCreateNote();
+    setEditTitle('Untitled Note');
+    setEditContent('');
+    setEditingId(`note-${Date.now()}`);
+    setIsEditingModalOpen(true);
+  };
+
+  const handleOpenEdit = (note: ScratchpadEntry) => {
+    onSelectNote(note.id);
+    setEditingId(note.id);
+    setEditTitle(note.title);
+    setEditContent(note.content);
+    setIsEditingModalOpen(true);
+  };
+
+  const handleSaveModal = () => {
+    if (editingId) {
+      onSaveNoteContent(editingId, editTitle || 'Untitled Note', editContent);
     }
-  }, [activeNote?.id]);
-
-  // Debounced autosave
-  useEffect(() => {
-    if (!activeNote) return;
-    if (content === activeNote.content && title === activeNote.title) return;
-
-    setSaveStatus('saving');
-    const timer = setTimeout(() => {
-      onSaveNoteContent(activeNote.id, title, content);
-      setSaveStatus('saved');
-    }, 600);
-
-    return () => clearTimeout(timer);
-  }, [content, title, activeNote?.id]);
-
-  const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
-  const charCount = content.length;
-
-  const handleCopy = () => {
-    navigator.clipboard?.writeText(content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    setIsEditingModalOpen(false);
   };
 
-  const handleExportMarkdown = () => {
-    if (!activeNote) return;
-    const blob = new Blob([content], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const filteredNotes = notes.filter(n => {
+    if (!searchQuery.trim()) return true;
+    return (
+      n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      n.content.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
 
   return (
-    <div id="scratchpad-tab-content" className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-140px)] max-w-6xl mx-auto select-none pt-1">
-      {/* Notes Sidebar List */}
-      <div className="w-full lg:w-72 bg-white border border-slate-200 rounded-xl p-3 flex flex-col justify-between shrink-0 shadow-xs">
-        <div>
-          <div className="flex items-center justify-between pb-2.5 mb-2 border-b border-slate-100">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
-              <span className="material-symbols-outlined text-[18px] text-[#0284c7]">edit_note</span>
-              <span>Scratchpad Notes</span>
-            </div>
+    <div className="w-full max-w-6xl mx-auto flex flex-col space-y-6 select-none pb-20">
+      {/* Top Header & Right Controls matching Screenshot 5 */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-[28px] font-bold text-[#1c1917] tracking-tight">
+            Scratchpad
+          </h1>
+          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-[#1c1917] text-white">
+            Beta
+          </span>
+        </div>
+
+        {/* Right Toggle & Shortcut Pill */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs text-[#57534e]">
+            <span>Add to Flow Bar</span>
+            <Info className="w-3.5 h-3.5 text-[#a8a29e]" />
             <button
-              id="btn-new-note"
-              onClick={onCreateNote}
-              className="h-7 px-2.5 rounded text-xs font-medium bg-[#0284c7] hover:bg-[#0369a1] text-white flex items-center gap-1 transition-all shadow-xs"
+              onClick={() => setAddToFlowBar(!addToFlowBar)}
+              className={`w-10 h-5.5 rounded-full p-0.5 transition-colors relative ${
+                addToFlowBar ? 'bg-[#134e4a]' : 'bg-[#d6cfc4]'
+              }`}
             >
-              <span className="material-symbols-outlined text-[15px]">add</span>
-              <span>New</span>
+              <div
+                className={`w-4.5 h-4.5 rounded-full bg-white transition-transform ${
+                  addToFlowBar ? 'translate-x-4.5' : 'translate-x-0'
+                }`}
+              />
             </button>
           </div>
 
-          <div className="space-y-1.5 overflow-y-auto max-h-[calc(100vh-230px)] pr-0.5">
-            {notes.map(note => {
-              const isSelected = note.id === activeNoteId;
-              return (
-                <div
-                  key={note.id}
-                  onClick={() => onSelectNote(note.id)}
-                  className={`cursor-pointer p-3 rounded-lg border transition-all flex items-start justify-between gap-2 ${
-                    isSelected
-                      ? 'bg-sky-50/70 border-[#0284c7] text-slate-900 shadow-2xs'
-                      : 'bg-white border-slate-200/80 text-slate-700 hover:border-slate-300 hover:bg-slate-50/70'
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      {note.isPinned && (
-                        <span 
-                          className="material-symbols-outlined text-[15px] text-amber-500 shrink-0"
-                          style={{ fontVariationSettings: "'FILL' 1" }}
-                        >
-                          push_pin
-                        </span>
-                      )}
-                      <span className="text-xs font-semibold truncate">{note.title || 'Untitled Note'}</span>
-                    </div>
-                    <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1.5 font-mono">
-                      <span>{new Date(note.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
-                      <span>•</span>
-                      <span>{note.wordCount} words</span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      onTogglePin(note.id);
-                    }}
-                    className="p-1 rounded text-slate-400 hover:text-amber-500 transition-colors"
-                    title={note.isPinned ? 'Unpin Note' : 'Pin Note'}
-                  >
-                    <span 
-                      className={`material-symbols-outlined text-[16px] ${note.isPinned ? 'text-amber-500' : ''}`}
-                      style={{ fontVariationSettings: note.isPinned ? "'FILL' 1" : "'FILL' 0" }}
-                    >
-                      push_pin
-                    </span>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="pt-2.5 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between font-mono">
-          <span>{notes.length} notes</span>
-          <span className="text-emerald-600 font-medium">100% Offline SQLite</span>
+          <button
+            onClick={() => alert('Shortcut Alt + N registered for Scratchpad quick capture!')}
+            className="px-4 py-2 rounded-full bg-[#ede8e1] hover:bg-[#e4ded5] text-[#1c1917] text-xs font-semibold transition-colors"
+          >
+            Click to enable shortcut
+          </button>
         </div>
       </div>
 
-      {/* Note Editor Area */}
-      {activeNote ? (
-        <div className="flex-1 bg-white border border-slate-200 rounded-xl p-5 flex flex-col justify-between shadow-xs min-w-0">
-          {/* Editor Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-            <input
-              type="text"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="Note title..."
-              className="bg-transparent text-lg font-bold text-slate-900 focus:outline-none placeholder:text-slate-400 flex-1 font-sans"
-            />
+      {/* Hero Banner Card matching Screenshot 5 */}
+      <div className="relative rounded-2xl overflow-hidden shadow-xs min-h-[220px] flex items-center justify-between p-8 text-white">
+        {/* Warm Golden/Amber Sticky Notes blurred backdrop */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            backgroundImage: `radial-gradient(circle at 75% 50%, rgba(245, 158, 11, 0.45), transparent 70%),
+                              radial-gradient(circle at 20% 80%, rgba(180, 83, 9, 0.4), transparent 60%),
+                              linear-gradient(120deg, #1c1917 0%, #292524 50%, #78350f 100%)`
+          }}
+        >
+          <div className="absolute inset-0 bg-black/35 backdrop-blur-[2px]"></div>
+        </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
-                saveStatus === 'saving' 
-                  ? 'text-amber-700 bg-amber-50 border-amber-200' 
-                  : 'text-emerald-700 bg-emerald-50 border-emerald-200'
-              }`}>
-                {saveStatus === 'saving' ? 'Saving...' : 'Saved ✓'}
-              </span>
+        {/* Banner Left Content */}
+        <div className="relative z-10 max-w-md space-y-2">
+          <h2 className="text-[28px] font-serif-editorial font-normal tracking-wide text-white leading-tight">
+            For quick thoughts you want to come back to
+          </h2>
+          <p className="text-[13.5px] text-white/90 font-normal leading-relaxed">
+            Drop a to-do list, polish a message before you send it, brain dump an idea. Scratchpad is your safe space to save, create, and explore.
+          </p>
 
-              <button
-                onClick={handleCopy}
-                className="h-7 px-2 rounded text-xs bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors flex items-center gap-1 shadow-2xs"
-                title="Copy note content"
-              >
-                <span className="material-symbols-outlined text-[15px]">
-                  {copied ? 'check' : 'content_copy'}
-                </span>
-                <span>{copied ? 'Copied' : 'Copy'}</span>
-              </button>
-
-              <button
-                onClick={handleExportMarkdown}
-                className="h-7 px-2 rounded text-xs bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors flex items-center gap-1 shadow-2xs"
-                title="Export as Markdown (.md)"
-              >
-                <span className="material-symbols-outlined text-[15px] text-[#0284c7]">download</span>
-                <span>.md</span>
-              </button>
-
-              {notes.length > 1 && (
-                <button
-                  onClick={() => onDeleteNote(activeNote.id)}
-                  className="w-7 h-7 rounded flex items-center justify-center bg-white border border-slate-200 text-slate-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors shadow-2xs"
-                  title="Delete this note"
-                >
-                  <span className="material-symbols-outlined text-[15px]">delete</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Textarea Workspace */}
-          <textarea
-            value={content}
-            onChange={e => setContent(e.target.value)}
-            placeholder="Start typing or hold [Right Alt] to dictate seamlessly into this distraction-free workspace..."
-            className="flex-1 w-full bg-slate-50/60 border border-slate-200 rounded-lg p-4 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#0284c7] focus:bg-white focus:outline-none font-mono my-3 resize-none leading-relaxed select-text shadow-inner"
-          />
-
-          {/* Editor Footer Metrics */}
-          <div className="flex items-center justify-between text-xs text-slate-500 pt-1 font-mono">
-            <div className="flex items-center gap-3">
-              <span>{wordCount} words</span>
-              <span>•</span>
-              <span>{charCount} characters</span>
-            </div>
-            <div className="flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-              <span className="material-symbols-outlined text-[14px]">shield</span>
-              <span className="text-[11px] font-medium">Zero-Enter Protected Auto-Save</span>
-            </div>
+          <div className="pt-2">
+            <button
+              onClick={handleStartNewNote}
+              className="px-5 py-2.5 rounded-full bg-white text-[#1c1917] text-[13.5px] font-semibold hover:bg-[#f7f5f2] active:scale-98 transition-all shadow-xs"
+            >
+              Start new note
+            </button>
           </div>
         </div>
-      ) : (
-        <div className="flex-1 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-xs text-slate-400">
-          No note selected. Click "New" to create one.
+
+        {/* Mini Graphic Window Mockup matching Screenshot 5 */}
+        <div className="relative z-10 hidden md:block w-72 bg-white/95 text-[#1c1917] rounded-xl p-3.5 shadow-xl border border-white/20 text-xs backdrop-blur-md">
+          <div className="flex items-center justify-between border-b border-[#ede8e1] pb-2 mb-2 text-[#78716c]">
+            <div className="flex items-center gap-2">
+              <span>✕</span>
+              <span>Untitled</span>
+              <span>+</span>
+            </div>
+            <Maximize2 className="w-3 h-3" />
+          </div>
+          <p className="text-[11.5px] text-[#44403c] leading-relaxed line-clamp-4 font-normal">
+            The core principle is about agency and stakes. A progress bar says "you have a shrinking window to do something" — it puts the user in flow.
+          </p>
+        </div>
+      </div>
+
+      {/* Recents Section Header & Controls */}
+      <div className="space-y-4 pt-2">
+        <div className="flex items-center justify-between border-b border-[#ede8e1] pb-2">
+          <h3 className="text-base font-bold text-[#1c1917]">
+            Recents
+          </h3>
+
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search notes..."
+                className="pl-8 pr-3 py-1 text-xs rounded-lg bg-[#f7f5f2] border border-[#ede8e1] focus:outline-none focus:ring-1 focus:ring-[#1c1917] w-36 transition-all focus:w-48"
+              />
+              <Search className="w-3.5 h-3.5 text-[#a8a29e] absolute left-2.5 top-2" />
+            </div>
+
+            <button
+              onClick={handleStartNewNote}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-[#78716c] hover:text-[#1c1917] hover:bg-[#ede8e1] transition-colors"
+              title="Add note"
+            >
+              <Plus className="w-4 h-4 stroke-[2.2]" />
+            </button>
+
+            <button
+              onClick={() => setSearchQuery('')}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-[#78716c] hover:text-[#1c1917] hover:bg-[#ede8e1] transition-colors"
+              title="Refresh"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Notes Grid or Empty State */}
+        {filteredNotes.length === 0 ? (
+          <div className="py-20 text-center text-[#a8a29e] text-sm">
+            No notes found
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredNotes.map(note => (
+              <div
+                key={note.id}
+                onClick={() => handleOpenEdit(note)}
+                className="bg-[#f9f8f6] border border-[#ede8e1] rounded-2xl p-5 hover:border-[#d6cfc4] hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between min-h-[170px] group"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-[#1c1917] text-sm truncate">
+                      {note.title || 'Untitled Note'}
+                    </h4>
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        onDeleteNote(note.id);
+                      }}
+                      className="w-6 h-6 rounded-md opacity-0 group-hover:opacity-100 flex items-center justify-center text-[#78716c] hover:text-rose-600 hover:bg-rose-50 transition-all"
+                      title="Delete note"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-[#57534e] line-clamp-3 leading-relaxed">
+                    {note.content || 'Empty note. Click to start typing or dictating.'}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-[#a8a29e] pt-3 border-t border-[#ede8e1]">
+                  <span>{new Date(note.updatedAt || note.createdAt).toLocaleDateString()}</span>
+                  <span>{note.wordCount || 0} words</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Note Editor Drawer / Modal */}
+      {isEditingModalOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl border border-[#ede8e1] space-y-4">
+            <div className="flex items-center justify-between border-b border-[#ede8e1] pb-3">
+              <input
+                type="text"
+                value={editTitle}
+                onChange={e => setEditTitle(e.target.value)}
+                placeholder="Note Title"
+                className="text-lg font-bold text-[#1c1917] focus:outline-none w-full"
+              />
+              <button
+                onClick={() => setIsEditingModalOpen(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#78716c] hover:bg-[#ede8e1]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <textarea
+              value={editContent}
+              onChange={e => setEditContent(e.target.value)}
+              placeholder="Drop thoughts, paste links, or dictate with Flow..."
+              rows={12}
+              className="w-full text-sm leading-relaxed text-[#1c1917] focus:outline-none resize-none"
+            />
+
+            <div className="flex items-center justify-between pt-3 border-t border-[#ede8e1]">
+              <span className="text-xs text-[#78716c]">
+                {editContent.trim() ? editContent.trim().split(/\s+/).length : 0} words • {editContent.length} characters
+              </span>
+              <button
+                onClick={handleSaveModal}
+                className="px-5 py-2 rounded-xl bg-[#1c1917] text-white text-xs font-semibold hover:bg-black transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -5,10 +5,13 @@
     border-color: #e2e8f0;
   }
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
-    background-color: #f8fafc;
+    font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: #f4f6f8;
     color: #0f172a;
     -webkit-font-smoothing: antialiased;
+  }
+  .font-serif-editorial {
+    font-family: 'Instrument Serif', 'Newsreader', Georgia, serif;
   }
   code, pre, kbd {
     font-family: 'JetBrains Mono', 'Consolas', monospace;
@@ -39,18 +42,18 @@
   background: #94a3b8;
 }
 
-/* FLOW Obsidian-Amber Floating HUD Animations */
-@keyframes pulseAmberGlow {
+/* FLOW Floating HUD Animations */
+@keyframes pulseIrisGlow {
   0%, 100% {
-    box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.8), 0 0 18px 2px rgba(184, 115, 51, 0.25);
+    box-shadow: 0 16px 40px -6px rgba(15, 23, 42, 0.5), 0 0 20px 2px rgba(99, 102, 241, 0.35);
   }
   50% {
-    box-shadow: 0 16px 44px -4px rgba(0, 0, 0, 0.9), 0 0 32px 8px rgba(184, 115, 51, 0.55);
+    box-shadow: 0 20px 48px -6px rgba(15, 23, 42, 0.65), 0 0 32px 6px rgba(6, 182, 212, 0.55);
   }
 }
 
-.recording-amber-glow {
-  animation: pulseAmberGlow 2s infinite ease-in-out;
+.recording-hud-glow {
+  animation: pulseIrisGlow 2.2s infinite ease-in-out;
 }
 
 @keyframes spinSlow {

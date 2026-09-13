@@ -1,81 +1,113 @@
 import React from 'react';
 import { TabType } from '../types';
+import { 
+  Mic, 
+  Disc, 
+  BarChart2, 
+  BookOpen, 
+  Scissors, 
+  Type, 
+  Wand2, 
+  StickyNote, 
+  Users, 
+  Gift, 
+  Settings as SettingsIcon, 
+  HelpCircle 
+} from 'lucide-react';
 
 interface SidebarProps {
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
-  historyCount: number;
-  dictCount: number;
-  snippetCount: number;
+  onOpenInvite?: () => void;
+  onOpenFreeMonth?: () => void;
   onOpenHelp?: () => void;
+  onOpenInviteModal?: () => void;
+  onOpenFreeMonthModal?: () => void;
+  historyCount?: number;
+  dictCount?: number;
+  snippetCount?: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
-  historyCount,
-  dictCount,
-  snippetCount,
+  onOpenInvite,
+  onOpenFreeMonth,
   onOpenHelp,
+  onOpenInviteModal,
+  onOpenFreeMonthModal,
 }) => {
-  const mainNavItems: { id: TabType; label: string; icon: string; badge?: number }[] = [
-    { id: 'home', label: 'Home', icon: 'home' },
-    { id: 'history', label: 'History', icon: 'history', badge: historyCount },
-    { id: 'dictionary', label: 'Dictionary', icon: 'menu_book', badge: dictCount },
-    { id: 'snippets', label: 'Snippets', icon: 'data_object', badge: snippetCount },
-    { id: 'styles', label: 'Styles', icon: 'tune' },
-    { id: 'scratchpad', label: 'Scratchpad', icon: 'edit_note' },
-    { id: 'settings', label: 'Settings', icon: 'settings' },
+  const handleInvite = onOpenInviteModal || onOpenInvite;
+  const handleFreeMonth = onOpenFreeMonthModal || onOpenFreeMonth;
+  // Normalize tab for matching:
+  // 'home' maps to 'dictation', 'styles' maps to 'style'
+  const currentTab = activeTab === 'home' ? 'dictation' : activeTab === 'styles' ? 'style' : activeTab;
+
+  const navItems = [
+    { id: 'dictation' as TabType, label: 'Dictation', icon: Mic },
+    { id: 'notetaker' as TabType, label: 'Notetaker', icon: Disc, badge: 'New!' },
+    { id: 'insights' as TabType, label: 'Insights', icon: BarChart2 },
+    { id: 'dictionary' as TabType, label: 'Dictionary', icon: BookOpen },
+    { id: 'snippets' as TabType, label: 'Snippets', icon: Scissors },
+    { id: 'style' as TabType, label: 'Style', icon: Type },
+    { id: 'transforms' as TabType, label: 'Transforms', icon: Wand2 },
+    { id: 'scratchpad' as TabType, label: 'Scratchpad', icon: StickyNote },
   ];
 
   return (
     <aside 
       id="flow-sidebar" 
-      className="fixed left-0 top-8 bottom-0 w-60 bg-white border-r border-[#e2e8f0] z-40 flex flex-col justify-between py-3 px-2 select-none"
+      className="w-56 h-full flex flex-col justify-between py-5 px-3 select-none shrink-0 bg-[#f4f6f8] border-r border-[#e2e8f0]"
     >
-      {/* Top Brand Block */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2.5 px-3 py-1.5">
-          <div className="w-7 h-7 rounded-lg bg-[#0284c7] flex items-center justify-center shadow-xs text-white">
-            <span className="material-symbols-outlined text-[18px]">mic</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-base font-bold text-[#0f172a] leading-none tracking-tight">FLOW</span>
-            <div className="flex items-center gap-1.5 mt-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-              <span className="text-[11px] font-medium text-[#64748b]">Ready</span>
+      {/* Top Brand & Main Navigation */}
+      <div className="flex flex-col">
+        {/* Modern Original Sonic Wave Glyph */}
+        <div className="flex items-center gap-2.5 px-3 py-2 mb-4">
+          <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-[#4f46e5] to-[#06b6d4] flex items-center justify-center shadow-xs">
+            <div className="flex items-center gap-[2px] h-3.5">
+              <span className="w-[2px] h-2 bg-white rounded-full"></span>
+              <span className="w-[2px] h-3.5 bg-white rounded-full"></span>
+              <span className="w-[2px] h-2.5 bg-white rounded-full"></span>
+              <span className="w-[2px] h-3 bg-white rounded-full"></span>
             </div>
+          </div>
+          <div className="flex flex-col leading-none">
+            <span className="text-[18px] font-bold tracking-tight text-[#0f172a] font-sans">
+              Flow
+            </span>
+            <span className="text-[9.5px] font-bold tracking-wider uppercase text-[#6366f1]">
+              Voice Studio
+            </span>
           </div>
         </div>
 
         {/* Primary Navigation Rail */}
-        <nav className="flex flex-col gap-0.5 mt-2">
-          {mainNavItems.map(item => {
-            const isActive = activeTab === item.id;
+        <nav className="flex flex-col space-y-1">
+          {navItems.map(item => {
+            const Icon = item.icon;
+            const isActive = currentTab === item.id;
             return (
               <button
                 key={item.id}
                 id={`nav-${item.id}`}
                 onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors text-[13px] ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[14px] transition-all duration-150 ${
                   isActive
-                    ? 'bg-[#e0f2fe] text-[#0284c7] font-semibold border-l-2 border-[#0284c7]'
-                    : 'text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#0f172a] font-normal'
+                    ? 'bg-[#e2e8f0] text-[#0f172a] font-semibold shadow-2xs'
+                    : 'text-[#475569] hover:bg-[#e2e8f0]/60 hover:text-[#0f172a] font-normal'
                 }`}
               >
-                <div className="flex items-center gap-2.5">
-                  <span className={`material-symbols-outlined text-[18px] ${
-                    isActive ? 'text-[#0284c7]' : 'text-[#64748b]'
-                  }`}>
-                    {item.icon}
-                  </span>
+                <div className="flex items-center gap-3">
+                  <Icon 
+                    className={`w-[18px] h-[18px] stroke-[2.2] ${
+                      isActive ? 'text-[#4f46e5]' : 'text-[#64748b]'
+                    }`} 
+                  />
                   <span>{item.label}</span>
                 </div>
 
-                {typeof item.badge === 'number' && item.badge > 0 && (
-                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-medium ${
-                    isActive ? 'bg-[#0284c7] text-white' : 'bg-[#f1f5f9] text-[#64748b]'
-                  }`}>
+                {item.badge && (
+                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-[#6366f1] text-white shadow-2xs leading-none">
                     {item.badge}
                   </span>
                 )}
@@ -85,40 +117,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
       </div>
 
-      {/* Bottom Footer Section */}
-      <div className="flex flex-col gap-1 pt-2 border-t border-[#e2e8f0]">
-        <nav className="flex flex-col gap-0.5">
-          <button
-            id="nav-help"
-            onClick={() => {
-              if (onOpenHelp) onOpenHelp();
-              else setActiveTab('about');
-            }}
-            className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[13px] text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#0f172a] transition-colors"
-          >
-            <span className="material-symbols-outlined text-[18px] text-[#64748b]">help_outline</span>
-            <span>Help</span>
-          </button>
-          
-          <button
-            id="nav-about"
-            onClick={() => setActiveTab('about')}
-            className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[13px] transition-colors ${
-              activeTab === 'about'
-                ? 'bg-[#e0f2fe] text-[#0284c7] font-semibold'
-                : 'text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#0f172a]'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[18px]">info</span>
-            <span>About</span>
-          </button>
-        </nav>
+      {/* Bottom Footer Navigation */}
+      <div className="flex flex-col space-y-1 pt-4 border-t border-[#e2e8f0]">
+        <button
+          id="nav-invite-team"
+          onClick={handleInvite}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13.5px] text-[#475569] hover:bg-[#e2e8f0]/60 hover:text-[#0f172a] transition-colors"
+        >
+          <Users className="w-[17px] h-[17px] text-[#64748b] stroke-[2]" />
+          <span>Invite your team</span>
+        </button>
 
-        <div className="px-3 pt-2">
-          <p className="text-[11px] text-[#94a3b8] truncate font-medium">
-            v1.2.0 • Offline/Local Engine
-          </p>
-        </div>
+        <button
+          id="nav-free-month"
+          onClick={handleFreeMonth}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13.5px] text-[#475569] hover:bg-[#e2e8f0]/60 hover:text-[#0f172a] transition-colors"
+        >
+          <Gift className="w-[17px] h-[17px] text-[#64748b] stroke-[2]" />
+          <span>Get a free month</span>
+        </button>
+
+        <button
+          id="nav-settings"
+          onClick={() => setActiveTab('settings')}
+          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[13.5px] transition-colors ${
+            currentTab === 'settings'
+              ? 'bg-[#e2e8f0] text-[#0f172a] font-semibold'
+              : 'text-[#475569] hover:bg-[#e2e8f0]/60 hover:text-[#0f172a]'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <SettingsIcon className="w-[17px] h-[17px] text-[#64748b] stroke-[2]" />
+            <span>Settings</span>
+          </div>
+          <span className="w-4.5 h-4.5 rounded-full bg-[#4f46e5] text-white text-[10px] font-bold flex items-center justify-center">
+            1
+          </span>
+        </button>
+
+        <button
+          id="nav-help"
+          onClick={() => {
+            if (onOpenHelp) onOpenHelp();
+            else setActiveTab('about');
+          }}
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13.5px] transition-colors ${
+            currentTab === 'about'
+              ? 'bg-[#e2e8f0] text-[#0f172a] font-semibold'
+              : 'text-[#475569] hover:bg-[#e2e8f0]/60 hover:text-[#0f172a]'
+          }`}
+        >
+          <HelpCircle className="w-[17px] h-[17px] text-[#64748b] stroke-[2]" />
+          <span>Help</span>
+        </button>
       </div>
     </aside>
   );

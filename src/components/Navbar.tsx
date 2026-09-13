@@ -1,132 +1,91 @@
 import React from 'react';
-import { SessionState } from '../types';
+import { PanelLeft, User, Bell, Minus, Square, X } from 'lucide-react';
 
 interface NavbarProps {
-  sessionState: SessionState;
-  showFloatingHud: boolean;
-  setShowFloatingHud: (show: boolean) => void;
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
   onMinimizeToTray: () => void;
-  zeroEnterActive: boolean;
-  onOpenShortcutSettings?: () => void;
+  onOpenNotifications?: () => void;
+  onOpenProfile?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  sessionState,
-  showFloatingHud,
-  setShowFloatingHud,
+  sidebarOpen,
+  onToggleSidebar,
   onMinimizeToTray,
-  zeroEnterActive,
-  onOpenShortcutSettings,
+  onOpenNotifications,
+  onOpenProfile,
 }) => {
   return (
-    <>
-      {/* 1. Top Windows 11 Native Titlebar (Fixed 32px height) */}
-      <div 
-        id="windows-titlebar"
-        className="fixed top-0 left-0 right-0 h-8 bg-white/95 backdrop-blur-md z-50 flex items-center justify-between pl-4 pr-0 border-b border-[#e2e8f0] select-none text-[#0f172a]"
-      >
-        {/* Left branding & status */}
-        <div className="flex items-center gap-2 h-full flex-1">
-          <div className="w-4 h-4 rounded-sm bg-[#0284c7] flex items-center justify-center shadow-xs">
-            <span className="material-symbols-outlined text-white text-[12px]">graphic_eq</span>
-          </div>
-          <span className="font-semibold text-[11px] tracking-wider uppercase text-[#0f172a]">FLOW</span>
-          <div className="h-3 w-[1px] bg-[#e2e8f0] mx-1"></div>
-          
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#f1f5f9] border border-[#e2e8f0]">
-            <div className={`w-1.5 h-1.5 rounded-full ${
-              sessionState === 'listening' ? 'bg-[#ef4444] animate-ping' :
-              sessionState === 'processing' ? 'bg-[#0284c7] animate-spin' :
-              'bg-[#0284c7] animate-pulse'
-            }`}></div>
-            <span className="text-[10px] font-medium text-[#64748b]">
-              {sessionState === 'listening' ? 'Recording Audio' :
-               sessionState === 'processing' ? 'Whisper Inference' :
-               'Local Engine'}
-            </span>
-          </div>
+    <header 
+      id="flow-window-chrome"
+      className="w-full h-11 bg-[#f4f6f8] flex items-center justify-between px-3 select-none shrink-0 border-b border-[#e2e8f0]"
+    >
+      {/* Left controls: Sidebar toggle & User Avatar */}
+      <div className="flex items-center gap-2">
+        <button
+          id="btn-toggle-sidebar"
+          onClick={onToggleSidebar}
+          aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-[#64748b] hover:bg-[#e2e8f0] hover:text-[#0f172a] transition-colors"
+          title="Toggle sidebar"
+        >
+          <PanelLeft className="w-[18px] h-[18px] stroke-[2]" />
+        </button>
 
-          {zeroEnterActive && (
-            <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#e0f2fe] border border-[#bae6fd] text-[#0369a1] text-[10px] font-medium">
-              <span className="material-symbols-outlined text-[11px]">shield</span>
-              <span>Zero-Enter Safety</span>
-            </div>
-          )}
-        </div>
-
-        {/* Right Windows Control Buttons (Minimize, Maximize, Close) */}
-        <div className="flex items-center h-full">
-          <button 
-            id="btn-win-minimize"
-            aria-label="Minimize" 
-            onClick={onMinimizeToTray}
-            className="w-11 h-8 flex items-center justify-center text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#0f172a] transition-colors"
-            title="Minimize to system tray"
-          >
-            <span className="material-symbols-outlined text-[14px]">remove</span>
-          </button>
-          <button 
-            id="btn-win-maximize"
-            aria-label="Maximize" 
-            className="w-11 h-8 flex items-center justify-center text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#0f172a] transition-colors"
-            title="Toggle window maximize"
-          >
-            <span className="material-symbols-outlined text-[12px]">check_box_outline_blank</span>
-          </button>
-          <button 
-            id="btn-win-close"
-            aria-label="Close" 
-            onClick={onMinimizeToTray}
-            className="w-11 h-8 flex items-center justify-center text-[#64748b] hover:bg-[#fee2e2] hover:text-[#ef4444] transition-colors"
-            title="Close application"
-          >
-            <span className="material-symbols-outlined text-[14px]">close</span>
-          </button>
-        </div>
+        <button
+          id="btn-user-avatar"
+          onClick={onOpenProfile}
+          className="w-7 h-7 rounded-full bg-[#e2e8f0] border border-[#cbd5e1] flex items-center justify-center text-[#475569] hover:ring-2 hover:ring-[#4f46e5]/20 transition-all overflow-hidden"
+          title="User profile: Barathwaj"
+        >
+          <User className="w-[15px] h-[15px] stroke-[2]" />
+        </button>
       </div>
 
-      {/* 2. Sub-Header Toolbar (Fixed top-8 left-60 right-0 h-14) */}
-      <header 
-        id="app-sub-header"
-        className="fixed top-8 left-60 right-0 h-14 bg-white/80 backdrop-blur-xl z-40 flex items-center justify-between px-5 border-b border-[#e2e8f0] shadow-xs select-none"
-      >
-        <div className="flex items-center gap-3">
-          <button
-            id="btn-toggle-floating-hud"
-            onClick={() => setShowFloatingHud(!showFloatingHud)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-all ${
-              showFloatingHud
-                ? 'bg-[#e0f2fe] border-[#bae6fd] text-[#0284c7]'
-                : 'bg-white border-[#e2e8f0] text-[#64748b] hover:bg-[#f8fafc] hover:text-[#0f172a]'
-            }`}
-            title="Toggle persistent floating acrylic HUD"
-          >
-            <span className="material-symbols-outlined text-[15px]">picture_in_picture_alt</span>
-            <span>Floating HUD {showFloatingHud ? 'Active' : 'Hidden'}</span>
-          </button>
-        </div>
+      {/* Right controls: Bell notification & Windows controls */}
+      <div className="flex items-center gap-1">
+        <button
+          id="btn-notifications"
+          onClick={onOpenNotifications}
+          aria-label="Notifications"
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-[#64748b] hover:bg-[#e2e8f0] hover:text-[#0f172a] transition-colors relative"
+          title="Notifications"
+        >
+          <Bell className="w-[17px] h-[17px] stroke-[2]" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#4f46e5]" />
+        </button>
 
-        <div className="flex items-center gap-3">
-          {/* Global Hotkey Pill */}
-          <button 
-            onClick={onOpenShortcutSettings}
-            className="flex items-center gap-2 px-2.5 py-1 rounded bg-[#f8fafc] border border-[#e2e8f0] text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#0f172a] transition-colors"
-            title="Global Shortcuts: Hold Alt + Space or Press Alt + B"
-          >
-            <kbd className="font-mono text-xs text-[#0284c7] font-semibold">Alt + Space</kbd>
-            <span className="text-slate-300">•</span>
-            <kbd className="font-mono text-xs text-slate-700 font-semibold">Alt + B</kbd>
-          </button>
+        {/* Standard Windows Controls */}
+        <button
+          id="btn-win-minimize"
+          onClick={onMinimizeToTray}
+          aria-label="Minimize"
+          className="w-9 h-8 flex items-center justify-center text-[#64748b] hover:bg-[#e2e8f0] hover:text-[#0f172a] transition-colors"
+          title="Minimize"
+        >
+          <Minus className="w-[15px] h-[15px] stroke-[2]" />
+        </button>
 
-          {/* User Profile Avatar */}
-          <div 
-            className="w-8 h-8 rounded-full bg-[#e0f2fe] border border-[#bae6fd] flex items-center justify-center text-[#0284c7] shadow-xs cursor-pointer hover:bg-[#bae6fd] transition-colors"
-            title="Barathwaj (Local Profile)"
-          >
-            <span className="material-symbols-outlined text-[18px]">person</span>
-          </div>
-        </div>
-      </header>
-    </>
+        <button
+          id="btn-win-maximize"
+          aria-label="Maximize"
+          className="w-9 h-8 flex items-center justify-center text-[#64748b] hover:bg-[#e2e8f0] hover:text-[#0f172a] transition-colors"
+          title="Maximize"
+        >
+          <Square className="w-[13px] h-[13px] stroke-[2]" />
+        </button>
+
+        <button
+          id="btn-win-close"
+          onClick={onMinimizeToTray}
+          aria-label="Close"
+          className="w-9 h-8 flex items-center justify-center text-[#64748b] hover:bg-rose-100 hover:text-rose-600 transition-colors"
+          title="Close"
+        >
+          <X className="w-[15px] h-[15px] stroke-[2]" />
+        </button>
+      </div>
+    </header>
   );
 };
