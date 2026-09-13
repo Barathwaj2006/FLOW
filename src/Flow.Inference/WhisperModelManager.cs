@@ -254,7 +254,10 @@ public sealed class WhisperModelManager
     {
         if (string.IsNullOrWhiteSpace(language) || string.Equals(language, "en", StringComparison.OrdinalIgnoreCase))
         {
-            // If multilingual model is already installed, it works for English too
+            if (IsModelInstalledAndValid(WhisperModelProfile.TinyEn))
+            {
+                return GetModelPath(WhisperModelProfile.TinyEn);
+            }
             if (IsModelInstalledAndValid(WhisperModelProfile.TinyMultilingual))
             {
                 return GetModelPath(WhisperModelProfile.TinyMultilingual);

@@ -321,7 +321,7 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
                                         <TextBlock Text="System-Wide Voice Dictation" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC"/>
-                                        <TextBlock Text="Hold Alt+Space (or Right Alt) to speak into any application. Release to insert formatted text." Foreground="#94A3B8" Margin="0,4,0,12"/>
+                                        <TextBlock Text="Hold Alt+Space to speak into any application. Release to insert formatted text." Foreground="#94A3B8" Margin="0,4,0,12"/>
                                         <WrapPanel>
                                             <Border Background="#121A2D" BorderBrush="#1F2C46" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,6">
                                                 <TextBlock Text="Push-to-Talk: Hold [Alt + Space]" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12"/>
@@ -330,10 +330,7 @@
                                                 <TextBlock Text="Hands-Free: [Alt + B]" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12"/>
                                             </Border>
                                             <Border Background="#121A2D" BorderBrush="#1F2C46" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,6">
-                                                <TextBlock Text="Alternative: Hold [Right Alt]" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12"/>
-                                            </Border>
-                                            <Border Background="#121A2D" BorderBrush="#1F2C46" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,6">
-                                                <TextBlock Text="Backtrack: [Shift + Right Alt]" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12"/>
+                                                <TextBlock Text="Floating HUD: Click to Dictate" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12"/>
                                             </Border>
                                         </WrapPanel>
                                     </StackPanel>
@@ -849,7 +846,7 @@
                             <Border Style="{StaticResource CardBorderStyle}">
                                 <StackPanel>
                                     <TextBlock Text="Dictation &amp; Shortcuts" FontSize="16" FontWeight="Bold" Foreground="#F8FAFC" Margin="0,0,0,4"/>
-                                    <TextBlock Text="Configure hotkeys and text formatting behavior." Foreground="#94A3B8" Margin="0,0,0,14"/>
+                                    <TextBlock Text="Primary system-wide controls for voice dictation." Foreground="#94A3B8" Margin="0,0,0,14"/>
 
                                     <Grid Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
@@ -857,8 +854,50 @@
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
-                                            <TextBlock Text="Push-to-Talk Shortcut" Foreground="#F8FAFC" FontWeight="SemiBold"/>
-                                            <TextBlock Text="Hold to record, release to insert" Foreground="#94A3B8" FontSize="12"/>
+                                            <TextBlock Text="Hold-to-Talk (Primary)" Foreground="#F8FAFC" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Hold shortcut to speak, release to insert text" Foreground="#94A3B8" FontSize="12"/>
+                                        </StackPanel>
+                                        <Border Grid.Column="1" Background="#1E293B" CornerRadius="4" Padding="12,6">
+                                            <TextBlock Text="Alt + Space" Foreground="#38BDF8" FontWeight="Bold"/>
+                                        </Border>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Hands-Free Toggle (Primary)" Foreground="#F8FAFC" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Press once to start dictation, press again to conclude" Foreground="#94A3B8" FontSize="12"/>
+                                        </StackPanel>
+                                        <Border Grid.Column="1" Background="#1E293B" CornerRadius="4" Padding="12,6">
+                                            <TextBlock Text="Alt + B" Foreground="#38BDF8" FontWeight="Bold"/>
+                                        </Border>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Floating HUD Control" Foreground="#F8FAFC" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Click the floating waveform bar without stealing target focus" Foreground="#94A3B8" FontSize="12"/>
+                                        </StackPanel>
+                                        <Border Grid.Column="1" Background="#1E293B" CornerRadius="4" Padding="12,6">
+                                            <TextBlock Text="Click Bar" Foreground="#38BDF8" FontWeight="Bold"/>
+                                        </Border>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Alternative Hotkey (Optional)" Foreground="#F8FAFC" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Configurable secondary push-to-talk key" Foreground="#94A3B8" FontSize="12"/>
                                         </StackPanel>
                                         <ComboBox x:Name="ComboHotkey" Grid.Column="1" Width="180" Height="32" Background="#0E1422" Foreground="#38BDF8" FontWeight="Bold" BorderBrush="#233050" SelectionChanged="ComboHotkey_SelectionChanged">
                                             <ComboBoxItem Content="Right Alt (Default)" Tag="165"/>
@@ -868,34 +907,6 @@
                                             <ComboBoxItem Content="F10" Tag="121"/>
                                             <ComboBoxItem Content="Scroll Lock" Tag="145"/>
                                         </ComboBox>
-                                    </Grid>
-
-                                    <Grid Margin="0,0,0,8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel>
-                                            <TextBlock Text="Hands-Free Dictation" Foreground="#F8FAFC" FontWeight="SemiBold"/>
-                                            <TextBlock Text="Double-tap chosen shortcut to toggle recording on/off" Foreground="#94A3B8" FontSize="12"/>
-                                        </StackPanel>
-                                        <Border Grid.Column="1" Background="#1E293B" CornerRadius="4" Padding="10,4">
-                                            <TextBlock x:Name="TxtHandsFreeShortcutDesc" Text="Double-Tap Shortcut" Foreground="#38BDF8" FontWeight="Bold"/>
-                                        </Border>
-                                    </Grid>
-
-                                    <Grid Margin="0,0,0,8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel>
-                                            <TextBlock Text="Backtrack Correction" Foreground="#F8FAFC" FontWeight="SemiBold"/>
-                                            <TextBlock Text="Revert last inserted dictation" Foreground="#94A3B8" FontSize="12"/>
-                                        </StackPanel>
-                                        <Border Grid.Column="1" Background="#1E293B" CornerRadius="4" Padding="10,4">
-                                            <TextBlock Text="Shift + Shortcut" Foreground="#38BDF8" FontWeight="Bold"/>
-                                        </Border>
                                     </Grid>
                                 </StackPanel>
                             </Border>

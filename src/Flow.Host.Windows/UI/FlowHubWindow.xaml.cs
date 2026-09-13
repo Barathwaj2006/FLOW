@@ -1095,7 +1095,6 @@ public partial class FlowHubWindow : Window
             };
             if (ComboHotkey != null) ComboHotkey.SelectedIndex = hotkeyIndex;
             _hotkeyHook?.UpdateTargetKey(_currentSettings.HotkeyVk);
-            UpdateHotkeyDisplay(_currentSettings.HotkeyVk);
 
             // 4. Theme
             if (ComboTheme != null) ComboTheme.SelectedIndex = string.Equals(_currentSettings.Theme, "Light", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
@@ -1108,23 +1107,6 @@ public partial class FlowHubWindow : Window
         finally
         {
             _isSettingsLoading = false;
-        }
-    }
-
-    private void UpdateHotkeyDisplay(int vk)
-    {
-        string name = vk switch
-        {
-            163 => "Right Ctrl",
-            119 => "F8",
-            120 => "F9",
-            121 => "F10",
-            145 => "Scroll Lock",
-            _ => "Right Alt"
-        };
-        if (TxtHandsFreeShortcutDesc != null)
-        {
-            TxtHandsFreeShortcutDesc.Text = $"Double-Tap {name}";
         }
     }
 
@@ -1173,7 +1155,6 @@ public partial class FlowHubWindow : Window
             int.TryParse(item.Tag as string, out int vk))
         {
             _hotkeyHook?.UpdateTargetKey(vk);
-            UpdateHotkeyDisplay(vk);
 
             _currentSettings = _currentSettings with { HotkeyVk = vk };
             _ = _settingsRepo?.SaveSettingsAsync(_currentSettings);
