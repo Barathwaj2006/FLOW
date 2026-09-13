@@ -122,6 +122,101 @@ public class Phase8ProductClosureHistoryWindowTests : IDisposable
     }
 
     [Fact]
+    public void HistoryInHub_Loaded_WithHistoryService_DoesNotCauseRecursiveStackOverflow()
+    {
+        RunOnSta(() =>
+        {
+            _repository.InsertAsync(new DictationEntry(
+                Id: "test_rec_001",
+                SessionId: Guid.NewGuid(),
+                CreatedAt: DateTimeOffset.UtcNow,
+                DurationMs: 3000,
+                CharacterCount: 15,
+                WordCount: 3,
+                Language: "en-US",
+                Application: "notepad.exe",
+                ApplicationCategory: "Editor",
+                Mode: "Dictation",
+                State: HistoryState.Completed,
+                Text: "Test note one"
+            )).GetAwaiter().GetResult();
+
+            _repository.InsertAsync(new DictationEntry(
+                Id: "test_rec_002",
+                SessionId: Guid.NewGuid(),
+                CreatedAt: DateTimeOffset.UtcNow,
+                DurationMs: 4000,
+                CharacterCount: 20,
+                WordCount: 4,
+                Language: "en-US",
+                Application: "code.exe",
+                ApplicationCategory: "Editor",
+                Mode: "Dictation",
+                State: HistoryState.Completed,
+                Text: "Test note two"
+            )).GetAwaiter().GetResult();
+
+            var window = new Flow.Host.Windows.UI.FlowHubWindow(null, null, null, _historyService, null);
+            Assert.NotNull(window);
+
+            // Directly invoke LoadHistoryAsync(0) via reflection
+            var loadHistoryMethod = typeof(Flow.Host.Windows.UI.FlowHubWindow).GetMethod("LoadHistoryAsync", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.NotNull(loadHistoryMethod);
+
+            var task = (Task)loadHistoryMethod.Invoke(window, new object[] { 0 })!;
+            task.GetAwaiter().GetResult();
+
+            // Verify filter was populated with "All Applications", "code.exe", "notepad.exe"
+            Assert.Equal(3, window.ComboHistoryAppFilter.Items.Count);
+            Assert.Equal("All Applications", window.ComboHistoryAppFilter.Items[0]);
+            Assert.Equal(0, window.ComboHistoryAppFilter.SelectedIndex);
+
+            // Selection change must not trigger recursive re-entrancy / stack overflow
+            window.ComboHistoryAppFilter.SelectedIndex = 1;
+
+            var frame = new System.Windows.Threading.DispatcherFrame();
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
+                System.Windows.Threading.DispatcherPriority.Background,
+                new Action(() => frame.Continue = false));
+            System.Windows.Threading.Dispatcher.PushFrame(frame);
+
+            // Re-invoke LoadHistoryAsync(0) to verify filter is not redundantly re-populated
+            var task2 = (Task)loadHistoryMethod.Invoke(window, new object[] { 0 })!;
+            task2.GetAwaiter().GetResult();
+
+            Assert.Equal(3, window.ComboHistoryAppFilter.Items.Count);
+
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public void HistoryInHub_WindowLoadedLifecycle_CompletesWithoutStackOverflow()
+    {
+        RunOnSta(() =>
+        {
+            var window = new Flow.Host.Windows.UI.FlowHubWindow(null, null, null, _historyService, null);
+            Assert.NotNull(window);
+
+            var loadedMethod = typeof(Flow.Host.Windows.UI.FlowHubWindow).GetMethod("FlowHubWindow_Loaded", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.NotNull(loadedMethod);
+
+            // Invoke window loaded event handler
+            loadedMethod.Invoke(window, new object[] { window, new RoutedEventArgs() });
+
+            // Allow async continuations posted to the dispatcher to finish
+            var frame = new System.Windows.Threading.DispatcherFrame();
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
+                System.Windows.Threading.DispatcherPriority.Background,
+                new Action(() => frame.Continue = false));
+            System.Windows.Threading.Dispatcher.PushFrame(frame);
+
+            Assert.Equal("FLOW Active & Ready", window.StatusBadgeText.Text);
+            window.Close();
+        });
+    }
+
+    [Fact]
     public async Task HistoryViewModel_Paging_FtsSearch_And_AppFilter()
     {
         // 1. Seed 12 distinct dictation records

@@ -2,7 +2,11 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Threading;
-using System.Threading.Tasks;
+using Flow.Core.History;
+using Flow.Core.Scratchpad;
+using Flow.Core.Personalization.Dictionary;
+using Flow.Core.Personalization.Snippets;
+using Flow.Core.Personalization.Styles;
 using Flow.Core.ASR;
 using Flow.Core.Audio;
 using Flow.Core.Commands;
@@ -400,5 +404,32 @@ public class ProductCompletionLifecycleTests
         {
             throw new TargetInvocationException(exCaught);
         }
+    }
+
+    [Fact]
+    public async Task RealDatabase_FullHubServicesLoad_DoesNotCrash()
+    {
+        string realDb = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FLOW", "flow_personalization.db");
+        var db = new SqlitePersonalizationDatabase(realDb);
+        var histRepo = new SqliteHistoryRepository(db);
+        var privacy = new HistoryPrivacyService();
+        var ret = new HistoryRetentionService(histRepo);
+        var stats = new ProductivityStatisticsService(histRepo);
+        var exp = new HistoryExportService(histRepo);
+        var histService = new HistoryService(histRepo, histRepo, stats, ret, exp, privacy);
+
+        var scratchRepo = new SqliteScratchpadRepository(db);
+        var scratchExp = new ScratchpadExportService();
+        var scratchService = new ScratchpadService(scratchRepo, scratchRepo, scratchExp);
+
+        var s = await histService.Statistics.GetStatisticsAsync(TimeRangeWindow.Today);
+        var streak = await histService.Statistics.GetDailyStreakAsync();
+        var histPage = await histService.Repository.GetPagedAsync(new HistoryFilter(IncludeDeleted: false), 0, 5);
+        var scratchPage = await scratchService.Repository.GetPagedAsync(new ScratchpadFilter(), 0, 50);
+
+        Assert.NotNull(s);
+        Assert.NotNull(streak);
+        Assert.NotNull(histPage);
+        Assert.NotNull(scratchPage);
     }
 }

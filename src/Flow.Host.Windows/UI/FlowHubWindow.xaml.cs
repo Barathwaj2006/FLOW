@@ -82,6 +82,8 @@ public partial class FlowHubWindow : Window
     private int _historyCurrentPage = 0;
     private int _historyTotalPages = 1;
     private bool _historyFavoritesOnly = false;
+    private bool _isPopulatingHistoryFilter = false;
+    private bool _historyFilterInitialized = false;
     private string? _activeScratchpadId;
     private DispatcherTimer? _scratchpadAutosaveTimer;
     private bool _isScratchpadDirty = false;
@@ -355,18 +357,27 @@ public partial class FlowHubWindow : Window
             BtnHistoryPrevPage.IsEnabled = _historyCurrentPage > 0;
             BtnHistoryNextPage.IsEnabled = _historyCurrentPage < _historyTotalPages - 1;
 
-            // Populate applications filter if empty
-            if (ComboHistoryAppFilter.Items.Count <= 1)
+            // Populate applications filter once on initial load
+            if (ComboHistoryAppFilter != null && !_historyFilterInitialized && !_isPopulatingHistoryFilter)
             {
-                ComboHistoryAppFilter.Items.Clear();
-                ComboHistoryAppFilter.Items.Add("All Applications");
-                var allEntries = await _historyService.Repository.GetAllForExportAsync(null);
-                var apps = allEntries.Select(e => e.Application).Where(a => !string.IsNullOrWhiteSpace(a)).Distinct().OrderBy(a => a);
-                foreach (var a in apps)
+                _isPopulatingHistoryFilter = true;
+                _historyFilterInitialized = true;
+                try
                 {
-                    ComboHistoryAppFilter.Items.Add(a);
+                    ComboHistoryAppFilter.Items.Clear();
+                    ComboHistoryAppFilter.Items.Add("All Applications");
+                    var allEntries = await _historyService.Repository.GetAllForExportAsync(null);
+                    var apps = allEntries.Select(e => e.Application).Where(a => !string.IsNullOrWhiteSpace(a)).Distinct().OrderBy(a => a);
+                    foreach (var a in apps)
+                    {
+                        ComboHistoryAppFilter.Items.Add(a);
+                    }
+                    ComboHistoryAppFilter.SelectedIndex = 0;
                 }
-                ComboHistoryAppFilter.SelectedIndex = 0;
+                finally
+                {
+                    _isPopulatingHistoryFilter = false;
+                }
             }
         }
         catch
@@ -382,6 +393,7 @@ public partial class FlowHubWindow : Window
 
     private async void ComboHistoryAppFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_isPopulatingHistoryFilter) return;
         await LoadHistoryAsync(0);
     }
 
@@ -938,6 +950,7 @@ public partial class FlowHubWindow : Window
         if (result == MessageBoxResult.Yes)
         {
             await _historyService.Repository.DeleteAllAsync(confirm: true);
+            _historyFilterInitialized = false;
             await LoadHistoryAsync(0);
             await LoadHomeDataAsync();
             MessageBox.Show(this, "Local dictation history cleared.", "FLOW Privacy", MessageBoxButton.OK, MessageBoxImage.Information);
