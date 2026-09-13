@@ -129,7 +129,7 @@ public partial class HistoryWindow : Window
 
     #region Search & Filtering Handlers
 
-    private void SearchTextBox_KeyDown(object sender, KeyEventArgs e)
+    private void SearchTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         SearchPlaceholder.Visibility = string.IsNullOrEmpty(SearchTextBox.Text)
             ? Visibility.Visible
