@@ -396,8 +396,8 @@ public static class Program
             logger.LogInformation("Text inserted successfully into target cursor position. Length: {Length}. [Zero-Enter: VK_RETURN=0, CR=0, LF=0]", text.Length);
         };
 
-        // Start keyboard hook
-        _hotkeyHook.Start();
+        // Install keyboard hook in disarmed state
+        _hotkeyHook.Start(autoArm: false);
 
         // Asynchronously pre-warm local model weights in background
         _ = Task.Run(async () =>
@@ -426,6 +426,22 @@ public static class Program
         {
             FlowHubWindowManager.ShowWindow(_coordinator, _capture, deviceManager, historyService, scratchpadService, targetTab: 0);
         }
+
+        // 7. Verify Inviolable Startup Invariant: State MUST be Idle, Hands-Free OFF, Recording FALSE
+        if (_coordinator.CurrentState != SessionState.Idle)
+        {
+            logger.LogError("FATAL INVARIANT VIOLATION: Coordinator started in state {State}. Forcing Idle reset.", _coordinator.CurrentState);
+            _coordinator.CancelSessionAsync("Startup state correction").GetAwaiter().GetResult();
+        }
+
+        if (_capture.IsCapturing)
+        {
+            logger.LogError("FATAL INVARIANT VIOLATION: Microphone capture was active at startup. Forcing Stop.");
+            _capture.Stop();
+        }
+
+        // Arm keyboard hook only after UI is presented and all subsystems are verified idle
+        _hotkeyHook.Arm();
 
         logger.LogInformation("FLOW Voice Core initialized and listening. Push-to-talk: Hold [Right Alt]. Hands-free: Double-tap [Right Alt]. Command Mode: [Ctrl + Right Alt]. Backtrack: [Shift + Right Alt]. Cancel: [Esc].");
 

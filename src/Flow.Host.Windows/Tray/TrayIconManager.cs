@@ -131,6 +131,9 @@ public sealed class TrayIconManager : IDisposable
                 case CMD_EXIT:
                     ExitRequested?.Invoke();
                     break;
+                default:
+                    // User dismissed context menu without selection (return 0) -> safe no-op
+                    break;
             }
         }
         finally

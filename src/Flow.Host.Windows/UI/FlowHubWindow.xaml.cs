@@ -49,6 +49,10 @@ public partial class FlowHubWindow : Window
 
     private void FlowHubWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        // Enforce strict landing on Dashboard (index 0)
+        if (NavListBox != null) NavListBox.SelectedIndex = 0;
+        if (MainTabControl != null) MainTabControl.SelectedIndex = 0;
+
         PopulateAudioDevices();
 
         if (_coordinator != null)
@@ -137,26 +141,37 @@ public partial class FlowHubWindow : Window
 
     private void UpdateStatusBadge()
     {
-        if (_coordinator == null) return;
+        if (_coordinator == null)
+        {
+            StatusBadgeText.Text = "FLOW Active & Ready";
+            BtnToggleDictation.Content = "Toggle Dictation";
+            return;
+        }
 
         if (_coordinator.CurrentState == SessionState.Recording)
         {
             StatusBadgeText.Text = "Recording Audio...";
+            BtnToggleDictation.Content = "Stop Dictation";
         }
         else if (_coordinator.CurrentState == SessionState.Processing)
         {
             StatusBadgeText.Text = "Transcribing Locally...";
+            BtnToggleDictation.Content = "Toggle Dictation";
         }
         else
         {
             StatusBadgeText.Text = "FLOW Active & Ready";
+            BtnToggleDictation.Content = "Toggle Dictation";
         }
     }
 
     private void NavListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (MainTabControl == null || NavListBox == null) return;
-        MainTabControl.SelectedIndex = NavListBox.SelectedIndex;
+        if (NavListBox.SelectedIndex >= 0 && NavListBox.SelectedIndex < MainTabControl.Items.Count)
+        {
+            MainTabControl.SelectedIndex = NavListBox.SelectedIndex;
+        }
     }
 
     private void BtnToggleDictation_Click(object sender, RoutedEventArgs e)

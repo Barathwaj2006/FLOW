@@ -17,5 +17,6 @@
     <ProjectReference Include="..\Flow.Inference\Flow.Inference.csproj" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.2" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.2" />
+    <InternalsVisibleTo Include="Flow.Windows.Tests" />
   </ItemGroup>
 </Project>

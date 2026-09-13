@@ -62,6 +62,7 @@ public static class FlowHubWindowManager
                         if (targetTab >= 0 && targetTab < s_window.NavListBox.Items.Count)
                         {
                             s_window.NavListBox.SelectedIndex = targetTab;
+                            s_window.MainTabControl.SelectedIndex = targetTab;
                         }
                         s_window.Activate();
                         s_window.Focus();
@@ -96,6 +97,7 @@ public static class FlowHubWindowManager
                 if (targetTab >= 0 && targetTab < s_window.NavListBox.Items.Count)
                 {
                     s_window.NavListBox.SelectedIndex = targetTab;
+                    s_window.MainTabControl.SelectedIndex = targetTab;
                 }
 
                 s_window.Show();
