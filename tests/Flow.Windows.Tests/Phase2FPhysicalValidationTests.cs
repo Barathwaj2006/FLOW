@@ -233,22 +233,24 @@ public class Phase2FPhysicalValidationTests
     {
         using var hud = new FloatingHudController();
 
-        // 1. Listening
+        // 1. Enter Command Mode Listening
         hud.UpdateState(SessionState.Recording, isCommandMode: true);
         Assert.True(hud.IsCommandMode);
-        Assert.Equal("Listening...", hud.StatusText);
-        _output.WriteLine($"[WF-037B] Recording HUD: {hud.StatusText}");
+        Assert.Contains("🪄", hud.StatusText);
+        Assert.Contains("Command", hud.StatusText);
+        _output.WriteLine($"[WF-037B] Command Recording HUD: {hud.StatusText}");
 
-        // 2. Processing state
+        // 2. Transforming state
         hud.UpdateState(SessionState.Processing, isCommandMode: true);
         Assert.True(hud.IsCommandMode);
-        Assert.Equal("Transcribing...", hud.StatusText);
-        _output.WriteLine($"[WF-037B] Processing HUD: {hud.StatusText}");
+        Assert.Contains("🪄", hud.StatusText);
+        Assert.Contains("Transforming", hud.StatusText);
+        _output.WriteLine($"[WF-037B] Command Processing HUD: {hud.StatusText}");
 
         // 3. Completed state
         hud.UpdateState(SessionState.Completed, isCommandMode: true);
-        Assert.Equal("Done", hud.StatusText);
-        _output.WriteLine($"[WF-037B] Completed HUD: {hud.StatusText}");
+        Assert.Equal("🪄 Transformed", hud.StatusText);
+        _output.WriteLine($"[WF-037B] Command Completed HUD: {hud.StatusText}");
 
         // 4. Return to Idle
         hud.UpdateState(SessionState.Idle);

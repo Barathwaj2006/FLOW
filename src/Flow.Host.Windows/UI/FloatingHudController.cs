@@ -124,11 +124,11 @@ public sealed class FloatingHudController : IDisposable
         _isCommandMode = isCommandMode;
         _statusText = detail ?? state switch
         {
-            SessionState.Recording => "Listening...",
-            SessionState.Processing => "Transcribing...",
-            SessionState.Inserting => "Inserting...",
+            SessionState.Recording => isCommandMode ? "🪄 Command: Listening..." : "Listening...",
+            SessionState.Processing => isCommandMode ? "🪄 Transforming..." : "Transcribing...",
+            SessionState.Inserting => isCommandMode ? "🪄 Applying..." : "Inserting...",
             SessionState.Backtracking => "Backtracking...",
-            SessionState.Completed => "Done",
+            SessionState.Completed => isCommandMode ? "🪄 Transformed" : "Done",
             SessionState.Cancelled => "Cancelled",
             SessionState.Error => "Error",
             _ => "Ready"

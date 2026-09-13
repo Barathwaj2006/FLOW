@@ -15,7 +15,9 @@ using Flow.Core.Storage;
 using Flow.Core.TranscriptProcessing;
 using Flow.Core.History;
 using Flow.Core.Scratchpad;
+using Flow.Host.Windows.History;
 using Flow.Host.Windows.Lifecycle;
+using Flow.Host.Windows.Scratchpad;
 using Flow.Host.Windows.Native;
 using Flow.Host.Windows.Tray;
 using Flow.Host.Windows.UI;
@@ -157,8 +159,6 @@ public static class Program
         var snippetEngine = new SnippetExpansionEngine(snippetRepo);
         var styleRepo = new SqliteStyleRepository(personalizationDb);
         var styleEngine = new StyleFormattingEngine(styleRepo);
-        var settingsRepo = new SqliteSettingsRepository(personalizationDb);
-        var initialSettings = Task.Run(async () => await settingsRepo.LoadSettingsAsync()).GetAwaiter().GetResult();
 
         // Load personalization caches
         Task.Run(async () =>
@@ -213,11 +213,6 @@ public static class Program
             historyService: historyService
         );
 
-        // Apply persisted settings dynamically to coordinator
-        _coordinator.SetVadThreshold(initialSettings.VadThreshold);
-        _coordinator.SelectedLanguage = initialSettings.Language;
-        _coordinator.SetSessionLanguage(new Flow.Core.Language.LanguageCode(initialSettings.Language));
-
         // 3. Windows UI & System Tray
         _hud = new FloatingHudController();
         _tray = new TrayIconManager(_hud.Handle);
@@ -249,33 +244,11 @@ public static class Program
             });
         };
 
-        // 5. Global Push-to-Talk, Double-Tap Hands-Free, and Backtrack Hook
-        _hotkeyHook = new GlobalHotkeyHook(initialSettings.HotkeyVk, doubleTapThresholdMs: 350.0);
-
-        void ShowHub(int targetTab = 0)
-        {
-            FlowHubWindowManager.ShowWindow(
-                _coordinator,
-                _capture,
-                deviceManager,
-                historyService,
-                scratchpadService,
-                dictRepo,
-                dictEngine,
-                snippetRepo,
-                snippetEngine,
-                styleRepo,
-                styleEngine,
-                settingsRepo,
-                _hotkeyHook,
-                targetTab: targetTab);
-        }
-
         // Wire Tray Icon Actions
         _tray.FlowHubRequested += () =>
         {
             logger.LogInformation("FLOW Hub window requested.");
-            ShowHub(0);
+            FlowHubWindowManager.ShowWindow(_coordinator, _capture, deviceManager, historyService, scratchpadService, targetTab: 0);
         };
 
         _tray.ToggleDictationRequested += () =>
@@ -298,25 +271,30 @@ public static class Program
         _tray.ScratchpadRequested += () =>
         {
             logger.LogInformation("Scratchpad workspace requested.");
-            ShowHub(5);
+            FlowHubWindowManager.ShowWindow(_coordinator, _capture, deviceManager, historyService, scratchpadService, dictRepo, dictEngine, snippetRepo, snippetEngine, styleRepo, styleEngine, targetTab: 5);
         };
 
         _tray.HistoryRequested += () =>
         {
             logger.LogInformation("History requested.");
-            ShowHub(1);
+            FlowHubWindowManager.ShowWindow(_coordinator, _capture, deviceManager, historyService, scratchpadService, dictRepo, dictEngine, snippetRepo, snippetEngine, styleRepo, styleEngine, targetTab: 1);
         };
 
         _tray.SettingsRequested += () =>
         {
             logger.LogInformation("Settings requested.");
-            ShowHub(6);
+            FlowHubWindowManager.ShowWindow(_coordinator, _capture, deviceManager, historyService, scratchpadService, dictRepo, dictEngine, snippetRepo, snippetEngine, styleRepo, styleEngine, targetTab: 6);
         };
 
         _tray.AboutRequested += () =>
         {
             logger.LogInformation("About requested.");
-            ShowHub(7);
+            FlowHubWindowManager.ShowWindow(_coordinator, _capture, deviceManager, historyService, scratchpadService, dictRepo, dictEngine, snippetRepo, snippetEngine, styleRepo, styleEngine, targetTab: 7);
+        };
+
+        _tray.DeveloperModeToggled += () =>
+        {
+            logger.LogInformation("Developer mode toggled via tray icon. Enabled: {Dev}", _tray.IsDeveloperModeEnabled);
         };
 
         _tray.ExitRequested += () =>
@@ -331,7 +309,10 @@ public static class Program
             PostQuitMessage(0);
         };
 
-        _tray.Install("FLOW — Local Voice Dictation (Hold shortcut to speak, double-tap for hands-free)");
+        _tray.Install("FLOW — Local Voice Dictation (Right-Alt to speak, double-tap for hands-free)");
+
+        // 5. Global Push-to-Talk, Double-Tap Hands-Free, and Backtrack Hook
+        _hotkeyHook = new GlobalHotkeyHook(GlobalHotkeyHook.DefaultHotkeyVk, doubleTapThresholdMs: 350.0);
 
         _hotkeyHook.HotkeyDown += (isHandsFree) =>
         {
@@ -463,7 +444,19 @@ public static class Program
         // 6. Launch FLOW Hub window unless user requested minimized startup
         if (!startMinimized)
         {
-            ShowHub(0);
+            FlowHubWindowManager.ShowWindow(
+                _coordinator,
+                _capture,
+                deviceManager,
+                historyService,
+                scratchpadService,
+                dictRepo,
+                dictEngine,
+                snippetRepo,
+                snippetEngine,
+                styleRepo,
+                styleEngine,
+                targetTab: 0);
         }
 
         // 7. Verify Inviolable Startup Invariant: State MUST be Idle, Hands-Free OFF, Recording FALSE
@@ -518,6 +511,8 @@ public static class Program
 
         // Cleanup
         FlowHubWindowManager.CloseWindow();
+        HistoryWindowManager.CloseWindow();
+        ScratchpadWindowManager.CloseWindow();
         _hotkeyHook.Dispose();
         _capture.Dispose();
         deviceManager.Dispose();

@@ -422,19 +422,20 @@ public class Phase2FTier6PhysicalValidationTests : IDisposable
         // 2. Instantiate real FloatingHudController
         using var hud = new FloatingHudController();
 
-        // 3. State transitions
+        // 3. State transitions for Command Mode
         hud.UpdateState(SessionState.Recording, isCommandMode: true);
         Assert.True(hud.IsCommandMode);
-        Assert.Equal("Listening...", hud.StatusText);
+        Assert.Contains("🪄", hud.StatusText);
+        Assert.Contains("Command", hud.StatusText);
 
         IntPtr fgDuringRecording = GetForegroundWindow();
         _output.WriteLine($"[WF-037B] Foreground during recording: {fgDuringRecording} (HUD never steals focus)");
 
         hud.UpdateState(SessionState.Processing, isCommandMode: true);
-        Assert.Equal("Transcribing...", hud.StatusText);
+        Assert.Contains("Transforming", hud.StatusText);
 
         hud.UpdateState(SessionState.Completed, isCommandMode: true);
-        Assert.Equal("Done", hud.StatusText);
+        Assert.Equal("🪄 Transformed", hud.StatusText);
 
         hud.UpdateState(SessionState.Idle);
         Assert.False(hud.IsCommandMode);

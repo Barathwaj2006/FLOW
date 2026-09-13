@@ -1,0 +1,10 @@
+{
+  "name": "FLOW",
+  "description": "Production-grade, system-wide AI voice productivity platform with local-first dictation, zero-enter safety invariant, dictionary, snippets, styles, and scratchpad.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

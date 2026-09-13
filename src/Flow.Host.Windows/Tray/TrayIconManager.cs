@@ -22,8 +22,11 @@ public sealed class TrayIconManager : IDisposable
     public event Action? ScratchpadRequested;
     public event Action? HistoryRequested;
     public event Action? SettingsRequested;
+    public event Action? DeveloperModeToggled;
     public event Action? AboutRequested;
     public event Action? ExitRequested;
+
+    public bool IsDeveloperModeEnabled { get; set; }
 
     public TrayIconManager(IntPtr hwnd, uint callbackMessage = 0x8001)
     {
@@ -76,8 +79,9 @@ public sealed class TrayIconManager : IDisposable
             const uint CMD_SCRATCHPAD = 102;
             const uint CMD_HISTORY = 103;
             const uint CMD_SETTINGS = 104;
-            const uint CMD_ABOUT = 105;
-            const uint CMD_EXIT = 106;
+            const uint CMD_DEV_MODE = 105;
+            const uint CMD_ABOUT = 106;
+            const uint CMD_EXIT = 107;
 
             AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_HUB, "Open FLOW Hub");
             AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_TOGGLE_DICTATION, "Toggle Dictation (Hands-Free)");
@@ -113,6 +117,10 @@ public sealed class TrayIconManager : IDisposable
                     break;
                 case CMD_SETTINGS:
                     SettingsRequested?.Invoke();
+                    break;
+                case CMD_DEV_MODE:
+                    IsDeveloperModeEnabled = !IsDeveloperModeEnabled;
+                    DeveloperModeToggled?.Invoke();
                     break;
                 case CMD_ABOUT:
                     AboutRequested?.Invoke();

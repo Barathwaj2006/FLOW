@@ -206,12 +206,6 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
                 CreatedAt TEXT NOT NULL,
                 FOREIGN KEY (StyleProfileId) REFERENCES StyleProfiles(Id) ON DELETE CASCADE
             );
-
-            CREATE TABLE IF NOT EXISTS AppSettings (
-                Key TEXT PRIMARY KEY,
-                Value TEXT NOT NULL,
-                UpdatedAt TEXT NOT NULL
-            );
         ";
         cmd.ExecuteNonQuery();
 

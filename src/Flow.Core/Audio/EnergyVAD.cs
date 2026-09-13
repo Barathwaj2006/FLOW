@@ -24,14 +24,6 @@ public sealed class EnergyVAD : IVoiceActivityDetector
     public float CurrentThreshold => _currentThreshold;
 
     /// <summary>
-    /// Configures the energy threshold dynamically (clamped to safe bounds 0.001 to 0.200).
-    /// </summary>
-    public void SetEnergyThreshold(float threshold)
-    {
-        _currentThreshold = Math.Clamp(threshold, 0.001f, 0.2f);
-    }
-
-    /// <summary>
     /// Indicates whether active speech is currently detected.
     /// </summary>
     public bool IsSpeaking => _isSpeaking;
