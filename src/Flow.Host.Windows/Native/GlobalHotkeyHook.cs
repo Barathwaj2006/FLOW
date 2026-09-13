@@ -12,16 +12,18 @@ namespace Flow.Host.Windows.Native;
 public sealed class GlobalHotkeyHook : IDisposable
 {
     public const int DefaultHotkeyVk = 0xA5; // VK_RMENU (Right Alt)
-    private const int VK_ESCAPE = 0x1B;
-    private const int VK_SHIFT = 0x10;
-    private const int VK_CONTROL = 0x11;
-    private const int VK_BACK = 0x08;
-    private const int VK_SPACE = 0x20;
-    private const int VK_MENU = 0x12; // Alt key
-    private const int VK_KEY_B = 0x42;
+    internal const int VK_ESCAPE = 0x1B;
+    internal const int VK_SHIFT = 0x10;
+    internal const int VK_CONTROL = 0x11;
+    internal const int VK_BACK = 0x08;
+    internal const int VK_SPACE = 0x20;
+    internal const int VK_MENU = 0x12; // Alt key
+    internal const int VK_LMENU = 0xA4;
+    internal const int VK_RMENU = 0xA5;
+    internal const int VK_KEY_B = 0x42;
 
-    private const int LLKHF_EXTENDED = 0x01;
-    private const int LLKHF_INJECTED = 0x10;
+    internal const int LLKHF_EXTENDED = 0x01;
+    internal const int LLKHF_INJECTED = 0x10;
     private const double MinDoubleTapIntervalMs = 40.0;
 
     private int _targetVk;
@@ -34,6 +36,8 @@ public sealed class GlobalHotkeyHook : IDisposable
     private bool _isKeyQuarantined;
     private bool _isCommandModeKeyDown;
     private bool _isHandsFreeActive;
+    private bool _isAltSpaceActive;
+    private bool _spaceKeyUpPending;
     private long _lastKeyUpTimestamp;
     private bool _isDisposed;
 
@@ -134,6 +138,8 @@ public sealed class GlobalHotkeyHook : IDisposable
 
         _isHandsFreeActive = false;
         _isCommandModeKeyDown = false;
+        _isAltSpaceActive = false;
+        _spaceKeyUpPending = false;
         _lastKeyUpTimestamp = 0;
         _isArmed = true;
     }
@@ -148,6 +154,8 @@ public sealed class GlobalHotkeyHook : IDisposable
         _isKeyQuarantined = false;
         _isHandsFreeActive = false;
         _isCommandModeKeyDown = false;
+        _isAltSpaceActive = false;
+        _spaceKeyUpPending = false;
         _lastKeyUpTimestamp = 0;
     }
 
@@ -173,178 +181,214 @@ public sealed class GlobalHotkeyHook : IDisposable
             int flags = kbd.flags;
             int message = wParam.ToInt32();
 
-            // Ignore synthetic injected keystrokes to protect against external automation false triggers
-            if ((flags & LLKHF_INJECTED) != 0)
+            IntPtr res = ProcessHookEvent(message, vkCode, flags, GetKeyState);
+            if (res != IntPtr.Zero)
             {
-                return CallNextHookEx(_hookId, nCode, wParam, lParam);
+                return res;
             }
+        }
 
-            // If not armed, transparently pass all keystrokes through
-            if (!_isArmed)
-            {
-                return CallNextHookEx(_hookId, nCode, wParam, lParam);
-            }
+        return CallNextHookEx(_hookId, nCode, wParam, lParam);
+    }
 
-            // 1. Handle Escape key for immediate cancellation
-            if (vkCode == VK_ESCAPE && (message == WM_KEYDOWN || message == WM_SYSKEYDOWN))
+    internal IntPtr ProcessHookEvent(int message, int vkCode, int flags, Func<int, short>? getKeyState = null)
+    {
+        // Ignore synthetic injected keystrokes to protect against external automation false triggers
+        if ((flags & LLKHF_INJECTED) != 0)
+        {
+            return IntPtr.Zero;
+        }
+
+        // If not armed, transparently pass all keystrokes through
+        if (!_isArmed)
+        {
+            return IntPtr.Zero;
+        }
+
+        Func<int, short> keyState = getKeyState ?? GetKeyState;
+
+        // 1. Handle Escape key for immediate cancellation
+        if (vkCode == VK_ESCAPE && (message == WM_KEYDOWN || message == WM_SYSKEYDOWN))
+        {
+            if (_isKeyDown || _isHandsFreeActive || _isCommandModeKeyDown || _isAltSpaceActive)
             {
-                if (_isKeyDown || _isHandsFreeActive || _isCommandModeKeyDown)
-                {
-                    _isKeyDown = false;
-                    _isCommandModeKeyDown = false;
-                    _isHandsFreeActive = false;
-                    HotkeyCancelled?.Invoke();
-                }
-            }
-            // 2. Handle Backtrack shortcuts: Shift + TargetKey or TargetKey + Backspace
-            else if (((vkCode == _targetVk && (GetKeyState(VK_SHIFT) & 0x8000) != 0) ||
-                      (vkCode == VK_BACK && (GetKeyState(_targetVk) & 0x8000) != 0)) &&
-                     (message == WM_KEYDOWN || message == WM_SYSKEYDOWN))
-            {
-                BacktrackRequested?.Invoke();
+                _isKeyDown = false;
+                _isAltSpaceActive = false;
+                _spaceKeyUpPending = false;
+                _isCommandModeKeyDown = false;
+                _isHandsFreeActive = false;
+                HotkeyCancelled?.Invoke();
                 return (IntPtr)1;
             }
-            // 3. Handle Command Mode shortcut: Ctrl + TargetKey (WF-036)
-            else if (vkCode == _targetVk && ((GetKeyState(VK_CONTROL) & 0x8000) != 0 || _isCommandModeKeyDown))
+        }
+        // 2. Handle Backtrack shortcuts: Shift + TargetKey or TargetKey + Backspace
+        else if (((vkCode == _targetVk && (keyState(VK_SHIFT) & 0x8000) != 0) ||
+                  (vkCode == VK_BACK && (keyState(_targetVk) & 0x8000) != 0)) &&
+                 (message == WM_KEYDOWN || message == WM_SYSKEYDOWN))
+        {
+            BacktrackRequested?.Invoke();
+            return (IntPtr)1;
+        }
+        // 3. Handle Command Mode shortcut: Ctrl + TargetKey (WF-036)
+        else if (vkCode == _targetVk && ((keyState(VK_CONTROL) & 0x8000) != 0 || _isCommandModeKeyDown))
+        {
+            if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
             {
-                if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
+                if (!_isCommandModeKeyDown)
                 {
-                    if (!_isCommandModeKeyDown)
-                    {
-                        _isCommandModeKeyDown = true;
-                        CommandModeHotkeyDown?.Invoke();
-                        return (IntPtr)1;
-                    }
-                }
-                else if (message == WM_KEYUP || message == WM_SYSKEYUP)
-                {
-                    if (_isCommandModeKeyDown)
-                    {
-                        _isCommandModeKeyDown = false;
-                        CommandModeHotkeyUp?.Invoke();
-                        return (IntPtr)1;
-                    }
+                    _isCommandModeKeyDown = true;
+                    CommandModeHotkeyDown?.Invoke();
+                    return (IntPtr)1;
                 }
             }
-            // 4. Handle Alt+Space Hold-to-Talk shortcut (Consumes shortcut to prevent SC_KEYMENU / system menu)
-            else if (vkCode == VK_SPACE && (GetKeyState(VK_MENU) & 0x8000) != 0)
+            else if (message == WM_KEYUP || message == WM_SYSKEYUP)
             {
-                if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
+                if (_isCommandModeKeyDown)
                 {
-                    if (!_isKeyDown)
-                    {
-                        _isKeyDown = true;
-                        HotkeyDown?.Invoke(false); // Push-To-Talk
-                    }
-                    return (IntPtr)1; // Consume key to prevent system menu
+                    _isCommandModeKeyDown = false;
+                    CommandModeHotkeyUp?.Invoke();
+                    return (IntPtr)1;
                 }
-                else if (message == WM_KEYUP || message == WM_SYSKEYUP)
+            }
+        }
+        // 4. Handle Alt+Space Hold-to-Talk shortcut (Consumes shortcut to prevent SC_KEYMENU / system menu and space typing)
+        else if (vkCode == VK_SPACE && (keyState(VK_MENU) & 0x8000) != 0)
+        {
+            if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
+            {
+                if (!_isAltSpaceActive)
                 {
-                    if (_isKeyDown)
+                    _isAltSpaceActive = true;
+                    _spaceKeyUpPending = true;
+                    HotkeyDown?.Invoke(false); // Push-To-Talk
+                }
+                return (IntPtr)1; // Consume key to prevent system menu & space insertion
+            }
+            else if (message == WM_KEYUP || message == WM_SYSKEYUP)
+            {
+                _spaceKeyUpPending = false;
+                if (_isAltSpaceActive)
+                {
+                    _isAltSpaceActive = false;
+                    HotkeyUp?.Invoke();
+                }
+                return (IntPtr)1; // Consume keyup
+            }
+        }
+        // 4b. Consume trailing Space keyup if Alt was released before Space
+        else if (vkCode == VK_SPACE && (message == WM_KEYUP || message == WM_SYSKEYUP) && (_isAltSpaceActive || _spaceKeyUpPending))
+        {
+            _spaceKeyUpPending = false;
+            if (_isAltSpaceActive)
+            {
+                _isAltSpaceActive = false;
+                HotkeyUp?.Invoke();
+            }
+            return (IntPtr)1; // Consume Space keyup so no space character leaks
+        }
+        // 4c. If Alt is released while Alt+Space chord is active, conclude recording immediately and suppress system menu
+        else if ((vkCode == VK_MENU || vkCode == VK_LMENU || vkCode == VK_RMENU) && (message == WM_KEYUP || message == WM_SYSKEYUP) && _isAltSpaceActive)
+        {
+            _isAltSpaceActive = false;
+            HotkeyUp?.Invoke();
+            return (IntPtr)1; // Consume Alt release to prevent SC_KEYMENU system menu
+        }
+        // 5. Handle Alt+B Hands-Free Toggle shortcut (Consumes shortcut to prevent app character injection)
+        else if (vkCode == VK_KEY_B && (keyState(VK_MENU) & 0x8000) != 0)
+        {
+            if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
+            {
+                if (!_isHandsFreeActive)
+                {
+                    _isHandsFreeActive = true;
+                    HotkeyDown?.Invoke(true); // Toggle on
+                }
+                else
+                {
+                    _isHandsFreeActive = false;
+                    HotkeyUp?.Invoke(); // Toggle off
+                }
+                return (IntPtr)1; // Consume key
+            }
+            else if (message == WM_KEYUP || message == WM_SYSKEYUP)
+            {
+                return (IntPtr)1; // Consume keyup
+            }
+        }
+        // 6. Handle configured dictation hotkey (default: Right Alt / VK_RMENU)
+        else if (vkCode == _targetVk)
+        {
+            // For VK_RMENU, verify extended key flag on systems where layout differentiation is required
+            if (_targetVk == DefaultHotkeyVk && (flags & LLKHF_EXTENDED) == 0)
+            {
+                // Left Alt pressed -> not target hotkey
+                return IntPtr.Zero;
+            }
+
+            if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
+            {
+                // If key was held down before hook arming, ignore key-down events until a clean release
+                if (_isKeyQuarantined)
+                {
+                    return IntPtr.Zero;
+                }
+
+                if (!_isKeyDown)
+                {
+                    _isKeyDown = true;
+
+                    // If already in Hands-Free mode, any subsequent press immediately stops recording
+                    if (_isHandsFreeActive)
                     {
-                        _isKeyDown = false;
+                        _isHandsFreeActive = false;
                         HotkeyUp?.Invoke();
+                        return IntPtr.Zero;
                     }
-                    return (IntPtr)1; // Consume keyup
-                }
-            }
-            // 5. Handle Alt+B Hands-Free Toggle shortcut (Consumes shortcut to prevent app character injection)
-            else if (vkCode == VK_KEY_B && (GetKeyState(VK_MENU) & 0x8000) != 0)
-            {
-                if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
-                {
-                    if (!_isHandsFreeActive)
+
+                    // Evaluate time since last key up for double-tap detection
+                    long now = Stopwatch.GetTimestamp();
+                    double elapsedMs = (double)(now - _lastKeyUpTimestamp) * 1000.0 / Stopwatch.Frequency;
+
+                    if (elapsedMs >= MinDoubleTapIntervalMs && elapsedMs <= _doubleTapThresholdMs && _lastKeyUpTimestamp > 0)
                     {
+                        // Double-tap confirmed -> Enter Hands-Free Mode
                         _isHandsFreeActive = true;
-                        HotkeyDown?.Invoke(true); // Toggle on
+                        _lastKeyUpTimestamp = 0; // Consume the double-tap
+                        HotkeyDown?.Invoke(true);
                     }
                     else
                     {
-                        _isHandsFreeActive = false;
-                        HotkeyUp?.Invoke(); // Toggle off
+                        // Standard Push-To-Talk KeyDown
+                        HotkeyDown?.Invoke(false);
                     }
-                    return (IntPtr)1; // Consume key
-                }
-                else if (message == WM_KEYUP || message == WM_SYSKEYUP)
-                {
-                    return (IntPtr)1; // Consume keyup
                 }
             }
-            // 6. Handle configured dictation hotkey (default: Right Alt / VK_RMENU)
-            else if (vkCode == _targetVk)
+            else if (message == WM_KEYUP || message == WM_SYSKEYUP)
             {
-                // For VK_RMENU, verify extended key flag on systems where layout differentiation is required
-                if (_targetVk == DefaultHotkeyVk && (flags & LLKHF_EXTENDED) == 0)
+                if (_isKeyQuarantined)
                 {
-                    // Left Alt pressed -> not target hotkey
-                    return CallNextHookEx(_hookId, nCode, wParam, lParam);
+                    // Clean release observed -> key is now safe to use
+                    _isKeyQuarantined = false;
+                    _isKeyDown = false;
+                    _lastKeyUpTimestamp = 0;
+                    return IntPtr.Zero;
                 }
 
-                if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
+                if (_isKeyDown)
                 {
-                    // If key was held down before hook arming, ignore key-down events until a clean release
-                    if (_isKeyQuarantined)
+                    _isKeyDown = false;
+                    _lastKeyUpTimestamp = Stopwatch.GetTimestamp();
+
+                    // If Hands-Free mode is active, releasing the key does NOT stop recording
+                    if (!_isHandsFreeActive)
                     {
-                        return CallNextHookEx(_hookId, nCode, wParam, lParam);
-                    }
-
-                    if (!_isKeyDown)
-                    {
-                        _isKeyDown = true;
-
-                        // If already in Hands-Free mode, any subsequent press immediately stops recording
-                        if (_isHandsFreeActive)
-                        {
-                            _isHandsFreeActive = false;
-                            HotkeyUp?.Invoke();
-                            return CallNextHookEx(_hookId, nCode, wParam, lParam);
-                        }
-
-                        // Evaluate time since last key up for double-tap detection
-                        long now = Stopwatch.GetTimestamp();
-                        double elapsedMs = (double)(now - _lastKeyUpTimestamp) * 1000.0 / Stopwatch.Frequency;
-
-                        if (elapsedMs >= MinDoubleTapIntervalMs && elapsedMs <= _doubleTapThresholdMs && _lastKeyUpTimestamp > 0)
-                        {
-                            // Double-tap confirmed -> Enter Hands-Free Mode
-                            _isHandsFreeActive = true;
-                            _lastKeyUpTimestamp = 0; // Consume the double-tap
-                            HotkeyDown?.Invoke(true);
-                        }
-                        else
-                        {
-                            // Standard Push-To-Talk KeyDown
-                            HotkeyDown?.Invoke(false);
-                        }
-                    }
-                }
-                else if (message == WM_KEYUP || message == WM_SYSKEYUP)
-                {
-                    if (_isKeyQuarantined)
-                    {
-                        // Clean release observed -> key is now safe to use
-                        _isKeyQuarantined = false;
-                        _isKeyDown = false;
-                        _lastKeyUpTimestamp = 0;
-                        return CallNextHookEx(_hookId, nCode, wParam, lParam);
-                    }
-
-                    if (_isKeyDown)
-                    {
-                        _isKeyDown = false;
-                        _lastKeyUpTimestamp = Stopwatch.GetTimestamp();
-
-                        // If Hands-Free mode is active, releasing the key does NOT stop recording
-                        if (!_isHandsFreeActive)
-                        {
-                            HotkeyUp?.Invoke();
-                        }
+                        HotkeyUp?.Invoke();
                     }
                 }
             }
         }
 
-        return CallNextHookEx(_hookId, nCode, wParam, lParam);
+        return IntPtr.Zero;
     }
 
     public void Dispose()
@@ -359,11 +403,11 @@ public sealed class GlobalHotkeyHook : IDisposable
 
     #region Win32 P/Invoke & Structures
 
-    private const int WH_KEYBOARD_LL = 13;
-    private const int WM_KEYDOWN = 0x0100;
-    private const int WM_KEYUP = 0x0101;
-    private const int WM_SYSKEYDOWN = 0x0104;
-    private const int WM_SYSKEYUP = 0x0105;
+    internal const int WH_KEYBOARD_LL = 13;
+    internal const int WM_KEYDOWN = 0x0100;
+    internal const int WM_KEYUP = 0x0101;
+    internal const int WM_SYSKEYDOWN = 0x0104;
+    internal const int WM_SYSKEYUP = 0x0105;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct KBDLLHOOKSTRUCT

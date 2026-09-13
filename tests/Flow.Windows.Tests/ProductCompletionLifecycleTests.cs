@@ -432,4 +432,233 @@ public class ProductCompletionLifecycleTests
         Assert.NotNull(histPage);
         Assert.NotNull(scratchPage);
     }
+
+    [Fact]
+    public void GlobalHotkeyHook_AltSpace_PushToTalk_KeyDownAndKeyUp_ConsumedAndFiresEvents()
+    {
+        using var hook = new GlobalHotkeyHook();
+        hook.Arm();
+
+        bool downFired = false;
+        bool downIsHandsFree = true;
+        bool upFired = false;
+
+        hook.HotkeyDown += (isHandsFree) =>
+        {
+            downFired = true;
+            downIsHandsFree = isHandsFree;
+        };
+        hook.HotkeyUp += () => upFired = true;
+
+        // Mock GetKeyState where VK_MENU is depressed
+        short MockKeyState(int vk) => vk == GlobalHotkeyHook.VK_MENU ? unchecked((short)0x8000) : (short)0;
+
+        // 1. Press Space while Alt is held -> Consumed, PushToTalk fired
+        IntPtr downResult = hook.ProcessHookEvent(GlobalHotkeyHook.WM_KEYDOWN, GlobalHotkeyHook.VK_SPACE, 0, MockKeyState);
+        Assert.Equal((IntPtr)1, downResult);
+        Assert.True(downFired, "HotkeyDown must fire on Alt+Space");
+        Assert.False(downIsHandsFree, "Alt+Space must be Push-to-Talk (isHandsFree = false)");
+
+        // 2. Release Space while Alt is held -> Consumed, HotkeyUp fired
+        IntPtr upResult = hook.ProcessHookEvent(GlobalHotkeyHook.WM_KEYUP, GlobalHotkeyHook.VK_SPACE, 0, MockKeyState);
+        Assert.Equal((IntPtr)1, upResult);
+        Assert.True(upFired, "HotkeyUp must fire on Space keyup");
+    }
+
+    [Fact]
+    public void GlobalHotkeyHook_AltSpace_AltReleasedBeforeSpace_ConsumesSpaceAndFiresHotkeyUp()
+    {
+        using var hook = new GlobalHotkeyHook();
+        hook.Arm();
+
+        bool downFired = false;
+        bool upFired = false;
+
+        hook.HotkeyDown += (_) => downFired = true;
+        hook.HotkeyUp += () => upFired = true;
+
+        // Start with Alt held
+        short MockKeyStateAltHeld(int vk) => vk == GlobalHotkeyHook.VK_MENU ? unchecked((short)0x8000) : (short)0;
+        short MockKeyStateNoModifiers(int vk) => 0;
+
+        // 1. Press Space while Alt is held -> Consumed
+        IntPtr downResult = hook.ProcessHookEvent(GlobalHotkeyHook.WM_KEYDOWN, GlobalHotkeyHook.VK_SPACE, 0, MockKeyStateAltHeld);
+        Assert.Equal((IntPtr)1, downResult);
+        Assert.True(downFired);
+
+        // 2. User releases Alt before releasing Space -> Alt release consumed, HotkeyUp fired immediately
+        IntPtr altUpResult = hook.ProcessHookEvent(GlobalHotkeyHook.WM_KEYUP, GlobalHotkeyHook.VK_LMENU, 0, MockKeyStateNoModifiers);
+        Assert.Equal((IntPtr)1, altUpResult);
+        Assert.True(upFired, "HotkeyUp must fire immediately when Alt is released");
+
+        // 3. User releases Space second (Alt already up) -> Trailing space MUST BE CONSUMED to prevent space leak!
+        IntPtr trailingSpaceResult = hook.ProcessHookEvent(GlobalHotkeyHook.WM_KEYUP, GlobalHotkeyHook.VK_SPACE, 0, MockKeyStateNoModifiers);
+        Assert.Equal((IntPtr)1, trailingSpaceResult);
+    }
+
+    [Fact]
+    public void GlobalHotkeyHook_AltB_ConsumesAndTogglesHandsFree()
+    {
+        using var hook = new GlobalHotkeyHook();
+        hook.Arm();
+
+        int downCount = 0;
+        bool lastIsHandsFree = false;
+        int upCount = 0;
+
+        hook.HotkeyDown += (hf) =>
+        {
+            downCount++;
+            lastIsHandsFree = hf;
+        };
+        hook.HotkeyUp += () => upCount++;
+
+        short MockKeyState(int vk) => vk == GlobalHotkeyHook.VK_MENU ? unchecked((short)0x8000) : (short)0;
+
+        // 1. Press Alt+B -> Toggle on (HotkeyDown with isHandsFree=true)
+        IntPtr down1 = hook.ProcessHookEvent(GlobalHotkeyHook.WM_KEYDOWN, GlobalHotkeyHook.VK_KEY_B, 0, MockKeyState);
+        Assert.Equal((IntPtr)1, down1);
+        Assert.Equal(1, downCount);
+        Assert.True(lastIsHandsFree);
+
+        // Release B -> Consumed
+        IntPtr up1 = hook.ProcessHookEvent(GlobalHotkeyHook.WM_KEYUP, GlobalHotkeyHook.VK_KEY_B, 0, MockKeyState);
+        Assert.Equal((IntPtr)1, up1);
+
+        // 2. Press Alt+B again -> Toggle off (HotkeyUp fired)
+        IntPtr down2 = hook.ProcessHookEvent(GlobalHotkeyHook.WM_KEYDOWN, GlobalHotkeyHook.VK_KEY_B, 0, MockKeyState);
+        Assert.Equal((IntPtr)1, down2);
+        Assert.Equal(1, upCount);
+
+        // Release B -> Consumed
+        IntPtr up2 = hook.ProcessHookEvent(GlobalHotkeyHook.WM_KEYUP, GlobalHotkeyHook.VK_KEY_B, 0, MockKeyState);
+        Assert.Equal((IntPtr)1, up2);
+    }
+
+    [Fact]
+    public void FloatingHudController_ClickedEvent_AndNonActivatingWindowMessages()
+    {
+        var hud = new FloatingHudController();
+
+        bool clicked = false;
+        hud.Clicked += () => clicked = true;
+
+        // WM_MOUSEACTIVATE (0x0021) must return MA_NOACTIVATE (3)
+        IntPtr ma = hud.DispatchMessageForTesting(0x0021, IntPtr.Zero, IntPtr.Zero);
+        Assert.Equal((IntPtr)3, ma);
+
+        // WM_NCHITTEST (0x0084) must return HTCLIENT (1)
+        IntPtr ht = hud.DispatchMessageForTesting(0x0084, IntPtr.Zero, IntPtr.Zero);
+        Assert.Equal((IntPtr)1, ht);
+
+        // WM_LBUTTONUP (0x0202) must fire Clicked
+        hud.DispatchMessageForTesting(0x0202, IntPtr.Zero, IntPtr.Zero);
+        Assert.True(clicked, "Floating HUD must fire Clicked event on WM_LBUTTONUP");
+    }
+
+    [Fact]
+    public async Task VoiceSessionCoordinator_LastTranscript_PreservedAndHistoryRecorded_WhenTargetChanged()
+    {
+        string tempDbPath = Path.Combine(Path.GetTempPath(), $"flow_target_change_test_{Guid.NewGuid():N}.db");
+        try
+        {
+            var db = new SqlitePersonalizationDatabase(tempDbPath);
+            var histRepo = new SqliteHistoryRepository(db);
+            var privacy = new HistoryPrivacyService();
+            var ret = new HistoryRetentionService(histRepo);
+            var stats = new ProductivityStatisticsService(histRepo);
+            var exp = new HistoryExportService(histRepo);
+            var histService = new HistoryService(histRepo, histRepo, stats, ret, exp, privacy);
+
+            var ringBuffer = new AudioRingBuffer(capacitySeconds: 10.0, sampleRate: 16000.0);
+            var vad = new EnergyVAD(sampleRate: 16000.0);
+            var asrRegistry = new ASREngineRegistry();
+            var mockAsr = new MockASREngine(id: "mock-asr")
+            {
+                DefaultTranscript = "The quick brown fox jumps over the lazy dog",
+                SimulatedLatency = TimeSpan.Zero
+            };
+            asrRegistry.Register(mockAsr, isDefault: true);
+
+            var lang = new DeterministicTextSanitizer();
+            var mockInsertion = new TestInsertionService();
+            var mockContext = new TargetSwitchedContextService();
+
+            var coordinator = new VoiceSessionCoordinator(
+                ringBuffer,
+                vad,
+                asrRegistry,
+                lang,
+                mockInsertion,
+                contextService: mockContext,
+                historyService: histService
+            );
+
+            string? transcriptCompletedText = null;
+            coordinator.TranscriptCompleted += text => transcriptCompletedText = text;
+
+            // Start session
+            await coordinator.StartSessionAsync();
+
+            // Feed 600ms of active speech audio
+            float[] loudChunk = new float[1600];
+            Array.Fill(loudChunk, 0.1f);
+            for (int i = 0; i < 6; i++)
+            {
+                coordinator.ProcessAudioChunk(loudChunk);
+            }
+
+            // End session -> target validation fails
+            bool success = await coordinator.EndSessionAsync();
+
+            // Insertion must be aborted for safety
+            Assert.False(success, "Insertion must be aborted when active target changed");
+            Assert.Equal(SessionState.Cancelled, coordinator.CurrentState);
+
+            // But transcript MUST BE PRESERVED!
+            Assert.NotNull(coordinator.LastTranscript);
+            Assert.Contains("quick brown fox", coordinator.LastTranscript);
+            Assert.Equal(coordinator.LastTranscript, transcriptCompletedText);
+
+            // Allow background history persistence task to complete
+            await Task.Delay(200);
+
+            // Verify recorded into history
+            var historyItems = await histService.Repository.GetPagedAsync(new HistoryFilter(IncludeDeleted: false), 0, 10);
+            Assert.NotEmpty(historyItems.Items);
+            Assert.Contains(historyItems.Items, h => h.Text?.Contains("quick brown fox") == true);
+        }
+        finally
+        {
+            if (File.Exists(tempDbPath))
+            {
+                try { File.Delete(tempDbPath); } catch { }
+            }
+        }
+    }
+
+    private sealed class TargetSwitchedContextService : Flow.Core.Context.IUIContextService
+    {
+        public bool IsFocusInPasswordField() => false;
+        public string GetNearbyContext(int maxCharacters = 200) => "";
+        public string GetSelectedText(int maxCharacters = 10000) => "";
+        public bool HasSelectedText() => false;
+        public Flow.Core.Context.ForegroundTargetInfo GetForegroundTargetInfo() => new((IntPtr)9999, 8888, "OtherApp.exe", "Other App");
+        public Flow.Core.Context.ContextSnapshot CaptureContext(Guid sessionId, int maxNearbyCharacters = 200, int maxSelectionCharacters = 10000)
+        {
+            return new Flow.Core.Context.ContextSnapshot(sessionId, DateTimeOffset.UtcNow, new Flow.Core.Context.ForegroundTargetInfo((IntPtr)1234, 5678, "OriginalApp.exe", "Original App"), Flow.Core.Context.ApplicationCategory.GeneralProse, Flow.Core.Context.FocusedControlInfo.Empty, false, "", "");
+        }
+        public Flow.Core.Context.FocusedControlInfo GetFocusedControlInfo() => Flow.Core.Context.FocusedControlInfo.Empty;
+        public Flow.Core.Context.ApplicationCategory GetApplicationCategory(Flow.Core.Context.ForegroundTargetInfo targetInfo) => Flow.Core.Context.ApplicationCategory.GeneralProse;
+        public bool ValidateTargetStillActive(Flow.Core.Context.ForegroundTargetInfo capturedTarget) => false; // Reports target switched!
+    }
+
+    private sealed class TestInsertionService : ITextInsertionService
+    {
+        public Task<InsertionResult> InsertTextAsync(string text, CancellationToken cancellationToken = default)
+            => Task.FromResult(new InsertionResult(true, InsertionStrategy.UiaDirect, "TestApp", TimeSpan.FromMilliseconds(5)));
+
+        public Task<bool> BacktrackAsync(Flow.Core.Backtrack.InsertionRecord record, CancellationToken cancellationToken = default)
+            => Task.FromResult(true);
+    }
 }

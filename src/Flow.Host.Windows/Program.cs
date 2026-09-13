@@ -63,9 +63,10 @@ public static class Program
             Console.WriteLine("============================================================");
             Console.WriteLine("FLOW — AI Voice Productivity Platform (Windows Native x64)");
             Console.WriteLine("Status: Active & Ready");
-            Console.WriteLine("Push-to-Talk: Hold [Right Alt] | Hands-Free: Double-Tap [Right Alt]");
+            Console.WriteLine("Push-to-Talk: Hold [Alt + Space] or [Right Alt]");
+            Console.WriteLine("Hands-Free: [Alt + B] or Double-Tap [Right Alt]");
             Console.WriteLine("Command Mode: [Ctrl + Right Alt] | Backtrack: [Shift + Right Alt]");
-            Console.WriteLine("Cancel: [Esc] | FLOW Hub UI: Active");
+            Console.WriteLine("Cancel: [Esc] | Floating HUD: Click to Dictate | FLOW Hub: Active");
             Console.WriteLine("============================================================");
         }
 
@@ -80,8 +81,10 @@ public static class Program
             Console.WriteLine("  --minimized, --tray Start quietly minimized in the Windows notification tray.");
             Console.WriteLine();
             Console.WriteLine("Core Dictation Shortcuts:");
-            Console.WriteLine("  Hold [Right Alt]        Push-to-talk dictation");
-            Console.WriteLine("  Double-tap [Right Alt]  Hands-free toggle mode");
+            Console.WriteLine("  Hold [Alt + Space]      Push-to-talk dictation (primary)");
+            Console.WriteLine("  [Alt + B]               Hands-free toggle mode (primary)");
+            Console.WriteLine("  Hold [Right Alt]        Push-to-talk dictation (alternate)");
+            Console.WriteLine("  Double-tap [Right Alt]  Hands-free toggle mode (alternate)");
             Console.WriteLine("  Shift + [Right Alt]     Backtrack (revert last insertion)");
             Console.WriteLine("  Ctrl + [Right Alt]      Voice Command Mode");
             Console.WriteLine("  [Esc]                   Cancel active recording");
@@ -287,6 +290,28 @@ public static class Program
             }
             else
             {
+                _hud.RepositionForActiveMonitor();
+                _ = Task.Run(async () =>
+                {
+                    await _coordinator.StartSessionAsync(isHandsFree: true);
+                    _capture.Start();
+                });
+            }
+        };
+
+        // Floating HUD Click Interaction (Click to Start/Stop Hands-Free Dictation without focus loss)
+        _hud.Clicked += () =>
+        {
+            if (_coordinator.CurrentState == SessionState.Recording)
+            {
+                logger.LogInformation("Floating HUD clicked: Concluding active dictation session.");
+                _capture.Stop();
+                _ = Task.Run(async () => await _coordinator.EndSessionAsync());
+            }
+            else if (_coordinator.CurrentState == SessionState.Idle)
+            {
+                logger.LogInformation("Floating HUD clicked: Starting hands-free dictation session.");
+                _hud.RepositionForActiveMonitor();
                 _ = Task.Run(async () =>
                 {
                     await _coordinator.StartSessionAsync(isHandsFree: true);
@@ -331,10 +356,11 @@ public static class Program
             PostQuitMessage(0);
         };
 
-        _tray.Install("FLOW — Local Voice Dictation (Hold shortcut to speak, double-tap for hands-free)");
+        _tray.Install("FLOW — Local Voice Dictation (Hold Alt+Space or Right Alt to speak)");
 
         _hotkeyHook.HotkeyDown += (isHandsFree) =>
         {
+            _hud.RepositionForActiveMonitor();
             _ = Task.Run(async () =>
             {
                 await _coordinator.StartSessionAsync(isHandsFree);
@@ -362,9 +388,10 @@ public static class Program
 
         _hotkeyHook.CommandModeHotkeyDown += () =>
         {
+            _hud.RepositionForActiveMonitor();
             _ = Task.Run(async () =>
             {
-                logger.LogInformation("Command Mode hotkey triggered (Ctrl+RightAlt).");
+                logger.LogInformation("Command Mode hotkey triggered.");
                 await _coordinator.StartCommandSessionAsync();
                 _capture.Start();
             });
@@ -482,7 +509,7 @@ public static class Program
         // Arm keyboard hook only after UI is presented and all subsystems are verified idle
         _hotkeyHook.Arm();
 
-        logger.LogInformation("FLOW Voice Core initialized and listening. Push-to-talk: Hold [Right Alt]. Hands-free: Double-tap [Right Alt]. Command Mode: [Ctrl + Right Alt]. Backtrack: [Shift + Right Alt]. Cancel: [Esc].");
+        logger.LogInformation("FLOW Voice Core initialized and listening. Push-to-talk: Hold [Alt + Space] or [Right Alt]. Hands-free: [Alt + B] or Double-tap [Right Alt]. Command Mode: [Ctrl + Right Alt]. Backtrack: [Shift + Right Alt]. Cancel: [Esc].");
 
         const uint WM_POWERBROADCAST = 0x0218;
         const int PBT_APMSUSPEND = 0x0004;

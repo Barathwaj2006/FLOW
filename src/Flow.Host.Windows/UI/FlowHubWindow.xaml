@@ -321,13 +321,16 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
                                         <TextBlock Text="System-Wide Voice Dictation" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC"/>
-                                        <TextBlock Text="Hold Right-Alt to speak into any application. Release to insert formatted text." Foreground="#94A3B8" Margin="0,4,0,12"/>
+                                        <TextBlock Text="Hold Alt+Space (or Right Alt) to speak into any application. Release to insert formatted text." Foreground="#94A3B8" Margin="0,4,0,12"/>
                                         <WrapPanel>
                                             <Border Background="#121A2D" BorderBrush="#1F2C46" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,6">
-                                                <TextBlock Text="Push-to-Talk: Hold [Right Alt]" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12"/>
+                                                <TextBlock Text="Push-to-Talk: Hold [Alt + Space]" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12"/>
                                             </Border>
                                             <Border Background="#121A2D" BorderBrush="#1F2C46" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,6">
-                                                <TextBlock Text="Hands-Free: Double-Tap [Right Alt]" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12"/>
+                                                <TextBlock Text="Hands-Free: [Alt + B]" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12"/>
+                                            </Border>
+                                            <Border Background="#121A2D" BorderBrush="#1F2C46" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,6">
+                                                <TextBlock Text="Alternative: Hold [Right Alt]" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12"/>
                                             </Border>
                                             <Border Background="#121A2D" BorderBrush="#1F2C46" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,6">
                                                 <TextBlock Text="Backtrack: [Shift + Right Alt]" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12"/>
@@ -360,9 +363,9 @@
                             <Border Style="{StaticResource CardBorderStyle}">
                                 <StackPanel>
                                     <TextBlock Text="Quick Dictation Test" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,4"/>
-                                    <TextBlock Text="Click below and hold Right-Alt to test speech-to-text directly:" Foreground="#94A3B8" FontSize="12" Margin="0,0,0,10"/>
+                                    <TextBlock Text="Click below and hold Alt+Space (or Right Alt) to test speech-to-text directly:" Foreground="#94A3B8" FontSize="12" Margin="0,0,0,10"/>
                                     <TextBox x:Name="TxtTestDictation" AutomationProperties.AutomationId="TxtTestDictation" Style="{StaticResource DarkTextBoxStyle}" Height="80" TextWrapping="Wrap" AcceptsReturn="True"
-                                             Text="Welcome to FLOW. Click here, hold Right-Alt, speak a sentence, and release."/>
+                                             Text="Welcome to FLOW. Click here, hold Alt+Space, speak a sentence, and release."/>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
                                         <Button Content="Clear Test Box" Style="{StaticResource SecondaryButtonStyle}" Click="BtnClearTest_Click"/>
                                     </StackPanel>

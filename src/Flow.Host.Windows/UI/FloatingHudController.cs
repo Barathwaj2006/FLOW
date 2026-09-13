@@ -35,6 +35,7 @@ public sealed class FloatingHudController : IDisposable
     public bool IsCommandMode => _isCommandMode;
     public float AudioLevel => _audioLevel;
     public event Action<uint, IntPtr>? WindowMessageReceived;
+    public event Action? Clicked;
 
     public FloatingHudController()
     {
@@ -168,10 +169,48 @@ public sealed class FloatingHudController : IDisposable
         }
     }
 
+    public void RepositionForActiveMonitor()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+
+        RECT workArea = new();
+        IntPtr fgHwnd = GetForegroundWindow();
+        if (fgHwnd != IntPtr.Zero)
+        {
+            IntPtr hMon = MonitorFromWindow(fgHwnd, 1 /* MONITOR_DEFAULTTOPRIMARY */);
+            if (hMon != IntPtr.Zero)
+            {
+                MONITORINFO mi = new() { cbSize = Marshal.SizeOf<MONITORINFO>() };
+                if (GetMonitorInfo(hMon, ref mi) && mi.rcWork.Right > mi.rcWork.Left)
+                {
+                    workArea = mi.rcWork;
+                }
+            }
+        }
+
+        if (workArea.Right <= workArea.Left)
+        {
+            if (!SystemParametersInfo(SPI_GETWORKAREA, 0, ref workArea, 0) || workArea.Right <= workArea.Left)
+            {
+                workArea.Left = 0;
+                workArea.Top = 0;
+                workArea.Right = GetSystemMetrics(0 /* SM_CXSCREEN */);
+                workArea.Bottom = GetSystemMetrics(1 /* SM_CYSCREEN */);
+            }
+        }
+
+        int workW = workArea.Right - workArea.Left;
+        int x = workArea.Left + (workW - HudWidth) / 2;
+        int y = workArea.Bottom - HudHeight - 24;
+
+        SetWindowPos(_hwnd, HWND_TOPMOST, x, y, HudWidth, HudHeight, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    }
+
     public void Show()
     {
         if (_hwnd != IntPtr.Zero)
         {
+            RepositionForActiveMonitor();
             ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
             SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
         }
@@ -185,14 +224,17 @@ public sealed class FloatingHudController : IDisposable
         }
     }
 
+    internal IntPtr DispatchMessageForTesting(uint msg, IntPtr wParam, IntPtr lParam) => CustomWndProc(_hwnd, msg, wParam, lParam);
+
     private IntPtr CustomWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
     {
         const uint WM_PAINT = 0x000F;
         const uint WM_ERASEBKGND = 0x0014;
         const uint WM_MOUSEACTIVATE = 0x0021;
         const uint WM_NCHITTEST = 0x0084;
+        const uint WM_LBUTTONUP = 0x0202;
         const int MA_NOACTIVATE = 3;
-        const int HTTRANSPARENT = -1;
+        const int HTCLIENT = 1;
 
         switch (msg)
         {
@@ -200,8 +242,12 @@ public sealed class FloatingHudController : IDisposable
                 return (IntPtr)MA_NOACTIVATE;
 
             case WM_NCHITTEST:
-                // Mouse clicks pass straight through to target application
-                return (IntPtr)HTTRANSPARENT;
+                // Return HTCLIENT so HUD receives mouse clicks without stealing activation
+                return (IntPtr)HTCLIENT;
+
+            case WM_LBUTTONUP:
+                Clicked?.Invoke();
+                return IntPtr.Zero;
 
             case WM_ERASEBKGND:
                 return (IntPtr)1; // Double buffered, avoid flicker
@@ -505,6 +551,25 @@ public sealed class FloatingHudController : IDisposable
 
     [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
     private static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
 
     #endregion
 }

@@ -163,10 +163,16 @@ public sealed class VoiceSessionCoordinator
     /// </summary>
     public IHistoryService? HistoryService => _historyService;
 
+    /// <summary>
+    /// Most recent completed transcript, preserved even if insertion failed or target changed (WF-029, Cursor-Independent Transcription).
+    /// </summary>
+    public string? LastTranscript { get; private set; }
+
     public event Action<SessionState, string?>? StateChanged;
     public event Action<float>? AudioLevelChanged;
     public event Action<string>? PartialTranscriptReceived;
     public event Action<string>? FinalTextInserted;
+    public event Action<string>? TranscriptCompleted;
     public event Action<string>? SessionWarning;
     public event Action<CommandIntent, CommandSafetyResult>? CommandProcessed;
     public event Action<string, float?>? LanguageDetected;
@@ -387,6 +393,13 @@ public sealed class VoiceSessionCoordinator
         if (vadResult.IsSpeech)
         {
             _hasDetectedSpeechInSession = true;
+        }
+
+        if (_isHandsFree && _hasDetectedSpeechInSession && vadResult.ConsecutiveSilenceSeconds >= 1.8)
+        {
+            _logger?.LogInformation("Hands-Free speech conclusion detected ({Silence:F1}s silence). Concluding session.", vadResult.ConsecutiveSilenceSeconds);
+            _ = Task.Run(async () => await EndSessionAsync());
+            return;
         }
 
         // 3. Report RMS audio energy level for HUD animation
@@ -644,6 +657,10 @@ public sealed class VoiceSessionCoordinator
                 return false;
             }
 
+            // Preserved for cursor-independent transcription (WF-029)
+            LastTranscript = cleanText;
+            TranscriptCompleted?.Invoke(cleanText);
+
             // WF-030: Secondary defense-in-depth password check before insertion
             if (_contextService.IsFocusInPasswordField())
             {
@@ -659,6 +676,32 @@ public sealed class VoiceSessionCoordinator
                 var currentTarget = _contextService.GetForegroundTargetInfo();
                 _logger?.LogWarning("Target application changed or closed during dictation: Captured {OriginalApp} (HWND={OriginalHwnd}) -> Now {CurrentApp} (HWND={CurrentHwnd}). Insertion cancelled for safety.",
                     ActiveTarget.ProcessName, ActiveTarget.Hwnd, currentTarget.ProcessName, currentTarget.Hwnd);
+
+                // Cursor-independent transcript preservation: Record dictation in history even though cursor insertion was aborted for safety
+                if (_historyService != null)
+                {
+                    double sessionDurationMs = (double)(Stopwatch.GetTimestamp() - _sessionStartTimestamp) * 1000.0 / Stopwatch.Frequency;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _historyService.RecordDictationAsync(
+                                sessionId: Guid.NewGuid(),
+                                text: cleanText,
+                                duration: TimeSpan.FromMilliseconds(sessionDurationMs),
+                                language: _languageSessionService.ActiveLanguage.Code.Value,
+                                context: ActiveContext,
+                                mode: "Dictation",
+                                state: HistoryState.Completed
+                            );
+                        }
+                        catch
+                        {
+                            // Fail closed
+                        }
+                    });
+                }
+
                 SetState(SessionState.Cancelled, "Target window changed during dictation — insertion aborted for safety");
                 InvalidateContext();
                 return false;
