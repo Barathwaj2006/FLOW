@@ -38,3 +38,49 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* FLOW Obsidian-Amber Floating HUD Animations */
+@keyframes pulseAmberGlow {
+  0%, 100% {
+    box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.8), 0 0 18px 2px rgba(184, 115, 51, 0.25);
+  }
+  50% {
+    box-shadow: 0 16px 44px -4px rgba(0, 0, 0, 0.9), 0 0 32px 8px rgba(184, 115, 51, 0.55);
+  }
+}
+
+.recording-amber-glow {
+  animation: pulseAmberGlow 2s infinite ease-in-out;
+}
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes flowHudBreathe {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-2.5px);
+  }
+}
+
+.hud-recording-breathe {
+  animation: flowHudBreathe 2.4s ease-in-out infinite, pulseAmberGlow 2.4s infinite ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-recording-breathe {
+    animation: none;
+  }
+}
+
+.spin-progress {
+  animation: spinSlow 1.4s linear infinite;
+}
+
+.wave-bar {
+  transition: height 80ms cubic-bezier(0.4, 0, 0.2, 1);
+}

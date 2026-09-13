@@ -110,10 +110,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Global Hotkey Pill */}
           <button 
             onClick={onOpenShortcutSettings}
-            className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#f8fafc] border border-[#e2e8f0] text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#0f172a] transition-colors"
-            title="Global Hotkey: Hold Right Alt or Ctrl+Space"
+            className="flex items-center gap-2 px-2.5 py-1 rounded bg-[#f8fafc] border border-[#e2e8f0] text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#0f172a] transition-colors"
+            title="Global Shortcuts: Hold Alt + Space or Press Alt + B"
           >
-            <span className="font-mono text-xs text-[#64748b] font-medium">Ctrl + Space</span>
+            <kbd className="font-mono text-xs text-[#0284c7] font-semibold">Alt + Space</kbd>
+            <span className="text-slate-300">•</span>
+            <kbd className="font-mono text-xs text-slate-700 font-semibold">Alt + B</kbd>
           </button>
 
           {/* User Profile Avatar */}

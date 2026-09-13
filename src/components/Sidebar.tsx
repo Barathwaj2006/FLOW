@@ -25,7 +25,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'snippets', label: 'Snippets', icon: 'data_object', badge: snippetCount },
     { id: 'styles', label: 'Styles', icon: 'tune' },
     { id: 'scratchpad', label: 'Scratchpad', icon: 'edit_note' },
-    { id: 'hud', label: 'Flow Bar HUD', icon: 'graphic_eq' },
     { id: 'settings', label: 'Settings', icon: 'settings' },
   ];
 

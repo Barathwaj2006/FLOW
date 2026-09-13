@@ -5,7 +5,6 @@ export type TabType =
   | 'snippets'
   | 'styles'
   | 'scratchpad'
-  | 'hud'
   | 'settings'
   | 'about';
 
@@ -99,4 +98,5 @@ export interface FlowSettings {
   retentionPolicy: '30days' | '90days' | 'unlimited';
   activeStyleId: string;
   soundFeedback: boolean;
+  smartFormatting?: boolean;
 }

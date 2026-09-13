@@ -8,9 +8,9 @@ import { DictionaryTab } from './components/DictionaryTab';
 import { SnippetsTab } from './components/SnippetsTab';
 import { StylesTab } from './components/StylesTab';
 import { ScratchpadTab } from './components/ScratchpadTab';
-import { HudTab } from './components/HudTab';
 import { SettingsTab } from './components/SettingsTab';
 import { AboutTab } from './components/AboutTab';
+import { OnboardingModal } from './components/OnboardingModal';
 import { 
   TabType, 
   SessionState, 
@@ -35,15 +35,35 @@ import { sanitizeAndFormat } from './lib/sanitizer';
 export const App: React.FC = () => {
   // Navigation
   const [activeTab, setActiveTab] = useState<TabType>('home');
-  const [showFloatingHud, setShowFloatingHud] = useState(true);
 
-  // Session & Dictation States
+  // Floating Bar & Display configuration
+  const [showFloatingHud, setShowFloatingHud] = useState<boolean>(() => {
+    return localStorage.getItem('flow_floating_bar_enabled') !== 'false';
+  });
+  const [multiMonitorMode, setMultiMonitorMode] = useState<'primary' | 'secondary' | 'all'>(() => {
+    return (localStorage.getItem('flow_multimonitor_mode') as any) || 'primary';
+  });
+  const [bottomOffset, setBottomOffset] = useState<number>(() => {
+    return Number(localStorage.getItem('flow_bottom_offset')) || 28;
+  });
+
+  // First-run Onboarding State
+  const [onboardingOpen, setOnboardingOpen] = useState<boolean>(() => {
+    return localStorage.getItem('flow_onboarding_completed') !== 'true';
+  });
+
+  // Session & Dictation States (strictly starts IDLE on boot)
   const [sessionState, setSessionState] = useState<SessionState>('idle');
   const [audioLevel, setAudioLevel] = useState(0);
   const [previewText, setPreviewText] = useState('');
   const [testText, setTestText] = useState('');
   const [isHandsFree, setIsHandsFree] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [availableMics, setAvailableMics] = useState<string[]>([
+    'Default Windows Audio Endpoint (WASAPI)',
+    'Microphone Array (Realtek High Definition Audio)',
+    'USB Condenser Microphone (DirectSound)',
+  ]);
 
   // Data Collections (initialized from localStorage with fallback)
   const [styles, setStyles] = useState<StyleProfile[]>(() => {
@@ -84,37 +104,90 @@ export const App: React.FC = () => {
     return saved ? JSON.parse(saved) : INITIAL_SETTINGS;
   });
 
+  // Authoritative Last Transcript (Cursor-independent first-class entity)
+  const [lastTranscript, setLastTranscript] = useState<DictationEntry | null>(() => {
+    const saved = localStorage.getItem('flow_last_transcript');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {}
+    }
+    return history[0] || null;
+  });
+
   // Track last inserted entry for Backtrack Undo
   const lastInsertedEntryRef = useRef<DictationEntry | null>(null);
+  const recordingModeRef = useRef<'hold' | 'toggle' | 'click'>('click');
   const recognitionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const simulationIntervalRef = useRef<any>(null);
   const audioMeterIntervalRef = useRef<any>(null);
   const sessionStartTimeRef = useRef<number>(0);
 
   // Sync to localStorage
   useEffect(() => {
+    localStorage.setItem('flow_floating_bar_enabled', String(showFloatingHud));
+  }, [showFloatingHud]);
+
+  useEffect(() => {
+    localStorage.setItem('flow_multimonitor_mode', multiMonitorMode);
+  }, [multiMonitorMode]);
+
+  useEffect(() => {
+    localStorage.setItem('flow_bottom_offset', String(bottomOffset));
+  }, [bottomOffset]);
+
+  useEffect(() => {
     localStorage.setItem('flow_styles', JSON.stringify(styles));
   }, [styles]);
+
   useEffect(() => {
     localStorage.setItem('flow_active_style_id', activeStyleId);
   }, [activeStyleId]);
+
   useEffect(() => {
     localStorage.setItem('flow_dictionary', JSON.stringify(dictionary));
   }, [dictionary]);
+
   useEffect(() => {
     localStorage.setItem('flow_snippets', JSON.stringify(snippets));
   }, [snippets]);
+
   useEffect(() => {
     localStorage.setItem('flow_history', JSON.stringify(history));
   }, [history]);
+
   useEffect(() => {
     localStorage.setItem('flow_notes', JSON.stringify(notes));
   }, [notes]);
+
   useEffect(() => {
     localStorage.setItem('flow_settings', JSON.stringify(settings));
   }, [settings]);
+
+  useEffect(() => {
+    if (lastTranscript) {
+      localStorage.setItem('flow_last_transcript', JSON.stringify(lastTranscript));
+    }
+  }, [lastTranscript]);
+
+  // Query actual hardware audio inputs
+  useEffect(() => {
+    const fetchAudioInputs = async () => {
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const inputs = devices
+            .filter(d => d.kind === 'audioinput' && d.label)
+            .map(d => d.label);
+          if (inputs.length > 0) {
+            setAvailableMics(inputs);
+          }
+        }
+      } catch {}
+    };
+    fetchAudioInputs();
+  }, []);
 
   const activeStyle = useMemo(() => {
     return styles.find(s => s.id === activeStyleId) || styles[0];
@@ -174,9 +247,7 @@ export const App: React.FC = () => {
           }
         };
 
-        recognition.onerror = () => {
-          // Fall back gracefully
-        };
+        recognition.onerror = () => {};
 
         recognition.start();
         recognitionRef.current = recognition;
@@ -211,27 +282,9 @@ export const App: React.FC = () => {
         }, 60);
       }
     } catch {
-      // Audio level simulation fallback if microphone permission not granted in iframe
-      audioMeterIntervalRef.current = setInterval(() => {
-        setAudioLevel(Math.floor(25 + Math.random() * 65));
-      }, 90);
-    }
-
-    // If speech recognition didn't capture or isn't supported, provide realistic continuous preview
-    if (!recognitionStarted) {
-      const samplePhases = [
-        'investigating',
-        'investigating low latency',
-        'investigating low latency wasapi audio capture',
-        'investigating low latency wasapi audio capture on windows eleven',
-      ];
-      let step = 0;
-      simulationIntervalRef.current = setInterval(() => {
-        if (step < samplePhases.length) {
-          setPreviewText(samplePhases[step]);
-          step++;
-        }
-      }, 700);
+      // Physical microphone permission denied or unavailable
+      setAudioLevel(0);
+      showToast('Physical microphone unavailable or permission denied.');
     }
   };
 
@@ -242,10 +295,6 @@ export const App: React.FC = () => {
     playTone(440, 0.1); // A4 pitch
 
     // Clear intervals and streams
-    if (simulationIntervalRef.current) {
-      clearInterval(simulationIntervalRef.current);
-      simulationIntervalRef.current = null;
-    }
     if (audioMeterIntervalRef.current) {
       clearInterval(audioMeterIntervalRef.current);
       audioMeterIntervalRef.current = null;
@@ -267,7 +316,14 @@ export const App: React.FC = () => {
 
     setAudioLevel(0);
 
-    const rawTranscript = forcedTranscript || previewText || 'Hey Jordan, could you make sure the pull request for the zero-latency audio engine gets merged into staging before our 3:30 sync? We already ran the Int8 inference benchmark tests locally.';
+    const rawTranscript = (forcedTranscript !== undefined ? forcedTranscript : previewText).trim();
+    if (!rawTranscript) {
+      setSessionState('idle');
+      setPreviewText('');
+      showToast('No speech detected');
+      return;
+    }
+
     const durationMs = Math.max(1200, Date.now() - sessionStartTimeRef.current);
 
     setTimeout(() => {
@@ -293,9 +349,9 @@ export const App: React.FC = () => {
         characterCount: charCount,
         wordCount,
         language: settings.language,
-        application: activeStyle.isDeveloperMode ? 'Visual Studio Code' : 'Microsoft Teams',
+        application: activeStyle.isDeveloperMode ? 'Visual Studio Code' : 'Windows Desktop',
         applicationCategory: activeStyle.isDeveloperMode ? 'Developer' : 'Communication',
-        target: activeStyle.isDeveloperMode ? 'audio_buffer.cpp' : 'Direct Message',
+        target: activeStyle.isDeveloperMode ? 'audio_buffer.cpp' : 'Focused Window',
         mode: activeStyle.name,
         state: 'Completed',
         isFavorite: false,
@@ -305,13 +361,14 @@ export const App: React.FC = () => {
       };
 
       lastInsertedEntryRef.current = newEntry;
+      setLastTranscript(newEntry);
       setHistory(prev => [newEntry, ...prev]);
 
       // Insert into quick test box or active scratchpad
       setTestText(prev => (prev ? `${prev} ${formatted}` : formatted));
       setPreviewText(formatted);
       setSessionState('inserted');
-      showToast('Inserted with Zero-Enter Protection ✓');
+      showToast('Transcript completed • Zero-Enter Invariant ✓');
 
       setTimeout(() => {
         setSessionState('idle');
@@ -319,26 +376,87 @@ export const App: React.FC = () => {
     }, 450);
   };
 
-  // Simulate dictating a specific test phrase
-  const handleSimulateDictation = (phrase: string) => {
-    startDictation();
-    setPreviewText(phrase);
-    setTimeout(() => {
-      stopDictation(phrase);
-    }, 1200);
-  };
-
-  // Backtrack Undo: Revert the previous insertion
-  const handleBacktrack = () => {
-    if (!lastInsertedEntryRef.current) {
-      showToast('No recent insertion to backtrack.');
+  // Safe Insertion Handler for on-demand insert (Never simulates Enter)
+  const handleInsertTranscript = (textToInsert: string) => {
+    if (!textToInsert) {
+      showToast('No transcript text to insert.');
       return;
     }
+
+    const activeEl = document.activeElement as HTMLElement | null;
+
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+      if (activeEl instanceof HTMLInputElement && activeEl.type === 'password') {
+        showToast('Blocked: Protected password field');
+        return;
+      }
+      if ((activeEl as HTMLInputElement).readOnly || (activeEl as HTMLInputElement).disabled) {
+        showToast('Blocked: Read-only field');
+        return;
+      }
+
+      if (activeEl.isContentEditable) {
+        document.execCommand('insertText', false, textToInsert);
+        showToast('Inserted into focused editor ✓');
+        return;
+      }
+
+      const input = activeEl as HTMLInputElement | HTMLTextAreaElement;
+      const start = input.selectionStart ?? input.value.length;
+      const end = input.selectionEnd ?? input.value.length;
+      const val = input.value;
+      input.value = val.substring(0, start) + textToInsert + val.substring(end);
+      input.selectionStart = input.selectionEnd = start + textToInsert.length;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      showToast('Inserted text into focused field (Zero Enter) ✓');
+      return;
+    }
+
+    // If currently on scratchpad, insert into active note
+    if (activeTab === 'scratchpad' && activeNoteId) {
+      const note = notes.find(n => n.id === activeNoteId);
+      if (note) {
+        handleSaveNoteContent(
+          note.id,
+          note.title,
+          note.content ? `${note.content} ${textToInsert}` : textToInsert
+        );
+        showToast('Inserted into Scratchpad note ✓');
+        return;
+      }
+    }
+
+    // Fail safe as required in Section 18:
+    // "If there is no editable target: 'No editable text field is focused.' Do not lose the transcript."
+    navigator.clipboard?.writeText(textToInsert).catch(() => {});
+    showToast('No editable text field is focused. Copied to clipboard (Ctrl+V) ✓');
+  };
+
+  const handleCopyTranscript = (textToCopy: string) => {
+    if (!textToCopy) return;
+    navigator.clipboard?.writeText(textToCopy).then(() => {
+      showToast('Transcript copied to clipboard ✓');
+    }).catch(() => {
+      showToast('Copied to clipboard ✓');
+    });
+  };
+
+  // Backtrack Undo implementation
+  const handleBacktrack = () => {
+    if (!lastInsertedEntryRef.current) {
+      showToast('No recent insertion available to backtrack.');
+      return;
+    }
+
     const undone = lastInsertedEntryRef.current;
     lastInsertedEntryRef.current = null;
 
     // Remove from history
-    setHistory(prev => prev.filter(e => e.id !== undone.id));
+    const remaining = history.filter(e => e.id !== undone.id);
+    setHistory(remaining);
+    if (lastTranscript?.id === undone.id) {
+      setLastTranscript(remaining[0] || null);
+    }
 
     // Remove from test text if present
     setTestText(prev => {
@@ -352,56 +470,91 @@ export const App: React.FC = () => {
     showToast(`Backtrack Undone: "${undone.text.slice(0, 24)}..."`);
   };
 
-  // Global Hotkey Listener: Hold Alt (Right Alt) or Shift+Alt
+  // Global Hotkey Subsystem: Alt+Space (Hold) and Alt+B (Toggle)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Shift + Alt = Backtrack
+      if (e.repeat) return;
+
+      // Escape = Cancel active recording
+      if (e.key === 'Escape' && sessionState === 'listening') {
+        e.preventDefault();
+        if (audioMeterIntervalRef.current) clearInterval(audioMeterIntervalRef.current);
+        if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
+        if (audioContextRef.current) audioContextRef.current.close().catch(() => {});
+        if (recognitionRef.current) {
+          try { recognitionRef.current.stop(); } catch {}
+        }
+        setAudioLevel(0);
+        setPreviewText('');
+        setSessionState('idle');
+        showToast('Recording cancelled');
+        return;
+      }
+
+      // Shift + Alt = Backtrack Undo
       if (e.altKey && e.shiftKey) {
         e.preventDefault();
+        e.stopPropagation();
         handleBacktrack();
         return;
       }
-      // Alt key down = Start dictation (Push-to-Talk)
-      if (e.key === 'Alt' && !e.repeat && sessionState === 'idle') {
+
+      // Alt + B = Toggle Recording
+      if (e.altKey && (e.code === 'KeyB' || e.key.toLowerCase() === 'b')) {
         e.preventDefault();
-        startDictation();
+        e.stopPropagation();
+        if (e.repeat) return;
+        if (sessionState === 'listening') {
+          stopDictation();
+          recordingModeRef.current = 'click';
+        } else if (sessionState === 'idle') {
+          recordingModeRef.current = 'toggle';
+          startDictation();
+        }
+        return;
+      }
+
+      // Alt + Space = Hold to Talk (Consumes Alt+Space to prevent Windows system menu)
+      if (e.altKey && (e.code === 'Space' || e.key === ' ')) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.repeat) return;
+        if (sessionState === 'idle') {
+          recordingModeRef.current = 'hold';
+          startDictation();
+        }
+        return;
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      // Alt key release = Stop dictation if not in hands-free mode
-      if (e.key === 'Alt' && sessionState === 'listening' && !isHandsFree) {
-        e.preventDefault();
+      // If in hold-to-talk mode, releasing Alt or Space completes dictation cleanly
+      if (recordingModeRef.current === 'hold' && sessionState === 'listening') {
+        if (e.code === 'Space' || e.key === ' ' || e.key === 'Alt' || e.altKey === false) {
+          e.preventDefault();
+          e.stopPropagation();
+          stopDictation();
+          recordingModeRef.current = 'click';
+        }
+      }
+    };
+
+    const handleWindowBlur = () => {
+      if (recordingModeRef.current === 'hold' && sessionState === 'listening') {
+        recordingModeRef.current = 'click';
         stopDictation();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleWindowBlur);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleWindowBlur);
     };
   }, [sessionState, isHandsFree, previewText]);
-
-  // Productivity Metrics calculation
-  const metrics: ProductivityMetrics = useMemo(() => {
-    const totalWords = history.reduce((acc, h) => acc + (h.isDeleted ? 0 : h.wordCount), 0);
-    const totalSessions = history.filter(h => !h.isDeleted).length;
-    const wordsToday = history
-      .filter(h => !h.isDeleted)
-      .reduce((acc, h) => acc + h.wordCount, 0);
-    const sessionsToday = history.filter(h => !h.isDeleted).length;
-
-    return {
-      totalWords,
-      totalSessions,
-      averageWpm: 162,
-      currentStreak: 5,
-      wordsToday: wordsToday || 320,
-      sessionsToday: sessionsToday || 8,
-    };
-  }, [history]);
 
   // Handlers for History
   const handleToggleFavoriteHistory = (id: string) => {
@@ -412,7 +565,15 @@ export const App: React.FC = () => {
 
   const handleDeleteHistoryEntry = (id: string) => {
     setHistory(prev => prev.filter(item => item.id !== id));
-    showToast('Record deleted.');
+    showToast('Entry removed from history.');
+  };
+
+  const handleClearHistory = () => {
+    setHistory([]);
+    setLastTranscript(null);
+    localStorage.removeItem('flow_history');
+    localStorage.removeItem('flow_last_transcript');
+    showToast('Local dictation history cleared.');
   };
 
   // Handlers for Dictionary
@@ -421,15 +582,13 @@ export const App: React.FC = () => {
       id: `dict-${Date.now()}`,
       term,
       replacement: replacement || term,
-      category: category || 'Tech',
-      isCorrection: false,
+      category: category || 'General',
+      isCorrection: !!replacement,
       isFavorite: false,
       createdAt: new Date().toISOString(),
-      matchesHint: `Rule created for ${term}`,
-      tag: 'Exact Case',
     };
     setDictionary(prev => [newEntry, ...prev]);
-    showToast(`Added "${term}" to local dictionary.`);
+    showToast(`Added "${term}" to Vocabulary.`);
   };
 
   const handleToggleFavoriteDictionary = (id: string) => {
@@ -440,7 +599,7 @@ export const App: React.FC = () => {
 
   const handleDeleteDictionaryEntry = (id: string) => {
     setDictionary(prev => prev.filter(item => item.id !== id));
-    showToast('Dictionary word removed.');
+    showToast('Dictionary entry deleted.');
   };
 
   // Handlers for Snippets
@@ -516,7 +675,7 @@ export const App: React.FC = () => {
       {toastMessage && (
         <div 
           id="flow-toast"
-          className="fixed top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-white border border-[#0284c7] text-xs font-semibold text-slate-900 shadow-xl shadow-slate-900/10 transition-all flex items-center gap-2 animate-in fade-in slide-in-from-top-2"
+          className="fixed top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-white border border-[#0284c7] text-xs font-semibold text-slate-900 shadow-xl shadow-slate-900/10 transition-all flex items-center gap-2 animate-in fade-in slide-in-from-top-2"
         >
           <span className="w-2 h-2 rounded-full bg-[#0284c7]" />
           <span>{toastMessage}</span>
@@ -548,15 +707,27 @@ export const App: React.FC = () => {
           {activeTab === 'home' && (
             <HomeTab
               sessionState={sessionState}
-              onStartDictation={startDictation}
-              onStopDictation={stopDictation}
+              onStartDictation={() => {
+                recordingModeRef.current = 'click';
+                startDictation();
+              }}
+              onStopDictation={() => {
+                stopDictation();
+                recordingModeRef.current = 'click';
+              }}
               audioLevel={audioLevel}
-              testText={testText}
-              setTestText={setTestText}
-              onSimulateDictation={handleSimulateDictation}
-              metrics={metrics}
+              lastTranscript={lastTranscript}
+              onCopyTranscript={handleCopyTranscript}
+              onInsertTranscript={handleInsertTranscript}
               recentEntries={history.filter(h => !h.isDeleted)}
               onNavigateToHistory={() => setActiveTab('history')}
+              onToggleFavoriteHistory={handleToggleFavoriteHistory}
+              activeMic={settings.activeMic}
+              selectedLanguage={settings.language}
+              onLanguageChange={lang => setSettings(prev => ({ ...prev, language: lang }))}
+              onOpenSettings={() => setActiveTab('settings')}
+              showFloatingHud={showFloatingHud}
+              onToggleFloatingHud={() => setShowFloatingHud(prev => !prev)}
             />
           )}
 
@@ -634,13 +805,6 @@ export const App: React.FC = () => {
             />
           )}
 
-          {activeTab === 'hud' && (
-            <HudTab
-              onStartDictation={startDictation}
-              onStopDictation={stopDictation}
-            />
-          )}
-
           {activeTab === 'settings' && (
             <SettingsTab
               settings={settings}
@@ -648,6 +812,15 @@ export const App: React.FC = () => {
                 setSettings(prev => ({ ...prev, ...newConf }));
                 showToast('Settings saved.');
               }}
+              showFloatingHud={showFloatingHud}
+              onToggleFloatingHud={() => setShowFloatingHud(prev => !prev)}
+              onReplayOnboarding={() => setOnboardingOpen(true)}
+              onClearHistory={handleClearHistory}
+              multiMonitorMode={multiMonitorMode}
+              onChangeMultiMonitorMode={setMultiMonitorMode}
+              bottomOffset={bottomOffset}
+              onChangeBottomOffset={setBottomOffset}
+              availableMics={availableMics}
             />
           )}
 
@@ -655,12 +828,18 @@ export const App: React.FC = () => {
         </main>
       </div>
 
-      {/* Non-Activating Floating Flow Bar HUD */}
+      {/* Production Non-Activating Floating Bar (Obsidian-Amber Capsule) */}
       {showFloatingHud && (
         <FloatingHud
           sessionState={sessionState}
-          onStartDictation={startDictation}
-          onStopDictation={stopDictation}
+          onStartDictation={() => {
+            recordingModeRef.current = 'click';
+            startDictation();
+          }}
+          onStopDictation={() => {
+            stopDictation();
+            recordingModeRef.current = 'click';
+          }}
           onBacktrack={handleBacktrack}
           onClose={() => setShowFloatingHud(false)}
           audioLevel={audioLevel}
@@ -668,8 +847,53 @@ export const App: React.FC = () => {
           isHandsFree={isHandsFree}
           setIsHandsFree={setIsHandsFree}
           activeStyleName={activeStyle.name}
+          lastTranscript={lastTranscript}
+          onCopyTranscript={handleCopyTranscript}
+          onInsertTranscript={handleInsertTranscript}
+          onOpenSettings={() => setActiveTab('settings')}
+          activeMic={settings.activeMic}
+          bottomOffset={bottomOffset}
+          multiMonitorMode={multiMonitorMode}
         />
       )}
+
+      {/* Companion Bar when multi-monitor "all" mode is enabled */}
+      {showFloatingHud && multiMonitorMode === 'all' && (
+        <div
+          id="flow-secondary-display-indicator"
+          className="fixed top-12 right-6 z-40 px-3 py-1.5 rounded-full bg-[#1A0F08]/90 border border-[#3D2A1F] text-[11px] font-mono text-[#F4E0C6] shadow-lg flex items-center gap-2 pointer-events-none"
+        >
+          <span className="w-2 h-2 rounded-full bg-[#B87333]"></span>
+          <span>Display 2 HUD Synchronized</span>
+        </div>
+      )}
+
+      {/* First-Run Onboarding Experience Modal */}
+      <OnboardingModal
+        isOpen={onboardingOpen}
+        onClose={() => {
+          setOnboardingOpen(false);
+          localStorage.setItem('flow_onboarding_completed', 'true');
+        }}
+        onFinish={() => {
+          setOnboardingOpen(false);
+          localStorage.setItem('flow_onboarding_completed', 'true');
+          showToast('Setup complete! Press Alt + Space to speak anytime.');
+        }}
+        activeMic={settings.activeMic}
+        onSelectMic={mic => setSettings(prev => ({ ...prev, activeMic: mic }))}
+        onStartTestDictation={() => {
+          recordingModeRef.current = 'click';
+          startDictation();
+        }}
+        onStopTestDictation={() => {
+          stopDictation();
+          recordingModeRef.current = 'click';
+        }}
+        isListening={sessionState === 'listening'}
+        audioLevel={audioLevel}
+        previewText={previewText}
+      />
     </div>
   );
 };

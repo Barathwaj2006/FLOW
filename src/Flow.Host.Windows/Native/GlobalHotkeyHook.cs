@@ -16,6 +16,9 @@ public sealed class GlobalHotkeyHook : IDisposable
     private const int VK_SHIFT = 0x10;
     private const int VK_CONTROL = 0x11;
     private const int VK_BACK = 0x08;
+    private const int VK_SPACE = 0x20;
+    private const int VK_MENU = 0x12; // Alt key
+    private const int VK_KEY_B = 0x42;
 
     private const int LLKHF_EXTENDED = 0x01;
     private const int LLKHF_INJECTED = 0x10;
@@ -209,7 +212,51 @@ public sealed class GlobalHotkeyHook : IDisposable
                     }
                 }
             }
-            // 4. Handle configured dictation hotkey (default: Right Alt / VK_RMENU)
+            // 4. Handle Alt+Space Hold-to-Talk shortcut (Consumes shortcut to prevent SC_KEYMENU / system menu)
+            else if (vkCode == VK_SPACE && (GetKeyState(VK_MENU) & 0x8000) != 0)
+            {
+                if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
+                {
+                    if (!_isKeyDown)
+                    {
+                        _isKeyDown = true;
+                        HotkeyDown?.Invoke(false); // Push-To-Talk
+                    }
+                    return (IntPtr)1; // Consume key to prevent system menu
+                }
+                else if (message == WM_KEYUP || message == WM_SYSKEYUP)
+                {
+                    if (_isKeyDown)
+                    {
+                        _isKeyDown = false;
+                        HotkeyUp?.Invoke();
+                    }
+                    return (IntPtr)1; // Consume keyup
+                }
+            }
+            // 5. Handle Alt+B Toggle shortcut (Consumes shortcut to prevent app character injection)
+            else if (vkCode == VK_KEY_B && (GetKeyState(VK_MENU) & 0x8000) != 0)
+            {
+                if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
+                {
+                    if (!_isHandsFreeActive)
+                    {
+                        _isHandsFreeActive = true;
+                        HotkeyDown?.Invoke(true); // Toggle on
+                    }
+                    else
+                    {
+                        _isHandsFreeActive = false;
+                        HotkeyUp?.Invoke(); // Toggle off
+                    }
+                    return (IntPtr)1; // Consume key
+                }
+                else if (message == WM_KEYUP || message == WM_SYSKEYUP)
+                {
+                    return (IntPtr)1; // Consume keyup
+                }
+            }
+            // 6. Handle configured dictation hotkey (default: Right Alt / VK_RMENU)
             else if (vkCode == _targetVk)
             {
                 // For VK_RMENU, verify extended key flag on systems where layout differentiation is required
