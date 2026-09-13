@@ -837,8 +837,8 @@
                                     </StackPanel>
 
                                     <TextBlock Text="Voice Activity Sensitivity:" Foreground="#CBD5E1" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                                    <Slider x:Name="SliderVadThreshold" Minimum="0.005" Maximum="0.05" Value="0.015" TickFrequency="0.005" IsSnapToTickEnabled="True" Margin="0,0,0,4"/>
-                                    <TextBlock Text="Energy Threshold: 0.015 (Standard Desktop)" Foreground="#38BDF8" FontSize="12"/>
+                                    <Slider x:Name="SliderVadThreshold" Minimum="0.005" Maximum="0.05" Value="0.015" TickFrequency="0.005" IsSnapToTickEnabled="True" Margin="0,0,0,4" ValueChanged="SliderVadThreshold_ValueChanged"/>
+                                    <TextBlock x:Name="TxtVadThresholdLabel" Text="Energy Threshold: 0.015 (Standard Desktop)" Foreground="#38BDF8" FontSize="12"/>
                                 </StackPanel>
                             </Border>
 
@@ -857,9 +857,14 @@
                                             <TextBlock Text="Push-to-Talk Shortcut" Foreground="#F8FAFC" FontWeight="SemiBold"/>
                                             <TextBlock Text="Hold to record, release to insert" Foreground="#94A3B8" FontSize="12"/>
                                         </StackPanel>
-                                        <Border Grid.Column="1" Background="#1E293B" CornerRadius="4" Padding="10,4">
-                                            <TextBlock Text="Right Alt" Foreground="#38BDF8" FontWeight="Bold"/>
-                                        </Border>
+                                        <ComboBox x:Name="ComboHotkey" Grid.Column="1" Width="180" Height="32" Background="#0E1422" Foreground="#38BDF8" FontWeight="Bold" BorderBrush="#233050" SelectionChanged="ComboHotkey_SelectionChanged">
+                                            <ComboBoxItem Content="Right Alt (Default)" Tag="165"/>
+                                            <ComboBoxItem Content="Right Control" Tag="163"/>
+                                            <ComboBoxItem Content="F8" Tag="119"/>
+                                            <ComboBoxItem Content="F9" Tag="120"/>
+                                            <ComboBoxItem Content="F10" Tag="121"/>
+                                            <ComboBoxItem Content="Scroll Lock" Tag="145"/>
+                                        </ComboBox>
                                     </Grid>
 
                                     <Grid Margin="0,0,0,8">
@@ -869,10 +874,10 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
                                             <TextBlock Text="Hands-Free Dictation" Foreground="#F8FAFC" FontWeight="SemiBold"/>
-                                            <TextBlock Text="Double-tap Right Alt to toggle recording on/off" Foreground="#94A3B8" FontSize="12"/>
+                                            <TextBlock Text="Double-tap chosen shortcut to toggle recording on/off" Foreground="#94A3B8" FontSize="12"/>
                                         </StackPanel>
                                         <Border Grid.Column="1" Background="#1E293B" CornerRadius="4" Padding="10,4">
-                                            <TextBlock Text="Double-Tap Right Alt" Foreground="#38BDF8" FontWeight="Bold"/>
+                                            <TextBlock x:Name="TxtHandsFreeShortcutDesc" Text="Double-Tap Shortcut" Foreground="#38BDF8" FontWeight="Bold"/>
                                         </Border>
                                     </Grid>
 
@@ -886,9 +891,22 @@
                                             <TextBlock Text="Revert last inserted dictation" Foreground="#94A3B8" FontSize="12"/>
                                         </StackPanel>
                                         <Border Grid.Column="1" Background="#1E293B" CornerRadius="4" Padding="10,4">
-                                            <TextBlock Text="Shift + Right Alt" Foreground="#38BDF8" FontWeight="Bold"/>
+                                            <TextBlock Text="Shift + Shortcut" Foreground="#38BDF8" FontWeight="Bold"/>
                                         </Border>
                                     </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Appearance & Theme -->
+                            <Border Style="{StaticResource CardBorderStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Appearance &amp; Theme" FontSize="16" FontWeight="Bold" Foreground="#F8FAFC" Margin="0,0,0,4"/>
+                                    <TextBlock Text="Choose between Windows 11 Fluent Dark mode and Light mode." Foreground="#94A3B8" Margin="0,0,0,12"/>
+
+                                    <ComboBox x:Name="ComboTheme" Height="34" Background="#0E1422" Foreground="#F8FAFC" BorderBrush="#233050" SelectedIndex="0" Margin="0,0,0,8" SelectionChanged="ComboTheme_SelectionChanged">
+                                        <ComboBoxItem Content="Dark Theme (Obsidian Fluent — Default)"/>
+                                        <ComboBoxItem Content="Light Theme (Windows 11 Soft Slate)"/>
+                                    </ComboBox>
                                 </StackPanel>
                             </Border>
 
@@ -898,7 +916,7 @@
                                     <TextBlock Text="Dictation Language" FontSize="16" FontWeight="Bold" Foreground="#F8FAFC" Margin="0,0,0,4"/>
                                     <TextBlock Text="Choose the languages you use most for better recognition." Foreground="#94A3B8" Margin="0,0,0,12"/>
 
-                                    <ComboBox x:Name="ComboLanguages" Height="34" Background="#0E1422" Foreground="#F8FAFC" BorderBrush="#233050" SelectedIndex="0" Margin="0,0,0,8">
+                                    <ComboBox x:Name="ComboLanguages" Height="34" Background="#0E1422" Foreground="#F8FAFC" BorderBrush="#233050" SelectedIndex="0" Margin="0,0,0,8" SelectionChanged="ComboLanguages_SelectionChanged">
                                         <ComboBoxItem Content="English (en) — Optimized Tiny.en Low-Latency"/>
                                         <ComboBoxItem Content="Auto-Detect (auto) — Multilingual Tiny"/>
                                         <ComboBoxItem Content="Tamil (ta) — Multilingual"/>

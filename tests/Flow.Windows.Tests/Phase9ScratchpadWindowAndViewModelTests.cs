@@ -81,17 +81,16 @@ public class Phase9ScratchpadWindowAndViewModelTests : IDisposable
     }
 
     [Fact]
-    public void ScratchpadWindow_Instantiates_And_BindsViewModel_OnStaThread()
+    public void ScratchpadInHub_Instantiates_OnStaThread()
     {
         RunOnSta(() =>
         {
-            var viewModel = new ScratchpadViewModel(_service);
-            var window = new ScratchpadWindow(viewModel);
+            var window = new Flow.Host.Windows.UI.FlowHubWindow(null, null, null, null, _service);
 
             Assert.NotNull(window);
-            Assert.Equal("FLOW — Scratchpad & Quick Capture", window.Title);
-            Assert.Equal(viewModel, window.DataContext);
-            Assert.NotNull(window.ViewModel);
+            Assert.Equal("FLOW — Voice Productivity", window.Title);
+
+            window.Close();
         });
     }
 
@@ -282,32 +281,24 @@ public class Phase9ScratchpadWindowAndViewModelTests : IDisposable
     }
 
     [Fact]
-    public void ScratchpadWindowManager_ShowWindow_And_CloseWindow_Lifecycle()
+    public void ScratchpadTab_HubLifecycle_OnStaThread()
     {
-        ScratchpadWindowManager.ShowWindow(_service);
-        Thread.Sleep(300);
-
-        Assert.True(ScratchpadWindowManager.IsOpen);
-
-        ScratchpadWindowManager.CloseWindow();
-        Thread.Sleep(300);
-
-        Assert.False(ScratchpadWindowManager.IsOpen);
+        RunOnSta(() =>
+        {
+            var hub = new Flow.Host.Windows.UI.FlowHubWindow(null, null, null, null, _service);
+            Assert.NotNull(hub);
+            Assert.Equal("FLOW — Voice Productivity", hub.Title);
+            hub.Close();
+        });
     }
 
     [Fact]
-    public void Physical_ScratchpadWindow_FullUserFlow_OnStaThread()
+    public void Physical_ScratchpadViewModel_FullUserFlow_OnStaThread()
     {
         RunOnSta(async () =>
         {
             var viewModel = new ScratchpadViewModel(_service);
-            var window = new ScratchpadWindow(viewModel);
-
-            window.Show();
             await viewModel.InitializeAsync();
-
-            Assert.True(window.IsVisible);
-            Assert.Equal("FLOW — Scratchpad & Quick Capture", window.Title);
 
             // 1. Create note
             var note = await viewModel.CreateNewScratchpadAsync("Interactive Note");
@@ -338,8 +329,6 @@ public class Phase9ScratchpadWindowAndViewModelTests : IDisposable
             Assert.True(viewModel.IsUndoVisible);
             await viewModel.RestoreDeletedAsync();
             Assert.False(viewModel.IsUndoVisible);
-
-            window.Close();
         });
     }
 }

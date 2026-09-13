@@ -50,6 +50,8 @@ public static class FlowHubWindowManager
         SnippetExpansionEngine? snippetEngine = null,
         IStyleRepository? styleRepo = null,
         StyleFormattingEngine? styleEngine = null,
+        Flow.Core.Storage.ISettingsRepository? settingsRepo = null,
+        GlobalHotkeyHook? hotkeyHook = null,
         int targetTab = 0)
     {
         lock (s_lock)
@@ -94,7 +96,9 @@ public static class FlowHubWindowManager
                         snippetRepo,
                         snippetEngine,
                         styleRepo,
-                        styleEngine);
+                        styleEngine,
+                        settingsRepo,
+                        hotkeyHook);
 
                     s_window.ExitApplicationRequested += () =>
                     {

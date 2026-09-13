@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Automation;
 using Flow.Core.Backtrack;
 using Flow.Core.TextInsertion;
 using Microsoft.Extensions.Logging;
@@ -127,7 +128,71 @@ public sealed class WindowsTextInsertionService : ITextInsertionService
 
     private bool TryUiaInsertion(IntPtr hwnd, string text)
     {
-        // Reserved for direct UI Automation attribute insertion on supported controls
+        try
+        {
+            AutomationElement? focusedElement = null;
+            try
+            {
+                focusedElement = AutomationElement.FocusedElement;
+            }
+            catch
+            {
+                if (hwnd != IntPtr.Zero)
+                {
+                    focusedElement = AutomationElement.FromHandle(hwnd);
+                }
+            }
+
+            if (focusedElement == null) return false;
+
+            // Fail-closed privacy gate: check if focused element is password/credential
+            object isPass = focusedElement.GetCurrentPropertyValue(AutomationElement.IsPasswordProperty, true);
+            if (isPass is bool isPassword && isPassword)
+            {
+                _logger?.LogWarning("TryUiaInsertion blocked: focused element is a password field.");
+                return false;
+            }
+
+            // Check if element is editable via ValuePattern
+            if (focusedElement.TryGetCurrentPattern(ValuePattern.Pattern, out object? patternObj) &&
+                patternObj is ValuePattern valPattern)
+            {
+                if (!valPattern.Current.IsReadOnly)
+                {
+                    string currentVal = valPattern.Current.Value ?? string.Empty;
+                    if (string.IsNullOrEmpty(currentVal))
+                    {
+                        valPattern.SetValue(text);
+                        _logger?.LogInformation("UIA ValuePattern.SetValue succeeded for empty target control.");
+                        return true;
+                    }
+                    else
+                    {
+                        // Check if TextPattern is available for selection replacement
+                        if (focusedElement.TryGetCurrentPattern(TextPattern.Pattern, out object? textPatternObj) &&
+                            textPatternObj is TextPattern textPattern)
+                        {
+                            var selection = textPattern.GetSelection();
+                            if (selection != null && selection.Length > 0)
+                            {
+                                // Rich edit with existing selection or cursor: delegate to SendInput Ctrl+V for precise placement
+                                return false;
+                            }
+                        }
+
+                        // For simple controls with existing text, append text cleanly
+                        valPattern.SetValue(currentVal + " " + text);
+                        _logger?.LogInformation("UIA ValuePattern appended text successfully.");
+                        return true;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogDebug(ex, "UIA text insertion bypassed or unsupported; using SendInput fallback.");
+        }
+
         return false;
     }
 

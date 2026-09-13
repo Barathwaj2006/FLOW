@@ -21,7 +21,7 @@ public sealed class GlobalHotkeyHook : IDisposable
     private const int LLKHF_INJECTED = 0x10;
     private const double MinDoubleTapIntervalMs = 40.0;
 
-    private readonly int _targetVk;
+    private int _targetVk;
     private readonly double _doubleTapThresholdMs;
 
     private IntPtr _hookId = IntPtr.Zero;
@@ -68,6 +68,20 @@ public sealed class GlobalHotkeyHook : IDisposable
     public bool IsHooked => _hookId != IntPtr.Zero;
     public bool IsArmed => _isArmed;
     public bool IsHandsFreeActive => _isHandsFreeActive;
+    public int TargetVk => _targetVk;
+
+    /// <summary>
+    /// Dynamically reconfigures the target hotkey virtual key code.
+    /// </summary>
+    public void UpdateTargetKey(int newVk)
+    {
+        if (newVk <= 0 || newVk > 255) return;
+        _targetVk = newVk;
+        if (_isArmed)
+        {
+            Arm();
+        }
+    }
 
     public GlobalHotkeyHook(int targetVk = DefaultHotkeyVk, double doubleTapThresholdMs = 350.0)
     {
