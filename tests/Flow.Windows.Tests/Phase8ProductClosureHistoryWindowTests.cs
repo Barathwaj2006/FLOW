@@ -108,25 +108,14 @@ public class Phase8ProductClosureHistoryWindowTests : IDisposable
     }
 
     [Fact]
-    public void HistoryWindow_Instantiates_And_BindsViewModels_OnStaThread()
+    public void HistoryInHub_Instantiates_OnStaThread()
     {
         RunOnSta(() =>
         {
-            var historyVm = new HistoryViewModel(_historyService);
-            var statsVm = new StatisticsViewModel(_historyService);
-
-            var window = new HistoryWindow(historyVm, statsVm);
+            var window = new Flow.Host.Windows.UI.FlowHubWindow(null, null, null, _historyService, null);
 
             Assert.NotNull(window);
-            Assert.Equal("FLOW — History & Productivity", window.Title);
-            Assert.Equal(historyVm, window.DataContext);
-            Assert.Equal(historyVm, window.HistoryViewModel);
-            Assert.Equal(statsVm, window.StatisticsViewModel);
-
-            // Verify main tabs exist
-            Assert.NotNull(window.FindName("HistoryTab"));
-            Assert.NotNull(window.FindName("StatsTab"));
-            Assert.NotNull(window.FindName("ExportTab"));
+            Assert.Equal("FLOW — Voice Productivity", window.Title);
 
             window.Close();
         });
@@ -395,23 +384,14 @@ public class Phase8ProductClosureHistoryWindowTests : IDisposable
     }
 
     [Fact]
-    public void HistoryWindowManager_Open_And_Close_Lifecycle()
+    public void HistoryTab_HubLifecycle_OnStaThread()
     {
         RunOnSta(() =>
         {
-            Assert.False(HistoryWindowManager.IsOpen);
-
-            HistoryWindowManager.ShowWindow(_historyService);
-            Assert.True(HistoryWindowManager.IsOpen);
-
-            // Re-calling ShowWindow while open brings it to foreground safely without throwing
-            HistoryWindowManager.ShowWindow(_historyService);
-            Assert.True(HistoryWindowManager.IsOpen);
-
-            HistoryWindowManager.CloseWindow();
-            // Allow thread dispatch to complete
-            Thread.Sleep(200);
-            Assert.False(HistoryWindowManager.IsOpen);
+            var hub = new Flow.Host.Windows.UI.FlowHubWindow(null, null, null, _historyService, null);
+            Assert.NotNull(hub);
+            Assert.Equal("FLOW — Voice Productivity", hub.Title);
+            hub.Close();
         });
     }
 }

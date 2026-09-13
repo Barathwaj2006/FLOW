@@ -12,11 +12,13 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Flow.Core.History;
+using Flow.Core.Language;
 using Flow.Core.Personalization.Dictionary;
 using Flow.Core.Personalization.Snippets;
 using Flow.Core.Personalization.Styles;
 using Flow.Core.Scratchpad;
 using Flow.Core.Session;
+using Flow.Core.Storage;
 using Flow.Host.Windows.Native;
 using Flow.Host.Windows.Personalization;
 using Flow.Host.Windows.Scratchpad;
@@ -64,6 +66,9 @@ public partial class FlowHubWindow : Window
     private readonly SnippetExpansionEngine? _snippetEngine;
     private readonly IStyleRepository? _styleRepo;
     private readonly StyleFormattingEngine? _styleEngine;
+    private readonly ISettingsRepository? _settingsRepo;
+    private readonly GlobalHotkeyHook? _hotkeyHook;
+    private FlowAppSettings _currentSettings = new();
 
     // View models & state collections
     public DictionaryViewModel? DictionaryVm { get; private set; }
@@ -95,7 +100,7 @@ public partial class FlowHubWindow : Window
         WasapiDeviceManager? deviceManager,
         IHistoryService? historyService,
         IScratchpadService? scratchpadService)
-        : this(coordinator, capture, deviceManager, historyService, scratchpadService, null, null, null, null, null, null)
+        : this(coordinator, capture, deviceManager, historyService, scratchpadService, null, null, null, null, null, null, null, null)
     {
     }
 
@@ -110,7 +115,9 @@ public partial class FlowHubWindow : Window
         ISnippetRepository? snippetRepo,
         SnippetExpansionEngine? snippetEngine,
         IStyleRepository? styleRepo,
-        StyleFormattingEngine? styleEngine) : this()
+        StyleFormattingEngine? styleEngine,
+        ISettingsRepository? settingsRepo = null,
+        GlobalHotkeyHook? hotkeyHook = null) : this()
     {
         _coordinator = coordinator;
         _capture = capture;
@@ -123,6 +130,8 @@ public partial class FlowHubWindow : Window
         _snippetEngine = snippetEngine;
         _styleRepo = styleRepo;
         _styleEngine = styleEngine;
+        _settingsRepo = settingsRepo;
+        _hotkeyHook = hotkeyHook;
 
         if (_dictRepo != null)
         {
@@ -191,6 +200,7 @@ public partial class FlowHubWindow : Window
         await LoadSnippetsDataAsync();
         await LoadStylesDataAsync();
         await LoadScratchpadNotesAsync();
+        await LoadSettingsDataAsync();
     }
 
     public void SelectTab(int index)
@@ -1023,6 +1033,166 @@ public partial class FlowHubWindow : Window
     {
         AllowRealClose = true;
         ExitApplicationRequested?.Invoke();
+    }
+
+    private bool _isSettingsLoading = true;
+
+    private async Task LoadSettingsDataAsync()
+    {
+        _isSettingsLoading = true;
+        try
+        {
+            if (_settingsRepo != null)
+            {
+                _currentSettings = await _settingsRepo.LoadSettingsAsync();
+            }
+
+            // 1. VAD Threshold
+            if (SliderVadThreshold != null) SliderVadThreshold.Value = _currentSettings.VadThreshold;
+            if (TxtVadThresholdLabel != null) TxtVadThresholdLabel.Text = $"Energy Threshold: {_currentSettings.VadThreshold:F3} (Configured)";
+            _coordinator?.SetVadThreshold(_currentSettings.VadThreshold);
+
+            // 2. Language
+            int langIndex = _currentSettings.Language.ToLowerInvariant() switch
+            {
+                "auto" => 1,
+                "ta" => 2,
+                "hi" => 3,
+                "es" => 4,
+                "fr" => 5,
+                "de" => 6,
+                _ => 0 // "en"
+            };
+            if (ComboLanguages != null) ComboLanguages.SelectedIndex = langIndex;
+            if (_coordinator != null)
+            {
+                _coordinator.SelectedLanguage = _currentSettings.Language;
+                _coordinator.SetSessionLanguage(new LanguageCode(_currentSettings.Language));
+            }
+
+            // 3. Hotkey
+            int hotkeyIndex = _currentSettings.HotkeyVk switch
+            {
+                163 => 1, // Right Ctrl
+                119 => 2, // F8
+                120 => 3, // F9
+                121 => 4, // F10
+                145 => 5, // Scroll Lock
+                _ => 0    // Right Alt (165)
+            };
+            if (ComboHotkey != null) ComboHotkey.SelectedIndex = hotkeyIndex;
+            _hotkeyHook?.UpdateTargetKey(_currentSettings.HotkeyVk);
+            UpdateHotkeyDisplay(_currentSettings.HotkeyVk);
+
+            // 4. Theme
+            if (ComboTheme != null) ComboTheme.SelectedIndex = string.Equals(_currentSettings.Theme, "Light", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+            ApplyTheme(_currentSettings.Theme);
+        }
+        catch
+        {
+            // Fail closed with safe defaults
+        }
+        finally
+        {
+            _isSettingsLoading = false;
+        }
+    }
+
+    private void UpdateHotkeyDisplay(int vk)
+    {
+        string name = vk switch
+        {
+            163 => "Right Ctrl",
+            119 => "F8",
+            120 => "F9",
+            121 => "F10",
+            145 => "Scroll Lock",
+            _ => "Right Alt"
+        };
+        if (TxtHandsFreeShortcutDesc != null)
+        {
+            TxtHandsFreeShortcutDesc.Text = $"Double-Tap {name}";
+        }
+    }
+
+    private void SliderVadThreshold_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isSettingsLoading || TxtVadThresholdLabel == null) return;
+
+        float val = (float)e.NewValue;
+        TxtVadThresholdLabel.Text = $"Energy Threshold: {val:F3}";
+        _coordinator?.SetVadThreshold(val);
+
+        _currentSettings = _currentSettings with { VadThreshold = val };
+        _ = _settingsRepo?.SaveSettingsAsync(_currentSettings);
+    }
+
+    private void ComboLanguages_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isSettingsLoading || ComboLanguages == null) return;
+
+        string code = ComboLanguages.SelectedIndex switch
+        {
+            1 => "auto",
+            2 => "ta",
+            3 => "hi",
+            4 => "es",
+            5 => "fr",
+            6 => "de",
+            _ => "en"
+        };
+
+        if (_coordinator != null)
+        {
+            _coordinator.SelectedLanguage = code;
+            _coordinator.SetSessionLanguage(new LanguageCode(code));
+        }
+
+        _currentSettings = _currentSettings with { Language = code };
+        _ = _settingsRepo?.SaveSettingsAsync(_currentSettings);
+    }
+
+    private void ComboHotkey_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isSettingsLoading || ComboHotkey == null) return;
+
+        if (ComboHotkey.SelectedItem is ComboBoxItem item &&
+            int.TryParse(item.Tag as string, out int vk))
+        {
+            _hotkeyHook?.UpdateTargetKey(vk);
+            UpdateHotkeyDisplay(vk);
+
+            _currentSettings = _currentSettings with { HotkeyVk = vk };
+            _ = _settingsRepo?.SaveSettingsAsync(_currentSettings);
+        }
+    }
+
+    private void ComboTheme_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isSettingsLoading || ComboTheme == null) return;
+
+        string theme = ComboTheme.SelectedIndex == 1 ? "Light" : "Dark";
+        ApplyTheme(theme);
+
+        _currentSettings = _currentSettings with { Theme = theme };
+        _ = _settingsRepo?.SaveSettingsAsync(_currentSettings);
+    }
+
+    private void ApplyTheme(string themeName)
+    {
+        try
+        {
+            var uri = new Uri($"/Flow.Host.Windows;component/Themes/{themeName}Theme.xaml", UriKind.RelativeOrAbsolute);
+            var newDict = new ResourceDictionary { Source = uri };
+
+            // Apply merged theme dictionary
+            Resources.MergedDictionaries.Clear();
+            Resources.MergedDictionaries.Add(newDict);
+        }
+        catch
+        {
+            // Fail gracefully if resource not found
+        }
     }
 
     protected override void OnClosing(CancelEventArgs e)

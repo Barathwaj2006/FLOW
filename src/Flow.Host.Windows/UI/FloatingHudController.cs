@@ -74,10 +74,18 @@ public sealed class FloatingHudController : IDisposable
         {
             EnsureClassRegistered();
 
-            int screenW = GetSystemMetrics(0 /* SM_CXSCREEN */);
-            int screenH = GetSystemMetrics(1 /* SM_CYSCREEN */);
-            int x = (screenW - HudWidth) / 2;
-            int y = screenH - HudHeight - 80;
+            RECT workArea = new();
+            if (!SystemParametersInfo(SPI_GETWORKAREA, 0, ref workArea, 0) || workArea.Right <= workArea.Left)
+            {
+                workArea.Left = 0;
+                workArea.Top = 0;
+                workArea.Right = GetSystemMetrics(0 /* SM_CXSCREEN */);
+                workArea.Bottom = GetSystemMetrics(1 /* SM_CYSCREEN */);
+            }
+
+            int workW = workArea.Right - workArea.Left;
+            int x = workArea.Left + (workW - HudWidth) / 2;
+            int y = workArea.Bottom - HudHeight - 24;
 
             const uint WS_POPUP = 0x80000000;
             const uint WS_EX_TOPMOST = 0x00000008;
@@ -124,11 +132,11 @@ public sealed class FloatingHudController : IDisposable
         _isCommandMode = isCommandMode;
         _statusText = detail ?? state switch
         {
-            SessionState.Recording => isCommandMode ? "🪄 Command: Listening..." : "Listening...",
-            SessionState.Processing => isCommandMode ? "🪄 Transforming..." : "Transcribing...",
-            SessionState.Inserting => isCommandMode ? "🪄 Applying..." : "Inserting...",
+            SessionState.Recording => "Listening...",
+            SessionState.Processing => "Transcribing...",
+            SessionState.Inserting => "Inserting...",
             SessionState.Backtracking => "Backtracking...",
-            SessionState.Completed => isCommandMode ? "🪄 Transformed" : "Done",
+            SessionState.Completed => "Done",
             SessionState.Cancelled => "Cancelled",
             SessionState.Error => "Error",
             _ => "Ready"
@@ -229,9 +237,9 @@ public sealed class FloatingHudController : IDisposable
 
             try
             {
-                // 1. Dark pill background
-                IntPtr bgBrush = CreateSolidBrush(RGB(24, 24, 28));
-                IntPtr borderPen = CreatePen(0 /* PS_SOLID */, 1, RGB(52, 52, 58));
+                // 1. Dark pill background (Obsidian #0F0F11, border #26262B)
+                IntPtr bgBrush = CreateSolidBrush(RGB(15, 15, 17));
+                IntPtr borderPen = CreatePen(0 /* PS_SOLID */, 1, RGB(38, 38, 43));
                 IntPtr oldBrush = SelectObject(memDc, bgBrush);
                 IntPtr oldPen = SelectObject(memDc, borderPen);
 
@@ -242,16 +250,16 @@ public sealed class FloatingHudController : IDisposable
                 DeleteObject(bgBrush);
                 DeleteObject(borderPen);
 
-                // 2. Status Dot
+                // 2. Status Dot (Obsidian-Amber Palette)
                 uint dotColor = _currentState switch
                 {
-                    SessionState.Recording => RGB(245, 75, 75),   // Coral/Red
-                    SessionState.Processing => RGB(85, 150, 255),  // Blue
-                    SessionState.Inserting => RGB(165, 105, 255), // Purple
-                    SessionState.Completed => RGB(55, 205, 115),  // Green
-                    SessionState.Cancelled => RGB(235, 160, 50),  // Amber
-                    SessionState.Error => RGB(245, 60, 60),       // Red
-                    _ => RGB(120, 120, 130)                       // Gray
+                    SessionState.Recording => RGB(245, 158, 11),   // Warm Amber (#F59E0B)
+                    SessionState.Processing => RGB(217, 119, 6),   // Amber-Gold (#D97706)
+                    SessionState.Inserting => RGB(252, 211, 77),   // Light Amber (#FCD34D)
+                    SessionState.Completed => RGB(16, 185, 129),   // Emerald (#10B981)
+                    SessionState.Cancelled => RGB(107, 114, 128),  // Muted Charcoal (#6B7280)
+                    SessionState.Error => RGB(239, 68, 68),        // Crimson (#EF4444)
+                    _ => RGB(75, 85, 99)                           // Idle Charcoal
                 };
 
                 IntPtr dotBrush = CreateSolidBrush(dotColor);
@@ -266,9 +274,9 @@ public sealed class FloatingHudController : IDisposable
                 DeleteObject(dotBrush);
                 DeleteObject(dotPen);
 
-                // 3. Status Text (Segoe UI)
+                // 3. Status Text (Segoe UI / #F3F4F6)
                 SetBkMode(memDc, 1 /* TRANSPARENT */);
-                SetTextColor(memDc, RGB(230, 230, 235));
+                SetTextColor(memDc, RGB(243, 244, 246));
 
                 IntPtr hFont = CreateFont(
                     15, 0, 0, 0, 500 /* FW_MEDIUM */,
@@ -283,7 +291,7 @@ public sealed class FloatingHudController : IDisposable
                 SelectObject(memDc, oldFont);
                 DeleteObject(hFont);
 
-                // 4. Real Waveform Foundation Indicator (5 dynamic bars based on RMS audio level)
+                // 4. Real Waveform Foundation Indicator (5 dynamic Warm Amber bars based on RMS audio level)
                 if (_currentState == SessionState.Recording)
                 {
                     int barBaseX = width - 58;
@@ -291,7 +299,7 @@ public sealed class FloatingHudController : IDisposable
                     int gap = 3;
                     float[] weights = { 0.5f, 0.85f, 1.0f, 0.85f, 0.5f };
 
-                    uint barColor = _isCommandMode ? RGB(180, 120, 255) : RGB(100, 200, 255);
+                    uint barColor = RGB(245, 158, 11); // Warm Amber (#F59E0B)
                     IntPtr barBrush = CreateSolidBrush(barColor);
                     oldBrush = SelectObject(memDc, barBrush);
 
@@ -436,6 +444,12 @@ public sealed class FloatingHudController : IDisposable
 
     [DllImport("user32.dll")]
     private static extern int GetSystemMetrics(int nIndex);
+
+    private const uint SPI_GETWORKAREA = 0x0030;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref RECT pvParam, uint fWinIni);
 
     [DllImport("user32.dll")]
     private static extern IntPtr LoadCursor(IntPtr hInstance, int lpCursorName);

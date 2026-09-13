@@ -178,6 +178,23 @@ public sealed class VoiceSessionCoordinator
     public void SetDefaultLanguage(LanguageCode code) => _languageSessionService.SetDefaultLanguage(code);
     public void ResetSessionLanguage() => _languageSessionService.ResetSession();
 
+    /// <summary>
+    /// Configures the active VAD energy threshold dynamically.
+    /// </summary>
+    public void SetVadThreshold(float threshold)
+    {
+        if (_vad is EnergyVAD energyVad)
+        {
+            energyVad.SetEnergyThreshold(threshold);
+            _logger?.LogInformation("VAD energy threshold updated dynamically to {Threshold:F4}", threshold);
+        }
+    }
+
+    /// <summary>
+    /// Current effective VAD threshold.
+    /// </summary>
+    public float CurrentVadThreshold => (_vad as EnergyVAD)?.CurrentThreshold ?? 0.015f;
+
     public VoiceSessionCoordinator(
         AudioRingBuffer ringBuffer,
         IVoiceActivityDetector vad,

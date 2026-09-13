@@ -1,11 +1,14 @@
 using System;
+using System.IO;
 using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 using Flow.Core.ASR;
 using Flow.Core.Audio;
 using Flow.Core.Commands;
 using Flow.Core.Language;
 using Flow.Core.Session;
+using Flow.Core.Storage;
 using Flow.Core.TextInsertion;
 using Flow.Host.Windows.Lifecycle;
 using Flow.Host.Windows.Native;
@@ -279,6 +282,100 @@ public class ProductCompletionLifecycleTests
                     Assert.Equal(i - 6, window.NavListBoxBottom.SelectedIndex);
                 }
             }
+        });
+    }
+
+    [Fact]
+    public async Task SqliteSettingsRepository_SaveAndLoad_RoundTripsAccurately()
+    {
+        string tempDbPath = Path.Combine(Path.GetTempPath(), $"flow_settings_test_{Guid.NewGuid():N}.db");
+        try
+        {
+            var db = new SqlitePersonalizationDatabase(tempDbPath);
+            var repo = new SqliteSettingsRepository(db);
+
+            // Default load
+            var initial = await repo.LoadSettingsAsync();
+            Assert.Equal(0.015f, initial.VadThreshold);
+            Assert.Equal("en", initial.Language);
+            Assert.Equal(165, initial.HotkeyVk);
+            Assert.Equal("Dark", initial.Theme);
+
+            // Save custom
+            var updated = new FlowAppSettings
+            {
+                VadThreshold = 0.042f,
+                Language = "ta",
+                HotkeyVk = 119,
+                Theme = "Light"
+            };
+            await repo.SaveSettingsAsync(updated);
+
+            // Reload
+            var reloaded = await repo.LoadSettingsAsync();
+            Assert.Equal(0.042f, reloaded.VadThreshold, precision: 3);
+            Assert.Equal("ta", reloaded.Language);
+            Assert.Equal(119, reloaded.HotkeyVk);
+            Assert.Equal("Light", reloaded.Theme);
+        }
+        finally
+        {
+            if (File.Exists(tempDbPath))
+            {
+                try { File.Delete(tempDbPath); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public void FlowHubWindow_SettingsWiring_AffectsCoordinatorAndHook()
+    {
+        RunOnSta(() =>
+        {
+            var ringBuffer = new AudioRingBuffer(capacitySeconds: 10.0, sampleRate: 16000.0);
+            var vad = new EnergyVAD(sampleRate: 16000.0);
+            var asrRegistry = new ASREngineRegistry();
+            var lang = new DeterministicTextSanitizer();
+            var ins = new WindowsTextInsertionService();
+
+            var coordinator = new VoiceSessionCoordinator(
+                ringBuffer,
+                vad,
+                asrRegistry,
+                lang,
+                ins
+            );
+            var hotkeyHook = new GlobalHotkeyHook(165);
+            var window = new FlowHubWindow(
+                coordinator,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                hotkeyHook);
+
+            // Select Settings tab
+            window.SelectTab(6);
+            Assert.Equal(6, window.MainTabControl.SelectedIndex);
+
+            // Modify VAD threshold via coordinator
+            coordinator.SetVadThreshold(0.025f);
+            Assert.Equal(0.025f, coordinator.CurrentVadThreshold, precision: 3);
+
+            // Modify Language
+            coordinator.SelectedLanguage = "hi";
+            Assert.Equal("hi", coordinator.SelectedLanguage);
+
+            // Modify Hotkey
+            hotkeyHook.UpdateTargetKey(120); // F9
+            Assert.Equal(120, hotkeyHook.TargetVk);
         });
     }
 
