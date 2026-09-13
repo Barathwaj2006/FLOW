@@ -71,7 +71,6 @@ public sealed class TrayIconManager : IDisposable
         {
             const uint MF_STRING = 0x00000000;
             const uint MF_SEPARATOR = 0x00000800;
-            const uint MF_CHECKED = 0x00000008;
             const uint TPM_RETURNCMD = 0x0100;
             const uint TPM_RIGHTBUTTON = 0x0002;
 
@@ -87,13 +86,11 @@ public sealed class TrayIconManager : IDisposable
             AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_HUB, "Open FLOW Hub");
             AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_TOGGLE_DICTATION, "Toggle Dictation (Hands-Free)");
             AppendMenu(hMenu, MF_SEPARATOR, UIntPtr.Zero, string.Empty);
-            AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_SCRATCHPAD, "Scratchpad & Quick Capture");
-            AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_HISTORY, "History & Productivity");
-            AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_SETTINGS, "Settings & Audio");
-            uint devFlags = MF_STRING | (IsDeveloperModeEnabled ? MF_CHECKED : 0);
-            AppendMenu(hMenu, devFlags, (UIntPtr)CMD_DEV_MODE, "Developer Mode");
+            AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_SCRATCHPAD, "Scratchpad");
+            AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_HISTORY, "History");
+            AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_SETTINGS, "Settings");
             AppendMenu(hMenu, MF_SEPARATOR, UIntPtr.Zero, string.Empty);
-            AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_ABOUT, "About & Diagnostics");
+            AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_ABOUT, "About FLOW");
             AppendMenu(hMenu, MF_SEPARATOR, UIntPtr.Zero, string.Empty);
             AppendMenu(hMenu, MF_STRING, (UIntPtr)CMD_EXIT, "Exit FLOW");
 

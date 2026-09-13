@@ -178,7 +178,7 @@ public class ProductCompletionLifecycleTests
             Assert.Equal(0, window.NavListBox.SelectedIndex);
             Assert.Equal(0, window.MainTabControl.SelectedIndex);
             Assert.Equal("FLOW Active & Ready", window.StatusBadgeText.Text);
-            Assert.Equal("Toggle Dictation", window.BtnToggleDictation.Content);
+            Assert.Equal("Start Dictation", window.BtnToggleDictation.Content);
         });
     }
 
@@ -211,6 +211,74 @@ public class ProductCompletionLifecycleTests
             Assert.Equal("FLOW Active & Ready", window.StatusBadgeText.Text);
             Assert.Equal(0, window.NavListBox.SelectedIndex);
             Assert.Equal(0, window.MainTabControl.SelectedIndex);
+        });
+    }
+
+    [Fact]
+    public void FlowHubWindow_ConsumerTabs_ContainAllEightConsumerSections_AndZeroDeveloperTabs()
+    {
+        RunOnSta(() =>
+        {
+            var window = new FlowHubWindow(null, null, null, null, null);
+
+            // Exactly 6 workspace navigation items (Home, History, Dictionary, Snippets, Styles, Scratchpad)
+            Assert.Equal(6, window.NavListBox.Items.Count);
+
+            // Exactly 2 preferences items (Settings, About)
+            Assert.Equal(2, window.NavListBoxBottom.Items.Count);
+
+            // Exactly 8 main tab pages
+            Assert.Equal(8, window.MainTabControl.Items.Count);
+
+            // Verify Tab Headers: Home, History, Dictionary, Snippets, Styles, Scratchpad, Settings, About
+            var expectedHeaders = new[] { "Home", "History", "Dictionary", "Snippets", "Styles", "Scratchpad", "Settings", "About" };
+            for (int i = 0; i < expectedHeaders.Length; i++)
+            {
+                var tab = window.MainTabControl.Items[i] as System.Windows.Controls.TabItem;
+                Assert.NotNull(tab);
+                Assert.Equal(expectedHeaders[i], tab.Header);
+            }
+
+            // Inviolable requirement: ZERO Developer Mode or Command Mode tabs in the user-facing navigation
+            foreach (var item in window.NavListBox.Items)
+            {
+                string text = (item as System.Windows.Controls.ListBoxItem)?.Content?.ToString() ?? "";
+                Assert.DoesNotContain("Developer Mode", text, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("Command Mode", text, StringComparison.OrdinalIgnoreCase);
+            }
+
+            foreach (var item in window.NavListBoxBottom.Items)
+            {
+                string text = (item as System.Windows.Controls.ListBoxItem)?.Content?.ToString() ?? "";
+                Assert.DoesNotContain("Developer Mode", text, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("Command Mode", text, StringComparison.OrdinalIgnoreCase);
+            }
+        });
+    }
+
+    [Fact]
+    public void FlowHubWindow_SelectTab_SwitchesIndicesCorrectly()
+    {
+        RunOnSta(() =>
+        {
+            var window = new FlowHubWindow(null, null, null, null, null);
+
+            // Test selecting each of the 8 tabs
+            for (int i = 0; i < 8; i++)
+            {
+                window.SelectTab(i);
+                Assert.Equal(i, window.MainTabControl.SelectedIndex);
+                if (i <= 5)
+                {
+                    Assert.Equal(i, window.NavListBox.SelectedIndex);
+                    Assert.Equal(-1, window.NavListBoxBottom.SelectedIndex);
+                }
+                else
+                {
+                    Assert.Equal(-1, window.NavListBox.SelectedIndex);
+                    Assert.Equal(i - 6, window.NavListBoxBottom.SelectedIndex);
+                }
+            }
         });
     }
 

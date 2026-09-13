@@ -37,6 +37,26 @@ public static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        try
+        {
+            return Run(args);
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                string logDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FLOW");
+                System.IO.Directory.CreateDirectory(logDir);
+                System.IO.File.AppendAllText(System.IO.Path.Combine(logDir, "startup_crash.log"), $"[{DateTime.UtcNow:O}] FATAL CRASH:\n{ex}\n\n");
+            }
+            catch { }
+            Console.Error.WriteLine($"[FLOW FATAL ERROR] {ex}");
+            return 1;
+        }
+    }
+
+    private static int Run(string[] args)
+    {
         // 0. Attach to parent console if launched from PowerShell/CMD
         bool isConsoleAttached = EnsureConsoleOutput();
         if (isConsoleAttached)
@@ -250,26 +270,26 @@ public static class Program
 
         _tray.ScratchpadRequested += () =>
         {
-            logger.LogInformation("Scratchpad & Quick Capture window requested.");
-            ScratchpadWindowManager.ShowWindow(scratchpadService);
+            logger.LogInformation("Scratchpad workspace requested.");
+            FlowHubWindowManager.ShowWindow(_coordinator, _capture, deviceManager, historyService, scratchpadService, dictRepo, dictEngine, snippetRepo, snippetEngine, styleRepo, styleEngine, targetTab: 5);
         };
 
         _tray.HistoryRequested += () =>
         {
-            logger.LogInformation("History & Productivity window requested.");
-            HistoryWindowManager.ShowWindow(historyService);
+            logger.LogInformation("History requested.");
+            FlowHubWindowManager.ShowWindow(_coordinator, _capture, deviceManager, historyService, scratchpadService, dictRepo, dictEngine, snippetRepo, snippetEngine, styleRepo, styleEngine, targetTab: 1);
         };
 
         _tray.SettingsRequested += () =>
         {
             logger.LogInformation("Settings requested.");
-            FlowHubWindowManager.ShowWindow(_coordinator, _capture, deviceManager, historyService, scratchpadService, targetTab: 1);
+            FlowHubWindowManager.ShowWindow(_coordinator, _capture, deviceManager, historyService, scratchpadService, dictRepo, dictEngine, snippetRepo, snippetEngine, styleRepo, styleEngine, targetTab: 6);
         };
 
         _tray.AboutRequested += () =>
         {
-            logger.LogInformation("About & Diagnostics requested.");
-            FlowHubWindowManager.ShowWindow(_coordinator, _capture, deviceManager, historyService, scratchpadService, targetTab: 6);
+            logger.LogInformation("About requested.");
+            FlowHubWindowManager.ShowWindow(_coordinator, _capture, deviceManager, historyService, scratchpadService, dictRepo, dictEngine, snippetRepo, snippetEngine, styleRepo, styleEngine, targetTab: 7);
         };
 
         _tray.DeveloperModeToggled += () =>
@@ -424,7 +444,19 @@ public static class Program
         // 6. Launch FLOW Hub window unless user requested minimized startup
         if (!startMinimized)
         {
-            FlowHubWindowManager.ShowWindow(_coordinator, _capture, deviceManager, historyService, scratchpadService, targetTab: 0);
+            FlowHubWindowManager.ShowWindow(
+                _coordinator,
+                _capture,
+                deviceManager,
+                historyService,
+                scratchpadService,
+                dictRepo,
+                dictEngine,
+                snippetRepo,
+                snippetEngine,
+                styleRepo,
+                styleEngine,
+                targetTab: 0);
         }
 
         // 7. Verify Inviolable Startup Invariant: State MUST be Idle, Hands-Free OFF, Recording FALSE

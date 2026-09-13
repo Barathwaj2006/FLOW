@@ -2,6 +2,9 @@ using System;
 using System.Threading;
 using System.Windows.Threading;
 using Flow.Core.History;
+using Flow.Core.Personalization.Dictionary;
+using Flow.Core.Personalization.Snippets;
+using Flow.Core.Personalization.Styles;
 using Flow.Core.Scratchpad;
 using Flow.Core.Session;
 using Flow.Host.Windows.Native;
@@ -41,6 +44,12 @@ public static class FlowHubWindowManager
         WasapiDeviceManager? deviceManager = null,
         IHistoryService? historyService = null,
         IScratchpadService? scratchpadService = null,
+        IPersonalDictionaryRepository? dictRepo = null,
+        PersonalDictionaryEngine? dictEngine = null,
+        ISnippetRepository? snippetRepo = null,
+        SnippetExpansionEngine? snippetEngine = null,
+        IStyleRepository? styleRepo = null,
+        StyleFormattingEngine? styleEngine = null,
         int targetTab = 0)
     {
         lock (s_lock)
@@ -59,11 +68,7 @@ public static class FlowHubWindowManager
                         {
                             s_window.WindowState = System.Windows.WindowState.Normal;
                         }
-                        if (targetTab >= 0 && targetTab < s_window.NavListBox.Items.Count)
-                        {
-                            s_window.NavListBox.SelectedIndex = targetTab;
-                            s_window.MainTabControl.SelectedIndex = targetTab;
-                        }
+                        s_window.SelectTab(targetTab);
                         s_window.Activate();
                         s_window.Focus();
                     }
@@ -75,35 +80,55 @@ public static class FlowHubWindowManager
 
             s_uiThread = new Thread(() =>
             {
-                s_dispatcher = Dispatcher.CurrentDispatcher;
-                s_window = new FlowHubWindow(coordinator, capture, deviceManager, historyService, scratchpadService);
-
-                s_window.ExitApplicationRequested += () =>
+                try
                 {
-                    ExitApplicationRequested?.Invoke();
-                };
+                    s_dispatcher = Dispatcher.CurrentDispatcher;
+                    s_window = new FlowHubWindow(
+                        coordinator,
+                        capture,
+                        deviceManager,
+                        historyService,
+                        scratchpadService,
+                        dictRepo,
+                        dictEngine,
+                        snippetRepo,
+                        snippetEngine,
+                        styleRepo,
+                        styleEngine);
 
-                s_window.Closed += (sender, args) =>
-                {
-                    lock (s_lock)
+                    s_window.ExitApplicationRequested += () =>
                     {
-                        s_window = null;
-                        s_dispatcher = null;
-                        s_uiThread = null;
-                    }
-                    Dispatcher.CurrentDispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
-                };
+                        ExitApplicationRequested?.Invoke();
+                    };
 
-                if (targetTab >= 0 && targetTab < s_window.NavListBox.Items.Count)
-                {
-                    s_window.NavListBox.SelectedIndex = targetTab;
-                    s_window.MainTabControl.SelectedIndex = targetTab;
+                    s_window.Closed += (sender, args) =>
+                    {
+                        lock (s_lock)
+                        {
+                            s_window = null;
+                            s_dispatcher = null;
+                            s_uiThread = null;
+                        }
+                        Dispatcher.CurrentDispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
+                    };
+
+                    s_window.SelectTab(targetTab);
+                    s_window.Show();
+                    readyEvent.Set();
+
+                    Dispatcher.Run();
                 }
-
-                s_window.Show();
-                readyEvent.Set();
-
-                Dispatcher.Run();
+                catch (Exception ex)
+                {
+                    try
+                    {
+                        string logDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FLOW");
+                        System.IO.Directory.CreateDirectory(logDir);
+                        System.IO.File.AppendAllText(System.IO.Path.Combine(logDir, "startup_crash.log"), $"[{DateTime.UtcNow:O}] UI THREAD CRASH:\n{ex}\n\n");
+                    }
+                    catch { }
+                    readyEvent.Set();
+                }
             })
             {
                 IsBackground = true,
