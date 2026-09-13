@@ -156,9 +156,6 @@ public sealed class VoiceSessionCoordinator
     /// <summary>
     /// Personalized ASR prompt biasing service for vocabulary and application adaptation (WF-023, Phase 4).
     /// </summary>
-    /// <summary>
-    /// Personalized ASR prompt biasing service for vocabulary and application adaptation (WF-023, Phase 4).
-    /// </summary>
     public IASRBiasingService? BiasingService => _biasingService;
 
     /// <summary>
@@ -348,7 +345,7 @@ public sealed class VoiceSessionCoordinator
             _sessionMode = SessionMode.Command;
             _isHandsFree = isHandsFree;
 
-            string detail = isHandsFree ? "🪄 Command: Hands-Free" : "🪄 Command: Listening";
+            string detail = isHandsFree ? "Command: Hands-Free" : "Command: Listening";
             SetState(SessionState.Recording, detail);
         }
 
@@ -505,8 +502,8 @@ public sealed class VoiceSessionCoordinator
 
                     if (intentSafety.Verdict == CommandSafetyVerdict.Unknown || intent is UnknownCommandIntent)
                     {
-                        _logger?.LogInformation("Command not recognized: {Transcript}. Failing closed.", asrResult.Text);
-                        SetState(SessionState.Cancelled, $"Unknown: {asrResult.Text}");
+                        _logger?.LogInformation("Command not recognized (Length: {Length}). Failing closed.", asrResult.Text.Length);
+                        SetState(SessionState.Cancelled, $"Unknown command");
                         SessionWarning?.Invoke($"Unrecognized command: \"{asrResult.Text}\"");
                         return false;
                     }

@@ -220,10 +220,23 @@ public sealed class WindowsTextInsertionService : ITextInsertionService
             // 4. Wait 150ms for target window message loop to process the WM_PASTE / Ctrl+V
             await Task.Delay(150, cancellationToken);
 
-            // 5. Restore previous clipboard content
+            // 5. Restore previous clipboard content with retry to handle slow application message loops
             if (hadPrevious && previousClipboard != null)
             {
-                WriteClipboardText(previousClipboard);
+                bool restored = false;
+                for (int attempt = 0; attempt < 3 && !restored; attempt++)
+                {
+                    if (attempt > 0)
+                    {
+                        await Task.Delay(50, cancellationToken);
+                    }
+                    restored = WriteClipboardText(previousClipboard);
+                }
+
+                if (!restored)
+                {
+                    _logger?.LogWarning("Failed to restore original clipboard content after SendInput paste.");
+                }
             }
 
             return true;

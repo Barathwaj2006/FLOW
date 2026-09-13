@@ -9,6 +9,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Description>FLOW Windows Desktop Host: Native Win32 Presentation, System Tray, WASAPI Audio, and UI Automation</Description>
   </PropertyGroup>
 

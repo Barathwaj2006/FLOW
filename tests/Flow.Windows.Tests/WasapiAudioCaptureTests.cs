@@ -115,4 +115,127 @@ public class WasapiAudioCaptureTests
         // Fail if all samples are pure zero
         Assert.True(peak > 0f, "Microphone capture returned pure zeros. No physical audio detected.");
     }
+
+    [Fact]
+    public void ConvertAndResample_Float32Stereo_ResamplesTo16kHzMonoCorrectly()
+    {
+        int nativeSampleRate = 48000;
+        int channels = 2;
+        int bitsPerSample = 32;
+        uint numFrames = 480;
+
+        float[] nativeData = new float[numFrames * channels];
+        for (int i = 0; i < numFrames; i++)
+        {
+            nativeData[i * channels] = 0.5f;
+            nativeData[i * channels + 1] = 0.5f;
+        }
+
+        unsafe
+        {
+            fixed (float* p = nativeData)
+            {
+                float[] resampled = WasapiAudioCapture.ConvertAndResample(
+                    (IntPtr)p, numFrames, nativeSampleRate, channels, bitsPerSample, isFloat: true, isSilent: false);
+
+                Assert.NotNull(resampled);
+                Assert.Equal(160, resampled.Length);
+                for (int i = 0; i < resampled.Length; i++)
+                {
+                    Assert.InRange(resampled[i], 0.49f, 0.51f);
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void ConvertAndResample_Pcm16Stereo_ConvertsAndResamplesCorrectly()
+    {
+        int nativeSampleRate = 48000;
+        int channels = 2;
+        int bitsPerSample = 16;
+        uint numFrames = 480;
+
+        short[] nativeData = new short[numFrames * channels];
+        for (int i = 0; i < numFrames; i++)
+        {
+            nativeData[i * channels] = 16384;
+            nativeData[i * channels + 1] = 16384;
+        }
+
+        unsafe
+        {
+            fixed (short* p = nativeData)
+            {
+                float[] resampled = WasapiAudioCapture.ConvertAndResample(
+                    (IntPtr)p, numFrames, nativeSampleRate, channels, bitsPerSample, isFloat: false, isSilent: false);
+
+                Assert.NotNull(resampled);
+                Assert.Equal(160, resampled.Length);
+                for (int i = 0; i < resampled.Length; i++)
+                {
+                    Assert.InRange(resampled[i], 0.49f, 0.51f);
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void ConvertAndResample_SilentBuffer_ReturnsPureSilence()
+    {
+        int nativeSampleRate = 16000;
+        int channels = 1;
+        int bitsPerSample = 32;
+        uint numFrames = 160;
+
+        float[] nativeData = new float[numFrames];
+        Array.Fill(nativeData, 0.99f);
+
+        unsafe
+        {
+            fixed (float* p = nativeData)
+            {
+                float[] resampled = WasapiAudioCapture.ConvertAndResample(
+                    (IntPtr)p, numFrames, nativeSampleRate, channels, bitsPerSample, isFloat: true, isSilent: true);
+
+                Assert.NotNull(resampled);
+                Assert.Equal(160, resampled.Length);
+                foreach (var sample in resampled)
+                {
+                    Assert.Equal(0.0f, sample);
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void ConvertAndResample_16kHzMonoFloat_DirectPassthrough()
+    {
+        int nativeSampleRate = 16000;
+        int channels = 1;
+        int bitsPerSample = 32;
+        uint numFrames = 160;
+
+        float[] nativeData = new float[numFrames];
+        for (int i = 0; i < numFrames; i++)
+        {
+            nativeData[i] = (float)i / numFrames;
+        }
+
+        unsafe
+        {
+            fixed (float* p = nativeData)
+            {
+                float[] resampled = WasapiAudioCapture.ConvertAndResample(
+                    (IntPtr)p, numFrames, nativeSampleRate, channels, bitsPerSample, isFloat: true, isSilent: false);
+
+                Assert.NotNull(resampled);
+                Assert.Equal(160, resampled.Length);
+                for (int i = 0; i < numFrames; i++)
+                {
+                    Assert.Equal(nativeData[i], resampled[i]);
+                }
+            }
+        }
+    }
 }

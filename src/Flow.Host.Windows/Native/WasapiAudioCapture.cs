@@ -308,7 +308,7 @@ public sealed class WasapiAudioCapture : IDisposable
     /// <summary>
     /// Converts and resamples raw native audio buffer to canonical 16,000Hz mono Float32 array.
     /// </summary>
-    private static float[] ConvertAndResample(
+    internal static float[] ConvertAndResample(
         IntPtr pData,
         uint numFrames,
         int nativeSampleRate,
@@ -327,33 +327,37 @@ public sealed class WasapiAudioCapture : IDisposable
         else if (isFloat && bitsPerSample == 32)
         {
             int totalFloats = (int)numFrames * channels;
-            float[] rawFloats = new float[totalFloats];
-            Marshal.Copy(pData, rawFloats, 0, totalFloats);
-
-            for (int i = 0; i < numFrames; i++)
+            unsafe
             {
-                float sum = 0f;
-                for (int c = 0; c < channels; c++)
+                var rawFloats = new ReadOnlySpan<float>((void*)pData, totalFloats);
+                for (int i = 0; i < numFrames; i++)
                 {
-                    sum += rawFloats[i * channels + c];
+                    float sum = 0f;
+                    int offset = i * channels;
+                    for (int c = 0; c < channels; c++)
+                    {
+                        sum += rawFloats[offset + c];
+                    }
+                    monoNative[i] = sum / channels;
                 }
-                monoNative[i] = sum / channels;
             }
         }
         else if (bitsPerSample == 16)
         {
             int totalShorts = (int)numFrames * channels;
-            short[] rawShorts = new short[totalShorts];
-            Marshal.Copy(pData, rawShorts, 0, totalShorts);
-
-            for (int i = 0; i < numFrames; i++)
+            unsafe
             {
-                float sum = 0f;
-                for (int c = 0; c < channels; c++)
+                var rawShorts = new ReadOnlySpan<short>((void*)pData, totalShorts);
+                for (int i = 0; i < numFrames; i++)
                 {
-                    sum += rawShorts[i * channels + c] / 32768.0f;
+                    float sum = 0f;
+                    int offset = i * channels;
+                    for (int c = 0; c < channels; c++)
+                    {
+                        sum += rawShorts[offset + c] / 32768.0f;
+                    }
+                    monoNative[i] = sum / channels;
                 }
-                monoNative[i] = sum / channels;
             }
         }
         else
