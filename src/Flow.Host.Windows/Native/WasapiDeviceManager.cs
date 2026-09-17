@@ -172,6 +172,70 @@ public sealed class WasapiDeviceManager : IDisposable
     }
 
     /// <summary>
+    /// Refreshes and re-enumerates active audio endpoints.
+    /// If enumerator was lost or disconnected, attempts re-initialization.
+    /// </summary>
+    public IReadOnlyList<AudioDeviceInfo> RefreshDevices()
+    {
+        lock (_lock)
+        {
+            if (_enumerator == null)
+            {
+                InitializeEnumerator();
+            }
+            var devices = EnumerateCaptureDevices();
+            _logger?.LogInformation("Refreshed WASAPI capture devices. Found {Count} active device(s).", devices.Count);
+            return devices;
+        }
+    }
+
+    /// <summary>
+    /// Checks whether an audio capture endpoint is currently present and in an active state.
+    /// </summary>
+    public bool IsDeviceActive(string? deviceId)
+    {
+        lock (_lock)
+        {
+            if (_enumerator == null) return false;
+
+            IMMDevice? dev = null;
+            try
+            {
+                int hr = GetDevice(deviceId, out dev);
+                if (hr != 0 || dev == null) return false;
+
+                int state = 0;
+                hr = dev.GetState(out state);
+                return hr == 0 && state == 1 /* DEVICE_STATE_ACTIVE */;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                if (dev != null) Marshal.ReleaseComObject(dev);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Programmatically simulates default device change for testing.
+    /// </summary>
+    internal void SimulateDefaultDeviceChanged(string newDeviceId)
+    {
+        DefaultDeviceChanged?.Invoke(newDeviceId);
+    }
+
+    /// <summary>
+    /// Programmatically simulates device state change for testing.
+    /// </summary>
+    internal void SimulateDeviceStateChanged(string deviceId, int newState)
+    {
+        DeviceStateChanged?.Invoke(deviceId, newState);
+    }
+
+    /// <summary>
     /// Obtains an IMMDevice by its unique endpoint ID. If deviceId is null or empty, returns default.
     /// Caller is responsible for releasing the COM object.
     /// </summary>
@@ -282,11 +346,24 @@ public sealed class WasapiDeviceManager : IDisposable
             _parent.DeviceRemoved?.Invoke(pwstrDeviceId);
         }
 
+        private string? _lastDefaultDeviceId;
+        private DateTime _lastDefaultChangeUtc = DateTime.MinValue;
+
         public void OnDefaultDeviceChanged(int dataFlow, int role, string pwstrDefaultDeviceId)
         {
             // dataFlow: eRender=0, eCapture=1; role: eConsole=0, eMultimedia=1, eCommunications=2
             if (dataFlow == 1 /* eCapture */)
             {
+                var now = DateTime.UtcNow;
+                if (string.Equals(_lastDefaultDeviceId, pwstrDefaultDeviceId, StringComparison.OrdinalIgnoreCase) &&
+                    (now - _lastDefaultChangeUtc).TotalMilliseconds < 250)
+                {
+                    return;
+                }
+
+                _lastDefaultDeviceId = pwstrDefaultDeviceId;
+                _lastDefaultChangeUtc = now;
+
                 _parent._logger?.LogInformation("WASAPI Default Capture Device Changed: {DeviceId} (Role: {Role})", pwstrDefaultDeviceId, role);
                 _parent.DefaultDeviceChanged?.Invoke(pwstrDefaultDeviceId);
             }

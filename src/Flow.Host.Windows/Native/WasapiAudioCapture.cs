@@ -14,6 +14,17 @@ namespace Flow.Host.Windows.Native;
 public sealed class WasapiAudioCapture : IDisposable
 {
     public const int TargetSampleRate = 16000;
+    public const int AUDCLNT_E_DEVICE_INVALIDATED = unchecked((int)0x88890004);
+    public const int AUDCLNT_E_RESOURCES_INVALIDATED = unchecked((int)0x88890026);
+    public const int AUDCLNT_E_SERVICE_NOT_RUNNING = unchecked((int)0x88890020);
+    public const int AUDCLNT_E_ENDPOINT_CREATE_FAILED = unchecked((int)0x8889000F);
+
+    public static bool IsDeviceInvalidatedError(int hr) =>
+        hr is AUDCLNT_E_DEVICE_INVALIDATED
+           or AUDCLNT_E_RESOURCES_INVALIDATED
+           or AUDCLNT_E_SERVICE_NOT_RUNNING
+           or AUDCLNT_E_ENDPOINT_CREATE_FAILED;
+
     private readonly ILogger<WasapiAudioCapture>? _logger;
     private readonly Action<float[]>? _onSamplesCaptured;
 
@@ -38,8 +49,42 @@ public sealed class WasapiAudioCapture : IDisposable
     public double BufferDurationMs { get; private set; }
 
     public event Action<Exception>? CaptureError;
+    public event Action<string?>? DeviceInvalidated;
+    public event Action<string?>? DeviceSwitched;
 
     public bool WaitForStart(int timeoutMs = 3000) => _startedEvent.Wait(timeoutMs);
+
+    /// <summary>
+    /// Switches the capture target to a new audio endpoint ID (or null for system default).
+    /// If currently capturing, safely stops, switches target, and restarts capture on the new device.
+    /// </summary>
+    public void SwitchToDevice(string? newDeviceId)
+    {
+        _logger?.LogInformation("Switching WASAPI capture device: Current='{Current}' -> Target='{New}'",
+            TargetDeviceId ?? ActiveDeviceName ?? "Default", newDeviceId ?? "Default");
+
+        bool wasCapturing = _isCapturing;
+        if (wasCapturing)
+        {
+            Stop();
+        }
+
+        TargetDeviceId = newDeviceId;
+        DeviceSwitched?.Invoke(newDeviceId);
+
+        if (wasCapturing)
+        {
+            Start();
+        }
+    }
+
+    /// <summary>
+    /// Programmatically simulates an audio device invalidation for unit/integration testing.
+    /// </summary>
+    internal void SimulateDeviceInvalidated(string? deviceId = null)
+    {
+        DeviceInvalidated?.Invoke(deviceId ?? ActiveDeviceName);
+    }
 
     public WasapiAudioCapture(
         Action<float[]>? onSamplesCaptured = null,
@@ -133,6 +178,15 @@ public sealed class WasapiAudioCapture : IDisposable
 
             if (hr != 0 || device == null)
             {
+                if (IsDeviceInvalidatedError(hr))
+                {
+                    _logger?.LogWarning("WASAPI capture endpoint unavailable during initialization (0x{Hr:X8}).", hr);
+                    string? failedDev = TargetDeviceId ?? ActiveDeviceName;
+                    _isCapturing = false;
+                    _startedEvent.Set();
+                    DeviceInvalidated?.Invoke(failedDev);
+                    return;
+                }
                 throw new InvalidOperationException($"Failed to obtain audio capture endpoint. HRESULT: 0x{hr:X8}");
             }
 
@@ -141,6 +195,15 @@ public sealed class WasapiAudioCapture : IDisposable
             hr = device.Activate(ref audioClientGuid, 1 /* CLSCTX_INPROC_SERVER */, IntPtr.Zero, out object ppAudioClient);
             if (hr != 0 || ppAudioClient == null)
             {
+                if (IsDeviceInvalidatedError(hr))
+                {
+                    _logger?.LogWarning("IAudioClient activation failed due to device invalidation (0x{Hr:X8}).", hr);
+                    string? failedDev = TargetDeviceId ?? ActiveDeviceName;
+                    _isCapturing = false;
+                    _startedEvent.Set();
+                    DeviceInvalidated?.Invoke(failedDev);
+                    return;
+                }
                 throw new InvalidOperationException($"Failed to activate IAudioClient. HRESULT: 0x{hr:X8}");
             }
             audioClient = (IAudioClient)ppAudioClient;
@@ -149,6 +212,15 @@ public sealed class WasapiAudioCapture : IDisposable
             hr = audioClient.GetMixFormat(out pWaveFormat);
             if (hr != 0 || pWaveFormat == IntPtr.Zero)
             {
+                if (IsDeviceInvalidatedError(hr))
+                {
+                    _logger?.LogWarning("IAudioClient::GetMixFormat failed due to device invalidation (0x{Hr:X8}).", hr);
+                    string? failedDev = TargetDeviceId ?? ActiveDeviceName;
+                    _isCapturing = false;
+                    _startedEvent.Set();
+                    DeviceInvalidated?.Invoke(failedDev);
+                    return;
+                }
                 throw new InvalidOperationException($"Failed to query IAudioClient mix format. HRESULT: 0x{hr:X8}");
             }
 
@@ -168,6 +240,15 @@ public sealed class WasapiAudioCapture : IDisposable
             hr = audioClient.Initialize(0, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, bufferDurationHns, 0, pWaveFormat, IntPtr.Zero);
             if (hr != 0)
             {
+                if (IsDeviceInvalidatedError(hr))
+                {
+                    _logger?.LogWarning("IAudioClient::Initialize failed due to device invalidation (0x{Hr:X8}).", hr);
+                    string? failedDev = TargetDeviceId ?? ActiveDeviceName;
+                    _isCapturing = false;
+                    _startedEvent.Set();
+                    DeviceInvalidated?.Invoke(failedDev);
+                    return;
+                }
                 throw new InvalidOperationException($"IAudioClient::Initialize failed with HRESULT: 0x{hr:X8}");
             }
 
@@ -176,6 +257,15 @@ public sealed class WasapiAudioCapture : IDisposable
             hr = audioClient.SetEventHandle(_hAudioEvent);
             if (hr != 0)
             {
+                if (IsDeviceInvalidatedError(hr))
+                {
+                    _logger?.LogWarning("IAudioClient::SetEventHandle failed due to device invalidation (0x{Hr:X8}).", hr);
+                    string? failedDev = TargetDeviceId ?? ActiveDeviceName;
+                    _isCapturing = false;
+                    _startedEvent.Set();
+                    DeviceInvalidated?.Invoke(failedDev);
+                    return;
+                }
                 throw new InvalidOperationException($"IAudioClient::SetEventHandle failed with HRESULT: 0x{hr:X8}");
             }
 
@@ -184,6 +274,15 @@ public sealed class WasapiAudioCapture : IDisposable
             hr = audioClient.GetService(ref captureClientGuid, out object ppCaptureClient);
             if (hr != 0 || ppCaptureClient == null)
             {
+                if (IsDeviceInvalidatedError(hr))
+                {
+                    _logger?.LogWarning("IAudioClient::GetService failed due to device invalidation (0x{Hr:X8}).", hr);
+                    string? failedDev = TargetDeviceId ?? ActiveDeviceName;
+                    _isCapturing = false;
+                    _startedEvent.Set();
+                    DeviceInvalidated?.Invoke(failedDev);
+                    return;
+                }
                 throw new InvalidOperationException($"Failed to get IAudioCaptureClient service. HRESULT: 0x{hr:X8}");
             }
             captureClient = (IAudioCaptureClient)ppCaptureClient;
@@ -192,6 +291,15 @@ public sealed class WasapiAudioCapture : IDisposable
             hr = audioClient.Start();
             if (hr != 0)
             {
+                if (IsDeviceInvalidatedError(hr))
+                {
+                    _logger?.LogWarning("IAudioClient::Start failed due to device invalidation (0x{Hr:X8}).", hr);
+                    string? failedDev = TargetDeviceId ?? ActiveDeviceName;
+                    _isCapturing = false;
+                    _startedEvent.Set();
+                    DeviceInvalidated?.Invoke(failedDev);
+                    return;
+                }
                 throw new InvalidOperationException($"IAudioClient::Start failed with HRESULT: 0x{hr:X8}");
             }
 
@@ -226,7 +334,17 @@ public sealed class WasapiAudioCapture : IDisposable
                     while (true)
                     {
                         hr = captureClient.GetNextPacketSize(out uint packetSize);
-                        if (hr != 0 || packetSize == 0) break;
+                        if (hr != 0 || packetSize == 0)
+                        {
+                            if (IsDeviceInvalidatedError(hr))
+                            {
+                                _logger?.LogWarning("WASAPI capture endpoint invalidated during GetNextPacketSize (0x{Hr:X8}).", hr);
+                                string? oldDev = ActiveDeviceName;
+                                _isCapturing = false;
+                                DeviceInvalidated?.Invoke(oldDev);
+                            }
+                            break;
+                        }
 
                         hr = captureClient.GetBuffer(
                             out IntPtr pData,
@@ -238,12 +356,12 @@ public sealed class WasapiAudioCapture : IDisposable
 
                         if (hr != 0)
                         {
-                            const int AUDCLNT_E_DEVICE_INVALIDATED = unchecked((int)0x88890004);
-                            const int AUDCLNT_E_RESOURCES_INVALIDATED = unchecked((int)0x88890026);
-                            if (hr == AUDCLNT_E_DEVICE_INVALIDATED || hr == AUDCLNT_E_RESOURCES_INVALIDATED)
+                            if (IsDeviceInvalidatedError(hr))
                             {
                                 _logger?.LogWarning("WASAPI capture endpoint invalidated or disconnected (0x{Hr:X8}).", hr);
-                                throw new InvalidOperationException($"WASAPI endpoint invalidated: 0x{hr:X8}");
+                                string? oldDev = ActiveDeviceName;
+                                _isCapturing = false;
+                                DeviceInvalidated?.Invoke(oldDev);
                             }
                             break;
                         }
@@ -275,7 +393,11 @@ public sealed class WasapiAudioCapture : IDisposable
                 }
             }
 
-            audioClient.Stop();
+            try
+            {
+                audioClient.Stop();
+            }
+            catch { }
         }
         catch (Exception ex)
         {

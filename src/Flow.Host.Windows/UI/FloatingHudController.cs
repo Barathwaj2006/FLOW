@@ -38,6 +38,7 @@ public sealed class FloatingHudController : IDisposable
     public float AudioLevel => _audioLevel;
     public event Action<uint, IntPtr>? WindowMessageReceived;
     public event Action? Clicked;
+    public event Action<int>? PowerBroadcastReceived;
 
     public FloatingHudController()
     {
@@ -252,11 +253,16 @@ public sealed class FloatingHudController : IDisposable
         const uint WM_MOUSEACTIVATE = 0x0021;
         const uint WM_NCHITTEST = 0x0084;
         const uint WM_LBUTTONUP = 0x0202;
+        const uint WM_POWERBROADCAST = 0x0218;
         const int MA_NOACTIVATE = 3;
         const int HTCLIENT = 1;
 
         switch (msg)
         {
+            case WM_POWERBROADCAST:
+                PowerBroadcastReceived?.Invoke(wParam.ToInt32());
+                return (IntPtr)1;
+
             case WM_MOUSEACTIVATE:
                 return (IntPtr)MA_NOACTIVATE;
 

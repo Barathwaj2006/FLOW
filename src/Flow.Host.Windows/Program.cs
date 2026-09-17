@@ -32,6 +32,7 @@ public static class Program
     private static FloatingHudController? _hud;
     private static TrayIconManager? _tray;
     private static LocalApiServer? _localApiServer;
+    private static WindowsPowerStateManager? _powerManager;
 
     [STAThread]
     public static int Main(string[] args)
@@ -240,6 +241,10 @@ public static class Program
         _tray = new TrayIconManager(_hud.Handle);
         _hud.WindowMessageReceived += (msg, lParam) => _tray.ProcessMessage(msg, lParam);
 
+        // Native Windows power management listener (sleep / resume transitions)
+        _powerManager = new WindowsPowerStateManager(_hud.Handle, loggerFactory.CreateLogger<WindowsPowerStateManager>());
+        _hud.PowerBroadcastReceived += powerEvent => _powerManager.ProcessPowerBroadcast(powerEvent);
+
         // 4. Live WASAPI Audio Capture with Device Management
         var deviceManager = new WasapiDeviceManager(loggerFactory.CreateLogger<WasapiDeviceManager>());
         var captureLogger = loggerFactory.CreateLogger<WasapiAudioCapture>();
@@ -248,9 +253,84 @@ public static class Program
             _coordinator.ProcessAudioChunk(chunk);
         }, captureLogger, targetDeviceId: initialSettings.AudioDeviceId, deviceManager: deviceManager);
 
+        _powerManager.Suspending += () =>
+        {
+            logger.LogWarning("Windows power event: System is entering sleep/suspend. Safely stopping capture and disarming hotkeys.");
+            _hotkeyHook?.Disarm();
+            _capture.Stop();
+            _ = _coordinator.CancelSessionAsync("System sleep");
+        };
+
+        _powerManager.Resuming += () =>
+        {
+            logger.LogInformation("Windows power event: System resumed from sleep. Scheduling audio endpoint re-enumeration.");
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    // Delay 500ms to allow Windows Audio service (Audiosrv) and USB/Bluetooth drivers to stabilize
+                    await Task.Delay(500);
+                    var devices = deviceManager.RefreshDevices();
+                    string? defaultDevId = deviceManager.GetDefaultCaptureDeviceId();
+                    logger.LogInformation("Audio endpoints re-enumerated post-wake ({Count} active device(s), default: {DefaultDevId}).",
+                        devices.Count, defaultDevId ?? "None");
+
+                    if (string.IsNullOrEmpty(initialSettings.AudioDeviceId))
+                    {
+                        _capture.SwitchToDevice(defaultDevId);
+                    }
+                    else
+                    {
+                        if (!deviceManager.IsDeviceActive(initialSettings.AudioDeviceId))
+                        {
+                            logger.LogWarning("Configured audio endpoint '{Id}' is inactive post-wake. Falling back to default: '{DefaultId}'.",
+                                initialSettings.AudioDeviceId, defaultDevId ?? "None");
+                            _capture.SwitchToDevice(defaultDevId);
+                        }
+                    }
+
+                    _hotkeyHook?.Arm();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error re-initializing audio capture endpoints after system resume.");
+                    _hotkeyHook?.Arm();
+                }
+            });
+        };
+
+        _capture.DeviceInvalidated += oldId =>
+        {
+            logger.LogWarning("Microphone endpoint invalidated or disconnected: '{DeviceId}'. Gracefully rolling over to fallback default.", oldId ?? "Unknown");
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (_coordinator.CurrentState == SessionState.Recording)
+                    {
+                        await _coordinator.CancelSessionAsync("Microphone disconnected");
+                    }
+
+                    await Task.Delay(300); // Allow OS endpoint routing table to update
+                    deviceManager.RefreshDevices();
+                    string? fallbackId = deviceManager.GetDefaultCaptureDeviceId();
+                    logger.LogInformation("Rolling over capture to fallback endpoint: '{FallbackId}'", fallbackId ?? "Default");
+                    _capture.SwitchToDevice(fallbackId);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error during audio endpoint invalidation rollover.");
+                }
+            });
+        };
+
         deviceManager.DefaultDeviceChanged += newDefaultId =>
         {
             logger.LogInformation("Windows default audio capture endpoint changed to: {DeviceId}", newDefaultId);
+            if (string.IsNullOrEmpty(initialSettings.AudioDeviceId))
+            {
+                _capture.SwitchToDevice(newDefaultId);
+            }
         };
         deviceManager.DeviceStateChanged += (devId, state) =>
         {
@@ -539,11 +619,6 @@ public static class Program
 
         logger.LogInformation("FLOW Voice Core initialized and listening. Hold-to-talk: [Alt + Space]. Hands-free: [Alt + B]. Click HUD to dictate. Cancel: [Esc].");
 
-        const uint WM_POWERBROADCAST = 0x0218;
-        const int PBT_APMSUSPEND = 0x0004;
-        const int PBT_APMRESUMEAUTOMATIC = 0x0012;
-        const int PBT_APMRESUMESUSPEND = 0x0007;
-
         // Native Windows message loop
         while (GetMessage(out MSG msg, IntPtr.Zero, 0, 0))
         {
@@ -552,19 +627,9 @@ public static class Program
                 logger.LogInformation("Received single-instance activation message from secondary launch.");
                 FlowHubWindowManager.BringToForeground();
             }
-            else if (msg.message == WM_POWERBROADCAST)
+            else if (msg.message == WindowsPowerStateManager.WM_POWERBROADCAST)
             {
-                int powerEvent = msg.wParam.ToInt32();
-                if (powerEvent == PBT_APMSUSPEND)
-                {
-                    logger.LogWarning("System is entering sleep/suspend. Safely stopping audio capture.");
-                    _capture.Stop();
-                    _ = _coordinator.CancelSessionAsync("System sleep");
-                }
-                else if (powerEvent == PBT_APMRESUMEAUTOMATIC || powerEvent == PBT_APMRESUMESUSPEND)
-                {
-                    logger.LogInformation("System resumed from sleep. Verifying audio capture endpoints.");
-                }
+                _powerManager?.ProcessPowerBroadcast(msg.wParam.ToInt32());
             }
 
             TranslateMessage(ref msg);
@@ -575,6 +640,7 @@ public static class Program
         _localApiServer?.Dispose();
         FlowHubWindowManager.CloseWindow();
         _hotkeyHook.Dispose();
+        _powerManager?.Dispose();
         _capture.Dispose();
         deviceManager.Dispose();
         _hud.Dispose();
