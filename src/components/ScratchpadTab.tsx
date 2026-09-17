@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ScratchpadEntry } from '../types';
 
 interface ScratchpadTabProps {
@@ -20,12 +20,55 @@ export const ScratchpadTab: React.FC<ScratchpadTabProps> = ({
   onCreateNote,
   onDeleteNote,
   onTogglePin,
+  onInsertDictationIntoScratchpad,
 }) => {
   const activeNote = notes.find(n => n.id === activeNoteId) || notes[0];
   const [content, setContent] = useState(activeNote?.content || '');
   const [title, setTitle] = useState(activeNote?.title || 'Untitled Note');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const [copied, setCopied] = useState(false);
+  const [isDictating, setIsDictating] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const handleToggleDictate = () => {
+    if (isDictating) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsDictating(false);
+      return;
+    }
+
+    const SpeechRec = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    if (SpeechRec) {
+      try {
+        const rec = new SpeechRec();
+        rec.continuous = true;
+        rec.interimResults = false;
+        rec.lang = 'en-US';
+        rec.onresult = (event: any) => {
+          const lastResult = event.results[event.results.length - 1];
+          if (lastResult && lastResult[0]) {
+            const transcript = lastResult[0].transcript.trim();
+            if (transcript) {
+              setContent(prev => {
+                const updated = prev.trim() ? `${prev.trim()} ${transcript}` : transcript;
+                onInsertDictationIntoScratchpad(transcript);
+                return updated;
+              });
+            }
+          }
+        };
+        rec.onerror = () => setIsDictating(false);
+        rec.onend = () => setIsDictating(false);
+        recognitionRef.current = rec;
+        rec.start();
+        setIsDictating(true);
+      } catch {
+        setIsDictating(false);
+      }
+    }
+  };
 
   // Sync state when active note changes
   useEffect(() => {
@@ -172,6 +215,22 @@ export const ScratchpadTab: React.FC<ScratchpadTabProps> = ({
               </span>
 
               <button
+                id="btn-scratchpad-dictate"
+                onClick={handleToggleDictate}
+                className={`h-7 px-2 rounded text-xs transition-colors flex items-center gap-1 shadow-2xs font-medium border ${
+                  isDictating
+                    ? 'bg-rose-50 border-rose-200 text-rose-700 animate-pulse'
+                    : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
+                }`}
+                title={isDictating ? 'Stop Note Dictation' : 'Dictate directly into note'}
+              >
+                <span className={`material-symbols-outlined text-[15px] ${isDictating ? 'text-rose-600' : 'text-[#0284c7]'}`}>
+                  {isDictating ? 'mic_off' : 'mic'}
+                </span>
+                <span>{isDictating ? 'Listening...' : 'Dictate'}</span>
+              </button>
+
+              <button
                 onClick={handleCopy}
                 className="h-7 px-2 rounded text-xs bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors flex items-center gap-1 shadow-2xs"
                 title="Copy note content"
@@ -207,7 +266,7 @@ export const ScratchpadTab: React.FC<ScratchpadTabProps> = ({
           <textarea
             value={content}
             onChange={e => setContent(e.target.value)}
-            placeholder="Start typing or hold [Right Alt] to dictate seamlessly into this distraction-free workspace..."
+            placeholder="Start typing, click Dictate, or hold [Alt + Space] to dictate seamlessly into this distraction-free workspace..."
             className="flex-1 w-full bg-slate-50/60 border border-slate-200 rounded-lg p-4 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#0284c7] focus:bg-white focus:outline-none font-mono my-3 resize-none leading-relaxed select-text shadow-inner"
           />
 

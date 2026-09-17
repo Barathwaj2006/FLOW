@@ -5,12 +5,14 @@ interface HistoryTabProps {
   entries: DictationEntry[];
   onToggleFavorite?: (id: string) => void;
   onDeleteEntry?: (id: string) => void;
+  onInsertTranscript?: (text: string) => void;
 }
 
 export const HistoryTab: React.FC<HistoryTabProps> = ({
   entries,
   onToggleFavorite,
   onDeleteEntry,
+  onInsertTranscript,
 }) => {
   const [selectedId, setSelectedId] = useState<string>(entries[0]?.id || 'hist-1');
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,7 +95,11 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
 
   const handlePasteToActiveApp = () => {
     if (!selectedItem) return;
-    setPasteToast(`Dispatched to ${selectedItem.application}`);
+    navigator.clipboard?.writeText(selectedItem.text).catch(() => {});
+    if (onInsertTranscript) {
+      onInsertTranscript(selectedItem.text);
+    }
+    setPasteToast(`Copied & dispatched to ${selectedItem.application}`);
     setTimeout(() => setPasteToast(null), 2400);
   };
 

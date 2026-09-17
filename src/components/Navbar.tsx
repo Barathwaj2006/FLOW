@@ -12,6 +12,7 @@ interface NavbarProps {
   userEmail?: string | null;
   onOpenCredits?: () => void;
   isEngineConnected?: boolean;
+  onToggleMaximize?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -25,7 +26,17 @@ export const Navbar: React.FC<NavbarProps> = ({
   userEmail = null,
   onOpenCredits,
   isEngineConnected = false,
+  onToggleMaximize,
 }) => {
+  const handleToggleMaximize = () => {
+    if (onToggleMaximize) {
+      onToggleMaximize();
+    } else if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
   return (
     <>
       {/* 1. Top Windows 11 Native Titlebar (Fixed 32px height) */}
@@ -91,6 +102,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button 
             id="btn-win-maximize"
             aria-label="Maximize" 
+            onClick={handleToggleMaximize}
             className="w-11 h-8 flex items-center justify-center text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#0f172a] transition-colors"
             title="Toggle window maximize"
           >

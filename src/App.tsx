@@ -854,6 +854,15 @@ export const App: React.FC = () => {
         userEmail={userEmail}
         onOpenCredits={() => setIsLoginModalOpen(true)}
         isEngineConnected={isEngineConnected}
+        onToggleMaximize={() => {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+            showToast('Window maximized / entered fullscreen');
+          } else {
+            document.exitFullscreen().catch(() => {});
+            showToast('Window restored');
+          }
+        }}
       />
 
       {/* Left Sidebar Navigation Rail */}
@@ -900,6 +909,7 @@ export const App: React.FC = () => {
               entries={history}
               onToggleFavorite={handleToggleFavoriteHistory}
               onDeleteEntry={handleDeleteHistoryEntry}
+              onInsertTranscript={handleInsertTranscript}
             />
           )}
 

@@ -27,6 +27,13 @@ export const DictionaryTab: React.FC<DictionaryTabProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+  const [importFeedback, setImportFeedback] = useState<string | null>(null);
+  const [isListeningInput, setIsListeningInput] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Modal form states
   const [spokenInput, setSpokenInput] = useState('');
   const [outputInput, setOutputInput] = useState('');
@@ -39,6 +46,88 @@ export const DictionaryTab: React.FC<DictionaryTabProps> = ({
   const [testerOutput, setTesterOutput] = useState('Deploy to k8s production');
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, activeCategory, sortOption]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        let count = 0;
+        if (file.name.endsWith('.json')) {
+          const parsed = JSON.parse(text);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((item: any) => {
+              const term = item.term || item.spoken || item.trigger;
+              const rep = item.replacement || item.output || item.expansion;
+              const cat = item.category || 'Custom';
+              if (term && rep) {
+                onAddEntry(term, rep, cat);
+                count++;
+              }
+            });
+          }
+        } else {
+          const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (i === 0 && line.toLowerCase().includes('term') && line.toLowerCase().includes('replacement')) {
+              continue;
+            }
+            const parts = line.split(',').map(p => p.trim().replace(/^["']|["']$/g, ''));
+            if (parts.length >= 2) {
+              const term = parts[0];
+              const rep = parts[1];
+              const cat = parts[2] || 'Custom';
+              if (term && rep) {
+                onAddEntry(term, rep, cat);
+                count++;
+              }
+            }
+          }
+        }
+        setImportFeedback(`Imported ${count} vocabulary rules successfully`);
+        setTimeout(() => setImportFeedback(null), 3000);
+      } catch {
+        setImportFeedback('Failed to parse file. Please provide valid CSV or JSON.');
+        setTimeout(() => setImportFeedback(null), 3500);
+      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
+  };
+
+  const handleMicClick = () => {
+    const SpeechRec = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    if (SpeechRec) {
+      try {
+        const rec = new SpeechRec();
+        rec.lang = 'en-US';
+        rec.continuous = false;
+        rec.interimResults = false;
+        setIsListeningInput(true);
+        rec.onresult = (e: any) => {
+          const transcript = e.results[0]?.[0]?.transcript;
+          if (transcript) setSpokenInput(transcript.trim());
+          setIsListeningInput(false);
+        };
+        rec.onerror = () => setIsListeningInput(false);
+        rec.onend = () => setIsListeningInput(false);
+        rec.start();
+      } catch {
+        setIsListeningInput(false);
+      }
+    } else {
+      setSpokenInput('DirectML WASAPI');
+    }
+  };
 
   // Keyboard shortcut Alt+N for Add Word, / for search
   useEffect(() => {
@@ -110,6 +199,9 @@ export const DictionaryTab: React.FC<DictionaryTabProps> = ({
     }
     return b.id.localeCompare(a.id);
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredEntries.length / pageSize));
+  const pagedEntries = filteredEntries.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
     <div id="dictionary-view" className="flex flex-col w-full pb-16 max-w-6xl mx-auto select-none pt-1">
@@ -276,7 +368,7 @@ export const DictionaryTab: React.FC<DictionaryTabProps> = ({
 
           {/* Dictionary Entries Stream */}
           <div className="divide-y divide-[#e2e8f0]" id="dict-entries-container">
-            {filteredEntries.map(entry => (
+            {pagedEntries.map(entry => (
               <div 
                 key={entry.id}
                 className="grid grid-cols-12 px-4 py-2.5 items-center bg-white hover:bg-[#f8fafc] transition-colors group"
@@ -367,23 +459,38 @@ export const DictionaryTab: React.FC<DictionaryTabProps> = ({
           {/* Pagination & Bottom Drawer Summary */}
           <div className="flex items-center justify-between px-4 py-2.5 bg-[#f8fafc] border-t border-[#e2e8f0] text-slate-500 text-xs">
             <div className="flex items-center gap-2">
-              <span>Showing {filteredEntries.length} of 142 vocabulary rules</span>
+              <span>
+                Showing {pagedEntries.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}-{Math.min(currentPage * pageSize, filteredEntries.length)} of {filteredEntries.length} vocabulary rules
+              </span>
               <span className="text-slate-300">•</span>
               <span className="text-[#0284c7] font-medium">Synced with local model weights</span>
             </div>
 
             <div className="flex items-center gap-1">
               <button 
-                disabled 
-                className="px-2.5 py-1 rounded bg-white border border-[#e2e8f0] text-slate-300 cursor-not-allowed text-xs"
+                id="btn-dict-prev-page"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                className={`px-2.5 py-1 rounded border text-xs transition-colors ${
+                  currentPage <= 1
+                    ? 'bg-slate-50 border-[#e2e8f0] text-slate-300 cursor-not-allowed'
+                    : 'bg-white border-[#e2e8f0] text-slate-700 hover:bg-slate-50 shadow-xs'
+                }`}
               >
                 Previous
               </button>
               <span className="px-2.5 py-1 font-mono text-[#0f172a] font-semibold bg-[#e0f2fe] border border-[#bae6fd] rounded text-xs">
-                1
+                {currentPage} / {totalPages}
               </span>
               <button 
-                className="px-2.5 py-1 rounded bg-white border border-[#e2e8f0] text-slate-700 hover:bg-slate-50 transition-colors shadow-xs text-xs"
+                id="btn-dict-next-page"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                className={`px-2.5 py-1 rounded border text-xs transition-colors ${
+                  currentPage >= totalPages
+                    ? 'bg-slate-50 border-[#e2e8f0] text-slate-300 cursor-not-allowed'
+                    : 'bg-white border-[#e2e8f0] text-slate-700 hover:bg-slate-50 shadow-xs'
+                }`}
               >
                 Next
               </button>
@@ -464,14 +571,23 @@ export const DictionaryTab: React.FC<DictionaryTabProps> = ({
               Sync &amp; Lexicon Files
             </span>
             <div className="flex gap-2 mt-1">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept=".csv,.json"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
               <button 
-                onClick={() => alert('Local lexicon imported from %APPDATA%/flow/dictionary.json')}
-                className="flex-1 py-1.5 px-2 rounded bg-white hover:bg-slate-50 border border-[#e2e8f0] text-slate-800 text-xs font-medium flex items-center justify-center gap-1 transition-colors shadow-xs"
+                id="btn-dict-import-file"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1 py-1.5 px-2 rounded bg-white hover:bg-slate-50 border border-[#e2e8f0] text-slate-800 text-xs font-medium flex items-center justify-center gap-1 transition-colors shadow-xs cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[14px] text-slate-500">upload_file</span>
-                Import CSV
+                Import CSV / JSON
               </button>
               <button 
+                id="btn-dict-export-file"
                 onClick={() => {
                   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(entries, null, 2));
                   const a = document.createElement('a');
@@ -479,12 +595,17 @@ export const DictionaryTab: React.FC<DictionaryTabProps> = ({
                   a.download = 'flow_dictionary_lexicon.json';
                   a.click();
                 }}
-                className="flex-1 py-1.5 px-2 rounded bg-white hover:bg-slate-50 border border-[#e2e8f0] text-slate-800 text-xs font-medium flex items-center justify-center gap-1 transition-colors shadow-xs"
+                className="flex-1 py-1.5 px-2 rounded bg-white hover:bg-slate-50 border border-[#e2e8f0] text-slate-800 text-xs font-medium flex items-center justify-center gap-1 transition-colors shadow-xs cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[14px] text-slate-500">download</span>
                 Export
               </button>
             </div>
+            {importFeedback && (
+              <span className="text-[11px] text-emerald-600 font-medium animate-in fade-in pt-0.5">
+                {importFeedback}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -553,9 +674,11 @@ export const DictionaryTab: React.FC<DictionaryTabProps> = ({
                   />
                   <button 
                     type="button"
-                    onClick={() => setSpokenInput('DirectML WASAPI')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#0284c7] transition-colors"
-                    title="Record voice sample"
+                    onClick={handleMicClick}
+                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full transition-colors ${
+                      isListeningInput ? 'text-rose-500 animate-pulse bg-rose-50' : 'text-slate-400 hover:text-[#0284c7]'
+                    }`}
+                    title={isListeningInput ? "Listening to your voice..." : "Record voice sample"}
                   >
                     <span className="material-symbols-outlined text-[16px]">mic</span>
                   </button>
