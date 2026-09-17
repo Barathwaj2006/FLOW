@@ -35,6 +35,8 @@ tmp/
 aws-credentials.json
 *.pem
 *.key
+*.pfx
+*.cer
 
 # IDEs
 .idea/

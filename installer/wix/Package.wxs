@@ -1,0 +1,77 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="FLOW Voice Productivity"
+           Manufacturer="FLOW Voice Productivity"
+           Version="1.0.0.0"
+           UpgradeCode="A7D43981-645F-4E90-95B9-5776C7594CD1"
+           Scope="perMachine"
+           Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of FLOW is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- Program Files Directory Structure -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="FLOW" />
+    </StandardDirectory>
+
+    <!-- Start Menu Shortcut Directory -->
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="FLOW" />
+    </StandardDirectory>
+
+    <!-- Desktop Shortcut Directory -->
+    <StandardDirectory Id="DesktopFolder" />
+
+    <!-- Application Components -->
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <!-- Main Application Executable -->
+      <Component Id="MainExecutable" Guid="9872C41D-218F-4D2F-A0C3-03F61B83D10A" Bitness="always64">
+        <File Id="FlowHostExe"
+              Source="$(var.PublishDir)\Flow.Host.Windows.exe"
+              KeyPath="yes">
+          <!-- Start Menu Shortcut -->
+          <Shortcut Id="ApplicationStartMenuShortcut"
+                    Directory="ApplicationProgramsFolder"
+                    Name="FLOW"
+                    Description="System-Wide AI Voice Productivity Platform"
+                    WorkingDirectory="INSTALLFOLDER"
+                    Advertise="yes" />
+
+          <!-- Desktop Shortcut -->
+          <Shortcut Id="ApplicationDesktopShortcut"
+                    Directory="DesktopFolder"
+                    Name="FLOW"
+                    Description="System-Wide AI Voice Productivity Platform"
+                    WorkingDirectory="INSTALLFOLDER"
+                    Advertise="yes" />
+        </File>
+
+        <!-- Clean up Start Menu folder on uninstall -->
+        <RemoveFolder Id="CleanUpStartMenuFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
+
+        <!-- Registry Run Key for Windows Startup -->
+        <RegistryValue Root="HKCU"
+                       Key="Software\Microsoft\Windows\CurrentVersion\Run"
+                       Name="FLOW"
+                       Type="string"
+                       Value="&quot;[INSTALLFOLDER]Flow.Host.Windows.exe&quot; --minimized" />
+
+        <RegistryValue Root="HKLM"
+                       Key="Software\FLOW"
+                       Name="InstallPath"
+                       Type="string"
+                       Value="[INSTALLFOLDER]" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- Harvest remaining published assemblies and runtime assets -->
+    <ComponentGroup Id="HarvestedFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PublishDir)\**" Exclude="$(var.PublishDir)\Flow.Host.Windows.exe" />
+    </ComponentGroup>
+
+    <Feature Id="MainFeature" Title="FLOW Core" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+      <ComponentGroupRef Id="HarvestedFiles" />
+    </Feature>
+  </Package>
+</Wix>
