@@ -18,6 +18,7 @@ interface HomeTabProps {
   onOpenSettings?: () => void;
   showFloatingHud: boolean;
   onToggleFloatingHud: () => void;
+  onOpenModelWizard?: () => void;
 }
 
 export const HomeTab: React.FC<HomeTabProps> = ({
@@ -37,6 +38,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   onOpenSettings,
   showFloatingHud,
   onToggleFloatingHud,
+  onOpenModelWizard,
 }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [lastCopied, setLastCopied] = useState(false);
@@ -214,6 +216,16 @@ export const HomeTab: React.FC<HomeTabProps> = ({
         </div>
 
         <div className="flex items-center gap-2 text-xs">
+          {onOpenModelWizard && (
+            <button
+              onClick={onOpenModelWizard}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50 text-[#0284c7] border border-sky-200 hover:bg-sky-100 font-semibold transition"
+              title="Configure Whisper Models & Hardware Acceleration"
+            >
+              <span className="material-symbols-outlined text-[15px]">neurology</span>
+              <span>Model Setup</span>
+            </button>
+          )}
           <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium">
             <span className="material-symbols-outlined text-[15px] text-emerald-600">shield</span>
             <span>Zero-Enter Safety Enforced</span>

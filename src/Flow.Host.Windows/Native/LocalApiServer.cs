@@ -178,6 +178,36 @@ public sealed class LocalApiServer : IDisposable
             {
                 await HandleStatusAsync(resp, ct);
             }
+            else if (path.Equals("/api/hardware", StringComparison.OrdinalIgnoreCase) &&
+                     req.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleHardwareAsync(resp, ct);
+            }
+            else if (path.Equals("/api/models", StringComparison.OrdinalIgnoreCase) &&
+                     req.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleGetModelsAsync(resp, ct);
+            }
+            else if (path.Equals("/api/models/download", StringComparison.OrdinalIgnoreCase) &&
+                     req.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandlePostDownloadModelAsync(req, resp, ct);
+            }
+            else if (path.Equals("/api/models/progress", StringComparison.OrdinalIgnoreCase) &&
+                     req.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleGetDownloadProgressAsync(resp, ct);
+            }
+            else if (path.Equals("/api/models/cancel", StringComparison.OrdinalIgnoreCase) &&
+                     req.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleCancelDownloadModelAsync(resp, ct);
+            }
+            else if (path.Equals("/api/models/select", StringComparison.OrdinalIgnoreCase) &&
+                     req.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandlePostSelectModelAsync(req, resp, ct);
+            }
             else if (path.Equals("/api/transcribe", StringComparison.OrdinalIgnoreCase) &&
                      req.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase))
             {
@@ -243,6 +273,168 @@ public sealed class LocalApiServer : IDisposable
 
         resp.StatusCode = (int)HttpStatusCode.OK;
         await WriteJsonResponseAsync(resp, status, ct);
+    }
+
+    private async Task HandleHardwareAsync(HttpListenerResponse resp, CancellationToken ct)
+    {
+        var profile = HardwareAccelerationDetector.Detect();
+        resp.StatusCode = (int)HttpStatusCode.OK;
+        await WriteJsonResponseAsync(resp, new
+        {
+            primaryGpuName = profile.PrimaryGpuName,
+            dedicatedVramMB = profile.DedicatedVramMB,
+            isDiscreteGpu = profile.IsDiscreteGpu,
+            directMLSupported = profile.DirectMLSupported,
+            recommendedBackend = profile.RecommendedBackend.ToString(),
+            optimalCpuThreads = profile.OptimalCpuThreads,
+            cpuArchitecture = profile.CpuArchitecture,
+            allDetectedGpus = profile.AllDetectedGpus
+        }, ct);
+    }
+
+    private async Task HandleGetModelsAsync(HttpListenerResponse resp, CancellationToken ct)
+    {
+        if (_modelManager == null)
+        {
+            resp.StatusCode = (int)HttpStatusCode.OK;
+            await WriteJsonResponseAsync(resp, Array.Empty<object>(), ct);
+            return;
+        }
+
+        var statuses = _modelManager.GetAllModelStatuses();
+        resp.StatusCode = (int)HttpStatusCode.OK;
+        await WriteJsonResponseAsync(resp, statuses, ct);
+    }
+
+    private async Task HandlePostDownloadModelAsync(HttpListenerRequest req, HttpListenerResponse resp, CancellationToken ct)
+    {
+        if (_modelManager == null)
+        {
+            resp.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+            await WriteJsonResponseAsync(resp, new { error = "Model manager not available" }, ct);
+            return;
+        }
+
+        using var reader = new StreamReader(req.InputStream, req.ContentEncoding ?? Encoding.UTF8);
+        string body = await reader.ReadToEndAsync(ct);
+        string? modelName = null;
+
+        if (!string.IsNullOrWhiteSpace(body))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                if (doc.RootElement.TryGetProperty("modelName", out var prop))
+                {
+                    modelName = prop.GetString();
+                }
+            }
+            catch { }
+        }
+
+        var profile = WhisperModelProfile.FindProfile(modelName) ?? _modelManager.ActiveProfile;
+        if (profile == null)
+        {
+            resp.StatusCode = (int)HttpStatusCode.BadRequest;
+            await WriteJsonResponseAsync(resp, new { error = $"Unknown model profile: {modelName}" }, ct);
+            return;
+        }
+
+        // Start background download task
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _modelManager.EnsureModelAvailableAsync(null, CancellationToken.None, profile);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Background download failed for model {Name}", profile.Name);
+            }
+        });
+
+        resp.StatusCode = (int)HttpStatusCode.Accepted;
+        await WriteJsonResponseAsync(resp, new
+        {
+            started = true,
+            modelName = profile.Name,
+            displayName = profile.DisplayName,
+            status = "Downloading"
+        }, ct);
+    }
+
+    private async Task HandleGetDownloadProgressAsync(HttpListenerResponse resp, CancellationToken ct)
+    {
+        var prog = _modelManager?.CurrentProgress ?? new ModelDownloadProgress(
+            ModelName: _modelManager?.ActiveProfile.Name ?? "None",
+            BytesDownloaded: 0,
+            TotalBytes: 0,
+            Percent: 0,
+            SpeedMBps: 0,
+            Status: "Idle",
+            IsActive: false
+        );
+
+        resp.StatusCode = (int)HttpStatusCode.OK;
+        await WriteJsonResponseAsync(resp, prog, ct);
+    }
+
+    private async Task HandleCancelDownloadModelAsync(HttpListenerResponse resp, CancellationToken ct)
+    {
+        _modelManager?.CancelActiveDownload();
+        resp.StatusCode = (int)HttpStatusCode.OK;
+        await WriteJsonResponseAsync(resp, new { success = true, message = "Download cancellation requested." }, ct);
+    }
+
+    private async Task HandlePostSelectModelAsync(HttpListenerRequest req, HttpListenerResponse resp, CancellationToken ct)
+    {
+        if (_modelManager == null)
+        {
+            resp.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+            await WriteJsonResponseAsync(resp, new { error = "Model manager not available" }, ct);
+            return;
+        }
+
+        using var reader = new StreamReader(req.InputStream, req.ContentEncoding ?? Encoding.UTF8);
+        string body = await reader.ReadToEndAsync(ct);
+        string? modelName = null;
+
+        if (!string.IsNullOrWhiteSpace(body))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                if (doc.RootElement.TryGetProperty("modelName", out var prop))
+                {
+                    modelName = prop.GetString();
+                }
+            }
+            catch { }
+        }
+
+        if (string.IsNullOrWhiteSpace(modelName))
+        {
+            resp.StatusCode = (int)HttpStatusCode.BadRequest;
+            await WriteJsonResponseAsync(resp, new { error = "modelName is required" }, ct);
+            return;
+        }
+
+        bool selected = _modelManager.SelectModel(modelName);
+        if (!selected)
+        {
+            resp.StatusCode = (int)HttpStatusCode.BadRequest;
+            await WriteJsonResponseAsync(resp, new { success = false, error = $"Model '{modelName}' not recognized" }, ct);
+            return;
+        }
+
+        resp.StatusCode = (int)HttpStatusCode.OK;
+        await WriteJsonResponseAsync(resp, new
+        {
+            success = true,
+            activeModel = _modelManager.ActiveProfile.Name,
+            displayName = _modelManager.ActiveProfile.DisplayName,
+            isInstalled = _modelManager.IsModelInstalledAndValid()
+        }, ct);
     }
 
     private async Task HandleTranscribeAsync(HttpListenerRequest req, HttpListenerResponse resp, CancellationToken ct)

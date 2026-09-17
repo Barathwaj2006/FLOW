@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Threading;
@@ -20,6 +22,36 @@ public enum ModelState
 }
 
 /// <summary>
+/// Progress reporting record for local Whisper model downloads.
+/// </summary>
+public sealed record ModelDownloadProgress(
+    string ModelName,
+    long BytesDownloaded,
+    long TotalBytes,
+    double Percent,
+    double SpeedMBps,
+    string Status,
+    bool IsActive = false,
+    string? ErrorMessage = null
+);
+
+/// <summary>
+/// Detailed status report for an available Whisper model profile.
+/// </summary>
+public sealed record ModelStatusInfo(
+    string Name,
+    string DisplayName,
+    long ExpectedBytes,
+    double SizeMB,
+    bool IsMultilingual,
+    bool IsInstalled,
+    bool IsValid,
+    bool IsActive,
+    string Sha256,
+    IReadOnlyList<string> SupportedLanguages
+);
+
+/// <summary>
 /// Specification profile for a local Whisper model weight distribution.
 /// </summary>
 public sealed record WhisperModelProfile(
@@ -28,7 +60,8 @@ public sealed record WhisperModelProfile(
     string Sha256,
     long ExpectedBytes,
     bool IsMultilingual,
-    IReadOnlyList<string> SupportedLanguages
+    IReadOnlyList<string> SupportedLanguages,
+    string DisplayName = ""
 )
 {
     /// <summary>
@@ -41,7 +74,8 @@ public sealed record WhisperModelProfile(
         Sha256: "921e4cf8686fdd993dcd081a5da5b6c365bfde1162e72b08d75ac75289920b1f",
         ExpectedBytes: 77704715,
         IsMultilingual: false,
-        SupportedLanguages: new[] { "en" }
+        SupportedLanguages: new[] { "en" },
+        DisplayName: "Tiny (English Only)"
     );
 
     /// <summary>
@@ -55,8 +89,54 @@ public sealed record WhisperModelProfile(
         Sha256: "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21",
         ExpectedBytes: 77691713,
         IsMultilingual: true,
-        SupportedLanguages: new[] { "auto", "en", "ta", "es", "fr", "de", "hi", "zh", "ja", "ko", "it", "pt", "ru", "ar" }
+        SupportedLanguages: new[] { "auto", "en", "ta", "es", "fr", "de", "hi", "zh", "ja", "ko", "it", "pt", "ru", "ar" },
+        DisplayName: "Tiny (Multilingual)"
     );
+
+    /// <summary>
+    /// Official Whisper Base English-only model (~148 MB).
+    /// Balanced accuracy and speed for English dictation on standard PCs.
+    /// </summary>
+    public static readonly WhisperModelProfile BaseEn = new(
+        Name: "ggml-base.en.bin",
+        Url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin",
+        Sha256: "137c40403d78c540180860dc29d3b3f1643661d529099e1b2502d021e25e369b",
+        ExpectedBytes: 147964211,
+        IsMultilingual: false,
+        SupportedLanguages: new[] { "en" },
+        DisplayName: "Base (English Only)"
+    );
+
+    /// <summary>
+    /// Official Whisper Small Multilingual model (~488 MB).
+    /// High-precision transcription across 99 languages with deep contextual understanding.
+    /// </summary>
+    public static readonly WhisperModelProfile SmallMultilingual = new(
+        Name: "ggml-small.bin",
+        Url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
+        Sha256: "553563db5c3b3026aa7ae48a5cdd5b4082212b6b66aa040a93a24a11d8646b2d",
+        ExpectedBytes: 488154857,
+        IsMultilingual: true,
+        SupportedLanguages: new[] { "auto", "en", "ta", "es", "fr", "de", "hi", "zh", "ja", "ko", "it", "pt", "ru", "ar" },
+        DisplayName: "Small (Multilingual - High Accuracy)"
+    );
+
+    public static readonly IReadOnlyList<WhisperModelProfile> AllProfiles = new[]
+    {
+        TinyEn,
+        TinyMultilingual,
+        BaseEn,
+        SmallMultilingual
+    };
+
+    public static WhisperModelProfile? FindProfile(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        string clean = Path.GetFileName(name.Trim());
+        return Array.Find((WhisperModelProfile[])AllProfiles, p =>
+            string.Equals(p.Name, clean, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.DisplayName, name.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
 }
 
 /// <summary>
@@ -82,6 +162,8 @@ public sealed class WhisperModelManager
     private readonly ILogger<WhisperModelManager>? _logger;
     private ModelState _state = ModelState.NotInstalled;
     private readonly object _stateLock = new();
+    private readonly SemaphoreSlim _downloadLock = new(1, 1);
+    private CancellationTokenSource? _activeDownloadCts;
 
     public ModelState State
     {
@@ -97,6 +179,16 @@ public sealed class WhisperModelManager
     }
 
     public event Action<ModelState>? StateChanged;
+
+    /// <summary>
+    /// Live progress of an active model download.
+    /// </summary>
+    public ModelDownloadProgress? CurrentProgress { get; private set; }
+
+    /// <summary>
+    /// Event fired whenever download progress or speed updates.
+    /// </summary>
+    public event Action<ModelDownloadProgress>? ProgressUpdated;
 
     /// <summary>
     /// Currently active model profile. Defaults to TinyEn for backward compatibility.
@@ -153,7 +245,59 @@ public sealed class WhisperModelManager
     }
 
     /// <summary>
-    /// Ensures the model for the requested profile is downloaded and verified, with progress reporting.
+    /// Selects the active model profile by filename or display name.
+    /// </summary>
+    public bool SelectModel(string modelName)
+    {
+        var profile = WhisperModelProfile.FindProfile(modelName);
+        if (profile == null) return false;
+
+        ActiveProfile = profile;
+        UpdateInitialState();
+        return true;
+    }
+
+    /// <summary>
+    /// Retrieves status for all available Whisper model profiles.
+    /// </summary>
+    public IReadOnlyList<ModelStatusInfo> GetAllModelStatuses()
+    {
+        var list = new List<ModelStatusInfo>();
+        foreach (var p in WhisperModelProfile.AllProfiles)
+        {
+            string pPath = GetModelPath(p);
+            bool exists = File.Exists(pPath);
+            long fileLen = exists ? new FileInfo(pPath).Length : 0;
+            bool isLenMatch = exists && fileLen == p.ExpectedBytes;
+            bool valid = isLenMatch && VerifySha256(pPath, p.Sha256);
+            bool active = string.Equals(ActiveProfile.Name, p.Name, StringComparison.OrdinalIgnoreCase);
+
+            list.Add(new ModelStatusInfo(
+                Name: p.Name,
+                DisplayName: string.IsNullOrEmpty(p.DisplayName) ? p.Name : p.DisplayName,
+                ExpectedBytes: p.ExpectedBytes,
+                SizeMB: Math.Round(p.ExpectedBytes / (1024.0 * 1024.0), 1),
+                IsMultilingual: p.IsMultilingual,
+                IsInstalled: isLenMatch,
+                IsValid: valid,
+                IsActive: active,
+                Sha256: p.Sha256,
+                SupportedLanguages: p.SupportedLanguages
+            ));
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// Cancels any currently active model download.
+    /// </summary>
+    public void CancelActiveDownload()
+    {
+        _activeDownloadCts?.Cancel();
+    }
+
+    /// <summary>
+    /// Ensures the model for the requested profile is downloaded and verified, with resumable HTTP Range support.
     /// </summary>
     public async Task<string> EnsureModelAvailableAsync(
         IProgress<double>? progress = null,
@@ -166,50 +310,153 @@ public sealed class WhisperModelManager
         if (IsModelInstalledAndValid(targetProfile))
         {
             State = ModelState.Ready;
+            CurrentProgress = new ModelDownloadProgress(
+                ModelName: targetProfile.Name,
+                BytesDownloaded: targetProfile.ExpectedBytes,
+                TotalBytes: targetProfile.ExpectedBytes,
+                Percent: 100.0,
+                SpeedMBps: 0.0,
+                Status: "Ready",
+                IsActive: false
+            );
             return path;
         }
 
+        await _downloadLock.WaitAsync(cancellationToken);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _activeDownloadCts = linkedCts;
+
         State = ModelState.Downloading;
-        _logger?.LogInformation("Downloading Whisper model ({Name}) from {Url} to {Path}...", targetProfile.Name, targetProfile.Url, path);
+        _logger?.LogInformation("Acquiring Whisper model ({Name}) from {Url} to {Path}...", targetProfile.Name, targetProfile.Url, path);
 
         string tempFile = path + ".download.tmp";
 
         try
         {
-            using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            long totalRead = 0;
-            long totalBytes = targetProfile.ExpectedBytes;
-
-            using (var response = await HttpClient.GetAsync(targetProfile.Url, HttpCompletionOption.ResponseHeadersRead, cancellationToken))
+            long existingBytes = 0;
+            if (File.Exists(tempFile))
             {
-                response.EnsureSuccessStatusCode();
-
-                totalBytes = response.Content.Headers.ContentLength ?? targetProfile.ExpectedBytes;
-
-                await using (var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken))
-                await using (var fileStream = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
+                var tmpInfo = new FileInfo(tempFile);
+                if (tmpInfo.Length >= targetProfile.ExpectedBytes)
                 {
-                    var buffer = new byte[81920];
-                    int read;
-
-                    while ((read = await contentStream.ReadAsync(buffer, cancellationToken)) > 0)
-                    {
-                        await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-                        hasher.AppendData(buffer, 0, read);
-                        totalRead += read;
-
-                        if (totalBytes > 0)
-                        {
-                            double percentage = (double)totalRead / totalBytes;
-                            progress?.Report(percentage);
-                        }
-                    }
-
-                    await fileStream.FlushAsync(cancellationToken);
+                    try { File.Delete(tempFile); } catch { }
+                }
+                else
+                {
+                    existingBytes = tmpInfo.Length;
                 }
             }
 
+            using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+
+            // If resuming, seed hasher with existing file content
+            if (existingBytes > 0)
+            {
+                _logger?.LogInformation("Resuming existing download for {Name} from byte offset {Offset}...", targetProfile.Name, existingBytes);
+                await using var existingStream = new FileStream(tempFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                byte[] seedBuffer = new byte[81920];
+                int seedRead;
+                long totalSeeded = 0;
+                while (totalSeeded < existingBytes && (seedRead = await existingStream.ReadAsync(seedBuffer.AsMemory(0, (int)Math.Min(seedBuffer.Length, existingBytes - totalSeeded)), linkedCts.Token)) > 0)
+                {
+                    hasher.AppendData(seedBuffer, 0, seedRead);
+                    totalSeeded += seedRead;
+                }
+            }
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, targetProfile.Url);
+            if (existingBytes > 0)
+            {
+                request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(existingBytes, null);
+            }
+
+            using var response = await HttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linkedCts.Token);
+
+            bool isPartial = response.StatusCode == HttpStatusCode.PartialContent;
+            if (!isPartial && response.StatusCode != HttpStatusCode.OK)
+            {
+                response.EnsureSuccessStatusCode();
+            }
+
+            FileMode fileMode = FileMode.Create;
+            long totalRead = 0;
+            long totalBytes = targetProfile.ExpectedBytes;
+
+            if (isPartial && existingBytes > 0)
+            {
+                fileMode = FileMode.Append;
+                totalRead = existingBytes;
+                totalBytes = response.Content.Headers.ContentRange?.Length ??
+                             (response.Content.Headers.ContentLength.HasValue ? existingBytes + response.Content.Headers.ContentLength.Value : targetProfile.ExpectedBytes);
+            }
+            else
+            {
+                // Reset hasher if server returned full 200 OK
+                if (existingBytes > 0)
+                {
+                    hasher.GetHashAndReset();
+                }
+                totalBytes = response.Content.Headers.ContentLength ?? targetProfile.ExpectedBytes;
+                totalRead = 0;
+            }
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            long bytesDownloadedThisSession = 0;
+            long lastProgressReportMs = 0;
+
+            await using (var contentStream = await response.Content.ReadAsStreamAsync(linkedCts.Token))
+            await using (var fileStream = new FileStream(tempFile, fileMode, FileAccess.Write, FileShare.None, 81920, useAsync: true))
+            {
+                var buffer = new byte[81920];
+                int read;
+
+                while ((read = await contentStream.ReadAsync(buffer, linkedCts.Token)) > 0)
+                {
+                    await fileStream.WriteAsync(buffer.AsMemory(0, read), linkedCts.Token);
+                    hasher.AppendData(buffer, 0, read);
+                    totalRead += read;
+                    bytesDownloadedThisSession += read;
+
+                    long elapsedMs = sw.ElapsedMilliseconds;
+                    if (elapsedMs - lastProgressReportMs >= 150 || totalRead >= totalBytes)
+                    {
+                        lastProgressReportMs = elapsedMs;
+                        double elapsedSec = Math.Max(0.1, elapsedMs / 1000.0);
+                        double speedMBps = (bytesDownloadedThisSession / (1024.0 * 1024.0)) / elapsedSec;
+                        double percent = totalBytes > 0 ? Math.Min(100.0, ((double)totalRead / totalBytes) * 100.0) : 0.0;
+
+                        var prog = new ModelDownloadProgress(
+                            ModelName: targetProfile.Name,
+                            BytesDownloaded: totalRead,
+                            TotalBytes: totalBytes,
+                            Percent: Math.Round(percent, 1),
+                            SpeedMBps: Math.Round(speedMBps, 2),
+                            Status: "Downloading",
+                            IsActive: true
+                        );
+
+                        CurrentProgress = prog;
+                        ProgressUpdated?.Invoke(prog);
+                        progress?.Report(percent / 100.0);
+                    }
+                }
+
+                await fileStream.FlushAsync(linkedCts.Token);
+            }
+
             State = ModelState.Validating;
+            var valProg = new ModelDownloadProgress(
+                ModelName: targetProfile.Name,
+                BytesDownloaded: totalRead,
+                TotalBytes: totalBytes,
+                Percent: 100.0,
+                SpeedMBps: 0.0,
+                Status: "Validating SHA-256",
+                IsActive: true
+            );
+            CurrentProgress = valProg;
+            ProgressUpdated?.Invoke(valProg);
+
             _logger?.LogInformation("Validating downloaded model checksum for {Name}...", targetProfile.Name);
 
             byte[] hashBytes = hasher.GetHashAndReset();
@@ -228,18 +475,60 @@ public sealed class WhisperModelManager
             File.Move(tempFile, path);
 
             State = ModelState.Ready;
+            var readyProg = new ModelDownloadProgress(
+                ModelName: targetProfile.Name,
+                BytesDownloaded: totalBytes,
+                TotalBytes: totalBytes,
+                Percent: 100.0,
+                SpeedMBps: 0.0,
+                Status: "Ready",
+                IsActive: false
+            );
+            CurrentProgress = readyProg;
+            ProgressUpdated?.Invoke(readyProg);
+
             _logger?.LogInformation("Whisper model validated and ready at {Path}.", path);
             return path;
+        }
+        catch (OperationCanceledException)
+        {
+            State = ModelState.NotInstalled;
+            var cancelProg = new ModelDownloadProgress(
+                ModelName: targetProfile.Name,
+                BytesDownloaded: 0,
+                TotalBytes: targetProfile.ExpectedBytes,
+                Percent: 0,
+                SpeedMBps: 0,
+                Status: "Cancelled",
+                IsActive: false
+            );
+            CurrentProgress = cancelProg;
+            ProgressUpdated?.Invoke(cancelProg);
+            throw;
         }
         catch (Exception ex)
         {
             State = ModelState.Failed;
-            _logger?.LogError(ex, "Failed to download or validate Whisper model.");
-            if (File.Exists(tempFile))
-            {
-                try { File.Delete(tempFile); } catch { }
-            }
+            var errProg = new ModelDownloadProgress(
+                ModelName: targetProfile.Name,
+                BytesDownloaded: 0,
+                TotalBytes: targetProfile.ExpectedBytes,
+                Percent: 0,
+                SpeedMBps: 0,
+                Status: "Failed",
+                IsActive: false,
+                ErrorMessage: ex.Message
+            );
+            CurrentProgress = errProg;
+            ProgressUpdated?.Invoke(errProg);
+
+            _logger?.LogError(ex, "Failed to download or validate Whisper model {Name}.", targetProfile.Name);
             throw;
+        }
+        finally
+        {
+            _activeDownloadCts = null;
+            _downloadLock.Release();
         }
     }
 

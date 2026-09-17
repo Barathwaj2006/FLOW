@@ -12,6 +12,7 @@ import { SettingsTab } from './components/SettingsTab';
 import { AboutTab } from './components/AboutTab';
 import { OnboardingModal } from './components/OnboardingModal';
 import { LoginModal } from './components/LoginModal';
+import { ModelDownloadWizardModal } from './components/ModelDownloadWizardModal';
 import { 
   TabType, 
   SessionState, 
@@ -66,6 +67,7 @@ export const App: React.FC = () => {
   const [previewText, setPreviewText] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isModelWizardOpen, setIsModelWizardOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(() => {
     return localStorage.getItem('flow_auth_user') || null;
   });
@@ -901,6 +903,7 @@ export const App: React.FC = () => {
               onOpenSettings={() => setActiveTab('settings')}
               showFloatingHud={showFloatingHud}
               onToggleFloatingHud={() => setShowFloatingHud(prev => !prev)}
+              onOpenModelWizard={() => setIsModelWizardOpen(true)}
             />
           )}
 
@@ -1084,6 +1087,15 @@ export const App: React.FC = () => {
         onLoginSuccess={handleLoginSuccess}
         onClaimCredits={handleClaimCredits}
         onSignOut={handleSignOut}
+      />
+
+      {/* Whisper Neural Model Setup & Hardware Wizard */}
+      <ModelDownloadWizardModal
+        isOpen={isModelWizardOpen}
+        onClose={() => setIsModelWizardOpen(false)}
+        onModelReady={modelName => {
+          showToast(`Speech model ${modelName} verified & activated.`);
+        }}
       />
     </div>
   );

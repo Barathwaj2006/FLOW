@@ -100,3 +100,39 @@ export interface FlowSettings {
   soundFeedback: boolean;
   smartFormatting?: boolean;
 }
+
+export interface HardwareProfile {
+  primaryGpuName: string;
+  dedicatedVramMB: number;
+  isDiscreteGpu: boolean;
+  directMLSupported: boolean;
+  recommendedBackend: 'DirectML_GPU' | 'CUDA_GPU' | 'NPU_DirectML' | 'CPU_AVX512' | 'CPU_AVX2' | 'CPU_Standard';
+  optimalCpuThreads: number;
+  cpuArchitecture: string;
+  allDetectedGpus: string[];
+}
+
+export interface ModelStatusInfo {
+  name: string;
+  displayName: string;
+  expectedBytes: number;
+  sizeMB: number;
+  isMultilingual: boolean;
+  isInstalled: boolean;
+  isValid: boolean;
+  isActive: boolean;
+  sha256: string;
+  supportedLanguages: string[];
+}
+
+export interface ModelDownloadProgress {
+  modelName: string;
+  bytesDownloaded: number;
+  totalBytes: number;
+  percent: number;
+  speedMBps: number;
+  status: string;
+  isActive: boolean;
+  errorMessage?: string | null;
+}
+

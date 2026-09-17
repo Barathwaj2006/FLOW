@@ -4,7 +4,7 @@
  * Enables 100% offline local Whisper speech-to-text inference with AVX2/DirectML acceleration.
  */
 
-import { DictationEntry, DictionaryEntry } from '../types';
+import { DictationEntry, DictionaryEntry, HardwareProfile, ModelStatusInfo, ModelDownloadProgress } from '../types';
 
 let activePort = 5005;
 
@@ -208,3 +208,96 @@ export function encodeWavFromFloat32(samples: Float32Array, sampleRate = 16000):
 
   return new Blob([view], { type: 'audio/wav' });
 }
+
+/**
+ * Fetches the detected hardware acceleration profile (DirectML GPU/NPU/CPU) from the local host.
+ */
+export async function fetchHardwareProfile(): Promise<HardwareProfile | null> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${activePort}/api/hardware`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Retrieves the status and integrity of all available local Whisper models.
+ */
+export async function fetchModelsList(): Promise<ModelStatusInfo[]> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${activePort}/api/models`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch {}
+  return [];
+}
+
+/**
+ * Triggers background resumable download for the specified Whisper model.
+ */
+export async function startModelDownload(modelName: string): Promise<boolean> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${activePort}/api/models/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modelName }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetches real-time download progress, percent, and transfer speed (MB/s).
+ */
+export async function fetchDownloadProgress(): Promise<ModelDownloadProgress | null> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${activePort}/api/models/progress`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Cancels active model download.
+ */
+export async function cancelModelDownload(): Promise<boolean> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${activePort}/api/models/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Selects active local Whisper model profile.
+ */
+export async function selectActiveModel(modelName: string): Promise<boolean> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${activePort}/api/models/select`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modelName }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+

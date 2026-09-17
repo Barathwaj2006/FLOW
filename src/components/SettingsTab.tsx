@@ -1,5 +1,14 @@
-import React, { useState } from 'react';
-import { FlowSettings } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { FlowSettings, HardwareProfile, ModelStatusInfo, ModelDownloadProgress } from '../types';
+import {
+  fetchHardwareProfile,
+  fetchModelsList,
+  startModelDownload,
+  fetchDownloadProgress,
+  cancelModelDownload,
+  selectActiveModel,
+} from '../lib/flowApiClient';
+import { ModelDownloadWizardModal } from './ModelDownloadWizardModal';
 
 interface SettingsTabProps {
   settings: FlowSettings;
@@ -83,6 +92,77 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       setClearedConfirm(true);
       setTimeout(() => setClearedConfirm(false), 4000);
     }
+  };
+
+  const [hardware, setHardware] = useState<HardwareProfile | null>(null);
+  const [models, setModels] = useState<ModelStatusInfo[]>([]);
+  const [downloadProgress, setDownloadProgress] = useState<ModelDownloadProgress | null>(null);
+  const [downloadingModelName, setDownloadingModelName] = useState<string | null>(null);
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [loadingHardware, setLoadingHardware] = useState(false);
+  const pollIntervalRef = useRef<any>(null);
+
+  const loadHardwareAndModels = async () => {
+    setLoadingHardware(true);
+    try {
+      const [hw, mdls] = await Promise.all([
+        fetchHardwareProfile(),
+        fetchModelsList(),
+      ]);
+      setHardware(hw);
+      setModels(mdls);
+    } finally {
+      setLoadingHardware(false);
+    }
+  };
+
+  useEffect(() => {
+    loadHardwareAndModels();
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
+
+  const handleDownloadModel = async (modelName: string) => {
+    setDownloadingModelName(modelName);
+    const success = await startModelDownload(modelName);
+    if (!success) {
+      setDownloadingModelName(null);
+      return;
+    }
+
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    pollIntervalRef.current = setInterval(async () => {
+      const prog = await fetchDownloadProgress();
+      if (!prog) return;
+
+      setDownloadProgress(prog);
+
+      if (prog.status === 'Ready' || (prog.percent >= 100 && !prog.isActive)) {
+        clearInterval(pollIntervalRef.current);
+        setDownloadingModelName(null);
+        setDownloadProgress(null);
+        await loadHardwareAndModels();
+      } else if (prog.status === 'Failed' || prog.errorMessage) {
+        clearInterval(pollIntervalRef.current);
+        setDownloadingModelName(null);
+        setDownloadProgress(null);
+        await loadHardwareAndModels();
+      }
+    }, 400);
+  };
+
+  const handleCancelDownload = async () => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    await cancelModelDownload();
+    setDownloadingModelName(null);
+    setDownloadProgress(null);
+    await loadHardwareAndModels();
+  };
+
+  const handleSelectModel = async (modelName: string) => {
+    await selectActiveModel(modelName);
+    await loadHardwareAndModels();
   };
 
   return (
@@ -408,7 +488,187 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         )}
       </section>
 
-      {/* 5. Privacy & Data Retention */}
+      {/* 5. Hardware Acceleration & Local Neural Models */}
+      <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+            <span className="material-symbols-outlined text-[#0284c7] text-[18px]">neurology</span>
+            <h2>Hardware Acceleration &amp; Neural Models</h2>
+          </div>
+
+          <button
+            id="btn-open-model-wizard"
+            onClick={() => setIsWizardOpen(true)}
+            className="h-8 px-3 rounded-xl bg-sky-50 border border-sky-200 hover:bg-sky-100 text-[#0284c7] text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs"
+          >
+            <span className="material-symbols-outlined text-[15px]">auto_fix_high</span>
+            <span>Launch Setup Wizard</span>
+          </button>
+        </div>
+
+        {/* Hardware Detection Badge */}
+        {hardware && (
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#0284c7] text-[18px]">
+                  {hardware.isDiscreteGpu ? 'developer_board' : 'memory'}
+                </span>
+                <span className="text-xs font-bold text-slate-800">{hardware.primaryGpuName}</span>
+              </div>
+              <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider">
+                {hardware.recommendedBackend.replace('_', ' ')}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px] text-slate-600">
+              <div>
+                <span className="text-slate-400 block text-[10px]">VRAM</span>
+                <span className="font-semibold text-slate-800">
+                  {hardware.dedicatedVramMB > 0 ? `${hardware.dedicatedVramMB} MB` : 'Shared RAM'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px]">DirectML</span>
+                <span className="font-semibold text-emerald-600">
+                  {hardware.directMLSupported ? 'Hardware Accelerated' : 'CPU Mode'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px]">Optimal Threads</span>
+                <span className="font-semibold text-slate-800">{hardware.optimalCpuThreads} Threads</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px]">Architecture</span>
+                <span className="font-semibold text-slate-800">{hardware.cpuArchitecture}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Model Cards Grid */}
+        <div className="space-y-3 pt-1">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-slate-700">Available Whisper Models</label>
+            <span className="text-[11px] text-slate-400">All models verified with SHA-256</span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            {models.map(m => {
+              const isDownloadingThis = downloadingModelName === m.name;
+              return (
+                <div
+                  key={m.name}
+                  className={`p-4 rounded-xl border transition ${
+                    m.isActive
+                      ? 'bg-sky-50/60 border-[#0284c7] shadow-xs'
+                      : 'bg-slate-50/50 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-900">{m.displayName}</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-700 font-mono">
+                          {m.sizeMB} MB
+                        </span>
+                        {m.isActive && (
+                          <span className="px-2 py-0.5 rounded bg-[#0284c7] text-white text-[10px] font-bold">
+                            Active Engine
+                          </span>
+                        )}
+                        {m.isValid && (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[12px]">verified</span>
+                            <span>SHA-256 Valid</span>
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        {m.name === 'ggml-tiny.en.bin' && 'Ultra-low latency (~150ms) for English dictation on any hardware.'}
+                        {m.name === 'ggml-tiny.bin' && '99 languages including Tamil, Spanish, Hindi, French with language auto-detection.'}
+                        {m.name === 'ggml-base.en.bin' && 'Balanced English accuracy and speed for modern desktop workflows.'}
+                        {m.name === 'ggml-small.bin' && 'High-precision recognition across regional accents and technical terms.'}
+                      </p>
+                      <span className="text-[10px] font-mono text-slate-400 block">
+                        SHA-256: {m.sha256.substring(0, 16)}...
+                      </span>
+                    </div>
+
+                    <div className="shrink-0 flex items-center gap-2">
+                      {isDownloadingThis ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleCancelDownload}
+                            className="h-8 px-3 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-medium transition"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : m.isValid ? (
+                        m.isActive ? (
+                          <span className="h-8 px-3 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold flex items-center gap-1 border border-emerald-200">
+                            <span className="material-symbols-outlined text-[15px]">check_circle</span>
+                            <span>Selected</span>
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleSelectModel(m.name)}
+                            className="h-8 px-3 rounded-lg bg-white border border-slate-300 hover:border-[#0284c7] hover:text-[#0284c7] text-slate-700 text-xs font-semibold transition shadow-2xs"
+                          >
+                            Set as Active
+                          </button>
+                        )
+                      ) : (
+                        <button
+                          onClick={() => handleDownloadModel(m.name)}
+                          className="h-8 px-3 rounded-lg bg-[#0284c7] hover:bg-[#0369a1] text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">download</span>
+                          <span>Download</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Inline Download Progress */}
+                  {isDownloadingThis && downloadProgress && (
+                    <div className="mt-3 pt-3 border-t border-slate-200/80 space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-[#0284c7] animate-ping"></span>
+                          <span>{downloadProgress.status}...</span>
+                        </span>
+                        <div className="flex items-center gap-2 font-mono text-[11px]">
+                          {downloadProgress.speedMBps > 0 && (
+                            <span className="text-[#0284c7] font-bold">⚡ {downloadProgress.speedMBps} MB/s</span>
+                          )}
+                          <span className="font-bold text-slate-800">{downloadProgress.percent}%</span>
+                        </div>
+                      </div>
+                      <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-[#0284c7] transition-all duration-150"
+                          style={{ width: `${Math.max(2, downloadProgress.percent)}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-400">
+                        <span>
+                          {(downloadProgress.bytesDownloaded / (1024 * 1024)).toFixed(1)} MB /{' '}
+                          {(downloadProgress.totalBytes / (1024 * 1024)).toFixed(1)} MB
+                        </span>
+                        <span>Resumable HTTP Range • SHA-256</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* 6. Privacy & Data Retention */}
       <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
         <div className="flex items-center gap-2 text-sm font-bold text-slate-900 border-b border-slate-100 pb-3">
           <span className="material-symbols-outlined text-emerald-600 text-[18px]">verified_user</span>
@@ -468,6 +728,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           </div>
         </div>
       </section>
+
+      {/* First-Run Model Download & Acceleration Wizard */}
+      <ModelDownloadWizardModal
+        isOpen={isWizardOpen}
+        onClose={() => {
+          setIsWizardOpen(false);
+          loadHardwareAndModels();
+        }}
+        onModelReady={() => {
+          loadHardwareAndModels();
+        }}
+      />
     </div>
   );
 };
