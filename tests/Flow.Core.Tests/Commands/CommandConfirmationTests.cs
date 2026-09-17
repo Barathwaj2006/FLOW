@@ -103,8 +103,8 @@ public class CommandConfirmationTests
     public void ValidateConfirmation_ExpiredToken_Invalidated()
     {
         var context = CreateContext();
-        // Zero lifetime -> immediately expired
-        var token = _confirmationService.CreateToken(context, "delete_selection", TimeSpan.Zero);
+        // Zero / negative lifetime -> immediately expired
+        var token = _confirmationService.CreateToken(context, "delete_selection", TimeSpan.FromMilliseconds(-1));
 
         bool valid = _confirmationService.ValidateConfirmation(token, context, "confirm", out var failure);
 

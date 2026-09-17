@@ -19,7 +19,7 @@ public sealed record CommandConfirmationToken(
     TimeSpan Lifetime
 )
 {
-    public bool IsExpired => DateTimeOffset.UtcNow > (IssuedAt + Lifetime);
+    public bool IsExpired => DateTimeOffset.UtcNow >= (IssuedAt + Lifetime);
 }
 
 /// <summary>
