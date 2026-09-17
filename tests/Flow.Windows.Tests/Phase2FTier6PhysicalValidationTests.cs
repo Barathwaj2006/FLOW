@@ -533,6 +533,12 @@ public class Phase2FTier6PhysicalValidationTests : IDisposable
     [Fact]
     public void PhysicalMicrophone_LiveEndpoint_MeasuresAcousticMetrics()
     {
+        using var devMgr = new WasapiDeviceManager();
+        if (devMgr.EnumerateCaptureDevices().Count == 0)
+        {
+            return;
+        }
+
         var capturedSamples = new List<float>();
         using var capture = new WasapiAudioCapture(chunk =>
         {

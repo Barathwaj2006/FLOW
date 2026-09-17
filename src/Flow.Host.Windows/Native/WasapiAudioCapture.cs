@@ -18,12 +18,16 @@ public sealed class WasapiAudioCapture : IDisposable
     public const int AUDCLNT_E_RESOURCES_INVALIDATED = unchecked((int)0x88890026);
     public const int AUDCLNT_E_SERVICE_NOT_RUNNING = unchecked((int)0x88890020);
     public const int AUDCLNT_E_ENDPOINT_CREATE_FAILED = unchecked((int)0x8889000F);
+    public const int AUDCLNT_E_NOT_FOUND = unchecked((int)0x88890008);
+    public const int E_NOTFOUND = unchecked((int)0x80070490);
 
     public static bool IsDeviceInvalidatedError(int hr) =>
         hr is AUDCLNT_E_DEVICE_INVALIDATED
            or AUDCLNT_E_RESOURCES_INVALIDATED
            or AUDCLNT_E_SERVICE_NOT_RUNNING
-           or AUDCLNT_E_ENDPOINT_CREATE_FAILED;
+           or AUDCLNT_E_ENDPOINT_CREATE_FAILED
+           or AUDCLNT_E_NOT_FOUND
+           or E_NOTFOUND;
 
     private readonly ILogger<WasapiAudioCapture>? _logger;
     private readonly Action<float[]>? _onSamplesCaptured;

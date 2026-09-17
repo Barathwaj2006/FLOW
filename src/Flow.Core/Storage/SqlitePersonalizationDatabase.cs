@@ -49,8 +49,13 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
         if (_isMemory)
         {
             // Keep-alive connection so in-memory database survives across calls
-            _memoryKeepAliveConnection = new SqliteConnection($"Data Source={_databasePath};Mode=Memory;Cache=Shared");
+            _memoryKeepAliveConnection = new SqliteConnection($"Data Source={_databasePath};Mode=Memory;Cache=Shared;Default Timeout=30");
             _memoryKeepAliveConnection.Open();
+            using (var cmd = _memoryKeepAliveConnection.CreateCommand())
+            {
+                cmd.CommandText = "PRAGMA busy_timeout = 30000;";
+                cmd.ExecuteNonQuery();
+            }
         }
 
         try
@@ -74,8 +79,13 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
                     // Fallback to in-memory mode if file operations fail
                     _databasePath = $"mem_{Guid.NewGuid():N}";
                     _isMemory = true;
-                    _memoryKeepAliveConnection = new SqliteConnection($"Data Source={_databasePath};Mode=Memory;Cache=Shared");
+                    _memoryKeepAliveConnection = new SqliteConnection($"Data Source={_databasePath};Mode=Memory;Cache=Shared;Default Timeout=30");
                     _memoryKeepAliveConnection.Open();
+                    using (var cmd = _memoryKeepAliveConnection.CreateCommand())
+                    {
+                        cmd.CommandText = "PRAGMA busy_timeout = 30000;";
+                        cmd.ExecuteNonQuery();
+                    }
                 }
             }
             InitializeSchema();
@@ -126,20 +136,20 @@ public sealed class SqlitePersonalizationDatabase : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         string connStr = _isMemory
-            ? $"Data Source={_databasePath};Mode=Memory;Cache=Shared"
-            : $"Data Source={_databasePath};Mode=ReadWriteCreate";
+            ? $"Data Source={_databasePath};Mode=Memory;Cache=Shared;Default Timeout=30"
+            : $"Data Source={_databasePath};Mode=ReadWriteCreate;Default Timeout=30";
 
         var conn = new SqliteConnection(connStr);
         conn.Open();
 
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "PRAGMA foreign_keys = ON;";
+            cmd.CommandText = "PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 30000;";
             cmd.ExecuteNonQuery();
 
             if (!_isMemory)
             {
-                cmd.CommandText = "PRAGMA journal_mode = WAL;";
+                cmd.CommandText = "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;";
                 cmd.ExecuteNonQuery();
             }
         }
