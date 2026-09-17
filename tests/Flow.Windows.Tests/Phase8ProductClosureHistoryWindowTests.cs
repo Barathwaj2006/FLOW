@@ -382,7 +382,20 @@ public class Phase8ProductClosureHistoryWindowTests : IDisposable
             var historyVm = new HistoryViewModel(_historyService);
             historyVm.CopyToClipboard(entry);
 
-            string clipboardText = Clipboard.GetText();
+            string clipboardText = string.Empty;
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                try
+                {
+                    clipboardText = Clipboard.GetText();
+                    break;
+                }
+                catch (System.Runtime.InteropServices.COMException) when (attempt < 4)
+                {
+                    System.Threading.Thread.Sleep(50);
+                }
+            }
+
             Assert.Equal("Strictly safe dictation", clipboardText);
             // Invariant: Clipboard text must not contain automated carriage return / line feeds
             Assert.DoesNotContain("\r", clipboardText);

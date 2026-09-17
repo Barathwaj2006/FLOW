@@ -302,8 +302,19 @@ public sealed class HistoryViewModel : INotifyPropertyChanged
     {
         if (entry?.Text != null)
         {
-            System.Windows.Clipboard.SetText(entry.Text);
-            StatusBannerMessage = "Transcript copied to clipboard.";
+            for (int i = 0; i < 5; i++)
+            {
+                try
+                {
+                    System.Windows.Clipboard.SetDataObject(entry.Text, true);
+                    StatusBannerMessage = "Transcript copied to clipboard.";
+                    return;
+                }
+                catch (System.Runtime.InteropServices.COMException) when (i < 4)
+                {
+                    System.Threading.Thread.Sleep(50);
+                }
+            }
         }
     }
 

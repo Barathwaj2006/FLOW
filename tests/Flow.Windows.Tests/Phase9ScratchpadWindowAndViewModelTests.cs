@@ -273,7 +273,20 @@ public class Phase9ScratchpadWindowAndViewModelTests : IDisposable
 
             viewModel.CopyToClipboard();
 
-            string clipboardText = Clipboard.GetText();
+            string clipboardText = string.Empty;
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                try
+                {
+                    clipboardText = Clipboard.GetText();
+                    break;
+                }
+                catch (System.Runtime.InteropServices.COMException) when (attempt < 4)
+                {
+                    System.Threading.Thread.Sleep(50);
+                }
+            }
+
             Assert.Equal("Directly copied text into Windows clipboard.", clipboardText);
             Assert.Equal("Copied to clipboard", viewModel.StatusMessage);
             Assert.DoesNotContain("\r\n", clipboardText);
