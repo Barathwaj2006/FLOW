@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FlowSettings, HardwareProfile, ModelStatusInfo, ModelDownloadProgress, UpdateStatusInfo } from '../types';
+import { FlowSettings, HardwareProfile, ModelStatusInfo, ModelDownloadProgress, UpdateStatusInfo, DiagnosticsInfo } from '../types';
 import {
   fetchHardwareProfile,
   fetchModelsList,
@@ -11,6 +11,11 @@ import {
   checkForUpdates,
   downloadUpdate,
   applyUpdateAndRestart,
+  fetchDiagnosticsInfo,
+  openLogsFolder,
+  exportDiagnosticsBundle,
+  clearCrashReports,
+  setTelemetryOptIn,
 } from '../lib/flowApiClient';
 import { onNativeEvent } from '../lib/nativeBridge';
 import { ModelDownloadWizardModal } from './ModelDownloadWizardModal';
@@ -117,6 +122,19 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [isDownloadingUpdate, setIsDownloadingUpdate] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
 
+  // Diagnostics & Observability State
+  const [diagnosticsInfo, setDiagnosticsInfo] = useState<DiagnosticsInfo | null>(null);
+  const [isExportingDiag, setIsExportingDiag] = useState(false);
+  const [diagExportPath, setDiagExportPath] = useState<string | null>(null);
+  const [clearingCrashConfirm, setClearingCrashConfirm] = useState(false);
+
+  const loadDiagnostics = async () => {
+    try {
+      const diag = await fetchDiagnosticsInfo();
+      setDiagnosticsInfo(diag);
+    } catch {}
+  };
+
   const loadHardwareAndModels = async () => {
     setLoadingHardware(true);
     try {
@@ -133,6 +151,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   useEffect(() => {
     loadHardwareAndModels();
+    loadDiagnostics();
 
     fetchUpdateStatus().then(info => setUpdateInfo(info));
     const unsubscribe = onNativeEvent('update-status-changed', (info: UpdateStatusInfo) => {
@@ -149,6 +168,42 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       unsubscribe();
     };
   }, []);
+
+  const handleToggleTelemetry = async (enabled: boolean) => {
+    if (diagnosticsInfo) {
+      setDiagnosticsInfo({ ...diagnosticsInfo, enableAnonymousTelemetry: enabled });
+    }
+    await setTelemetryOptIn(enabled);
+  };
+
+  const handleOpenLogs = async () => {
+    await openLogsFolder();
+  };
+
+  const handleExportDiagnostics = async () => {
+    setIsExportingDiag(true);
+    setDiagExportPath(null);
+    try {
+      const path = await exportDiagnosticsBundle();
+      if (path) {
+        setDiagExportPath(path);
+        setTimeout(() => setDiagExportPath(null), 8000);
+      }
+    } finally {
+      setIsExportingDiag(false);
+    }
+  };
+
+  const handleClearCrashReports = async () => {
+    if (clearingCrashConfirm) {
+      await clearCrashReports();
+      setClearingCrashConfirm(false);
+      await loadDiagnostics();
+    } else {
+      setClearingCrashConfirm(true);
+      setTimeout(() => setClearingCrashConfirm(false), 4000);
+    }
+  };
 
   const handleCheckForUpdates = async () => {
     setIsCheckingUpdate(true);
@@ -881,6 +936,122 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-700 text-xs">
             <span className="material-symbols-outlined text-[16px] shrink-0">error</span>
             <span>{updateError}</span>
+          </div>
+        )}
+      </section>
+
+      {/* 7. Diagnostics & Privacy Observability */}
+      <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+            <span className="material-symbols-outlined text-[#0284c7] text-[18px]">shield</span>
+            <h2>Diagnostics & Privacy Observability</h2>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            100% Offline Sovereign
+          </span>
+        </div>
+
+        {/* Telemetry Opt-in Switch */}
+        <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+          <div className="space-y-0.5 pr-4">
+            <span className="text-xs font-semibold text-slate-900">Anonymous Crash & Diagnostic Telemetry</span>
+            <p className="text-[11px] text-slate-500">
+              Help FLOW engineers resolve crash dumps and optimize hardware inference backends. Speech audio, dictation transcripts, and personal dictionary entries are strictly 100% offline and NEVER collected or transmitted.
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer shrink-0">
+            <input
+              type="checkbox"
+              checked={diagnosticsInfo?.enableAnonymousTelemetry ?? false}
+              onChange={e => handleToggleTelemetry(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:bg-[#0284c7] transition-colors"></div>
+            <div className="absolute left-1 top-1 bg-white w-3 h-3 rounded-full shadow-xs transition-transform peer-checked:translate-x-4"></div>
+          </label>
+        </div>
+
+        {/* Diagnostics Info Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+            <div className="flex items-center gap-1.5 text-slate-500 text-[11px] font-medium">
+              <span className="material-symbols-outlined text-[15px]">description</span>
+              <span>Local File Logs</span>
+            </div>
+            <div className="text-xs font-bold text-slate-800">
+              {diagnosticsInfo ? `${(diagnosticsInfo.logsTotalSizeBytes / (1024 * 1024)).toFixed(2)} MB` : 'Calculating...'}
+            </div>
+            <p className="text-[10px] text-slate-400 truncate">7-day rolling redacted logs</p>
+          </div>
+
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+            <div className="flex items-center gap-1.5 text-slate-500 text-[11px] font-medium">
+              <span className="material-symbols-outlined text-[15px]">bug_report</span>
+              <span>Crash Reports</span>
+            </div>
+            <div className="text-xs font-bold text-slate-800">
+              {diagnosticsInfo?.totalCrashCount ?? 0} Recorded
+            </div>
+            <p className="text-[10px] text-slate-400 truncate">
+              {diagnosticsInfo?.lastCrashUtc ? `Last: ${new Date(diagnosticsInfo.lastCrashUtc).toLocaleDateString()}` : 'Zero crashes reported'}
+            </p>
+          </div>
+
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+            <div className="flex items-center gap-1.5 text-slate-500 text-[11px] font-medium">
+              <span className="material-symbols-outlined text-[15px]">timer</span>
+              <span>Session Uptime</span>
+            </div>
+            <div className="text-xs font-bold text-slate-800">
+              {diagnosticsInfo ? `${Math.floor(diagnosticsInfo.uptimeSeconds / 60)}m ${Math.floor(diagnosticsInfo.uptimeSeconds % 60)}s` : 'Active'}
+            </div>
+            <p className="text-[10px] text-slate-400 truncate">Zero background memory leaks</p>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap gap-2 pt-2">
+          <button
+            onClick={handleOpenLogs}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[16px]">folder_open</span>
+            Open Logs Folder
+          </button>
+
+          <button
+            onClick={handleExportDiagnostics}
+            disabled={isExportingDiag}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className={`material-symbols-outlined text-[16px] ${isExportingDiag ? 'animate-spin' : ''}`}>
+              {isExportingDiag ? 'sync' : 'archive'}
+            </span>
+            {isExportingDiag ? 'Exporting...' : 'Export Diagnostics (.zip)'}
+          </button>
+
+          <button
+            onClick={handleClearCrashReports}
+            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 cursor-pointer ${
+              clearingCrashConfirm
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-600'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]">
+              {clearingCrashConfirm ? 'warning' : 'delete_sweep'}
+            </span>
+            {clearingCrashConfirm ? 'Confirm Clear Dumps' : 'Clear Crash Reports'}
+          </button>
+        </div>
+
+        {/* Export success banner */}
+        {diagExportPath && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800 text-xs">
+            <span className="material-symbols-outlined text-[16px] shrink-0">check_circle</span>
+            <span className="truncate">Diagnostics archive exported: {diagExportPath}</span>
           </div>
         )}
       </section>

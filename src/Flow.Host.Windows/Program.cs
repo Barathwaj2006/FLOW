@@ -17,6 +17,7 @@ using Flow.Core.History;
 using Flow.Core.Scratchpad;
 using Flow.Host.Windows.Lifecycle;
 using Flow.Host.Windows.Native;
+using Flow.Host.Windows.Diagnostics;
 using Flow.Host.Windows.Tray;
 using Flow.Host.Windows.UI;
 using Flow.Host.Windows.Updates;
@@ -36,6 +37,7 @@ public static class Program
     private static LocalApiServer? _localApiServer;
     private static WindowsPowerStateManager? _powerManager;
     private static IFlowUpdateService? _updateService;
+    private static IFlowDiagnosticsService? _diagnosticsService;
 
     [STAThread]
     public static int Main(string[] args)
@@ -45,12 +47,16 @@ public static class Program
         // Handles --veloapp-install, --veloapp-updated, --veloapp-uninstall.
         VelopackApp.Build().Run();
 
+        // 0.1 Native post-mortem crash reporter & exception filters
+        CrashReporter.Install();
+
         try
         {
             return Run(args);
         }
         catch (Exception ex)
         {
+            CrashReporter.WriteCrashDump(ex, "MainUnhandledException");
             try
             {
                 string logDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FLOW");
@@ -60,6 +66,10 @@ public static class Program
             catch { }
             Console.Error.WriteLine($"[FLOW FATAL ERROR] {ex}");
             return 1;
+        }
+        finally
+        {
+            CrashReporter.Uninstall();
         }
     }
 
@@ -138,13 +148,26 @@ public static class Program
             a.Equals("--tray", StringComparison.OrdinalIgnoreCase) ||
             a.Equals("--background", StringComparison.OrdinalIgnoreCase));
 
+        using var fileLoggerProvider = new RedactingFileLoggerProvider();
         using var loggerFactory = LoggerFactory.Create(builder =>
         {
             builder.SetMinimumLevel(LogLevel.Information);
             builder.AddConsole();
+            builder.AddProvider(fileLoggerProvider);
         });
         var logger = loggerFactory.CreateLogger("Flow.Main");
         logger.LogInformation("Starting FLOW Windows Native Voice Platform...");
+
+        // Check previous crash manifest and log recovery
+        var previousCrash = CrashReporter.CheckPreviousCrash();
+        if (previousCrash != null && previousCrash.LastCrashUtc.HasValue &&
+            DateTime.UtcNow - previousCrash.LastCrashUtc.Value < TimeSpan.FromHours(48))
+        {
+            logger.LogWarning("FLOW successfully recovered from previous crash at {Time}. Reason: {Reason}, Exception: {Type}",
+                previousCrash.LastCrashUtc.Value.ToString("O"),
+                previousCrash.LastCrashReason,
+                previousCrash.LastExceptionType);
+        }
 
         // 2. Core audio & inference services
         var ringBuffer = new AudioRingBuffer(capacitySeconds: 30.0, sampleRate: 16000.0);
@@ -361,6 +384,9 @@ public static class Program
             logger: loggerFactory.CreateLogger<VelopackUpdateService>()
         );
 
+        // 4.6 Diagnostics & Crash Observability
+        _diagnosticsService = new FlowDiagnosticsService(settingsRepo);
+
         // 5. Global Push-to-Talk, Double-Tap Hands-Free, and Backtrack Hook
         _hotkeyHook = new GlobalHotkeyHook(initialSettings.HotkeyVk, doubleTapThresholdMs: 350.0);
 
@@ -382,7 +408,8 @@ public static class Program
                 _hotkeyHook,
                 targetTab: targetTab,
                 modelManager: modelManager,
-                updateService: _updateService);
+                updateService: _updateService,
+                diagnosticsService: _diagnosticsService);
         }
 
         // Wire Tray Icon Actions

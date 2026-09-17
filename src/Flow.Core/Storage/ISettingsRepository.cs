@@ -13,7 +13,8 @@ public sealed record FlowAppSettings(
     string Theme = "Dark",
     string? AudioDeviceId = null,
     string RetentionPolicy = "Unlimited",
-    bool LaunchOnStartup = false
+    bool LaunchOnStartup = false,
+    bool EnableAnonymousTelemetry = false
 );
 
 /// <summary>

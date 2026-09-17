@@ -4,7 +4,7 @@
  * Enables 100% offline local Whisper speech-to-text inference with AVX2/DirectML acceleration.
  */
 
-import { DictationEntry, DictionaryEntry, HardwareProfile, ModelStatusInfo, ModelDownloadProgress, UpdateStatusInfo } from '../types';
+import { DictationEntry, DictionaryEntry, HardwareProfile, ModelStatusInfo, ModelDownloadProgress, UpdateStatusInfo, DiagnosticsInfo } from '../types';
 import { isNativeShell, sendNativeRequest, onNativeEvent } from './nativeBridge';
 
 let activePort = 5005;
@@ -586,4 +586,85 @@ export async function applyUpdateAndRestart(): Promise<boolean> {
   }
   return false;
 }
+
+/**
+ * Retrieves diagnostic info, log directory, and crash counts from the host.
+ */
+export async function fetchDiagnosticsInfo(): Promise<DiagnosticsInfo> {
+  if (isNativeShell()) {
+    try {
+      const res = await sendNativeRequest<DiagnosticsInfo>('get-diagnostics-info');
+      if (res) return res;
+    } catch {}
+  }
+  return {
+    totalCrashCount: 0,
+    logsDirectory: '',
+    logsTotalSizeBytes: 0,
+    crashesDirectory: '',
+    enableAnonymousTelemetry: false,
+    uptimeSeconds: 0,
+  };
+}
+
+/**
+ * Opens the local logs directory in Windows Explorer.
+ */
+export async function openLogsFolder(): Promise<boolean> {
+  if (isNativeShell()) {
+    try {
+      const res = await sendNativeRequest<{ success: boolean }>('open-logs-folder');
+      return res?.success ?? false;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * Exports a redacted diagnostic bundle zip archive.
+ */
+export async function exportDiagnosticsBundle(): Promise<string | null> {
+  if (isNativeShell()) {
+    try {
+      const res = await sendNativeRequest<{ success: boolean; exportPath?: string }>('export-diagnostics');
+      return res?.exportPath ?? null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Clears old crash dumps and manifests.
+ */
+export async function clearCrashReports(): Promise<boolean> {
+  if (isNativeShell()) {
+    try {
+      const res = await sendNativeRequest<{ success: boolean }>('clear-crash-reports');
+      return res?.success ?? false;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * Sets anonymous diagnostic telemetry opt-in preference.
+ */
+export async function setTelemetryOptIn(enabled: boolean): Promise<boolean> {
+  if (isNativeShell()) {
+    try {
+      const res = await sendNativeRequest<{ success: boolean }>('set-telemetry-opt-in', { enabled });
+      return res?.success ?? false;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 

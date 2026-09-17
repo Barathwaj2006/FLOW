@@ -155,3 +155,14 @@ export interface UpdateStatusInfo {
   isInstalled?: boolean;
 }
 
+export interface DiagnosticsInfo {
+  totalCrashCount: number;
+  lastCrashUtc?: string | null;
+  lastCrashReason?: string | null;
+  logsDirectory: string;
+  logsTotalSizeBytes: number;
+  crashesDirectory: string;
+  enableAnonymousTelemetry: boolean;
+  uptimeSeconds: number;
+}
+

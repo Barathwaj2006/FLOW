@@ -72,6 +72,9 @@ public sealed class SqliteSettingsRepository : ISettingsRepository
         string? launchOnStartupStr = await GetSettingAsync("LaunchOnStartup", ct);
         bool launchOnStartup = bool.TryParse(launchOnStartupStr, out bool parsedLaunch) && parsedLaunch;
 
+        string? telemetryStr = await GetSettingAsync("EnableAnonymousTelemetry", ct);
+        bool enableAnonymousTelemetry = bool.TryParse(telemetryStr, out bool parsedTelemetry) && parsedTelemetry;
+
         return new FlowAppSettings(
             Language: language,
             VadThreshold: vadThreshold,
@@ -79,7 +82,8 @@ public sealed class SqliteSettingsRepository : ISettingsRepository
             Theme: theme,
             AudioDeviceId: audioDeviceId,
             RetentionPolicy: retentionPolicy,
-            LaunchOnStartup: launchOnStartup
+            LaunchOnStartup: launchOnStartup,
+            EnableAnonymousTelemetry: enableAnonymousTelemetry
         );
     }
 
@@ -93,6 +97,7 @@ public sealed class SqliteSettingsRepository : ISettingsRepository
         await SetSettingAsync("Theme", settings.Theme, ct);
         await SetSettingAsync("RetentionPolicy", settings.RetentionPolicy, ct);
         await SetSettingAsync("LaunchOnStartup", settings.LaunchOnStartup.ToString(), ct);
+        await SetSettingAsync("EnableAnonymousTelemetry", settings.EnableAnonymousTelemetry.ToString(), ct);
         if (settings.AudioDeviceId != null)
         {
             await SetSettingAsync("AudioDeviceId", settings.AudioDeviceId, ct);

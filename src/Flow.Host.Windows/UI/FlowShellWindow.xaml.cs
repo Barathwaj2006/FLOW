@@ -16,6 +16,7 @@ using Flow.Core.Personalization.Styles;
 using Flow.Core.Scratchpad;
 using Flow.Core.Session;
 using Flow.Core.Storage;
+using Flow.Host.Windows.Diagnostics;
 using Flow.Host.Windows.Native;
 using Flow.Host.Windows.Updates;
 using Flow.Inference;
@@ -63,6 +64,7 @@ public partial class FlowShellWindow : Window, IFlowMainWindow
     private readonly GlobalHotkeyHook? _hotkeyHook;
     private readonly WhisperModelManager? _modelManager;
     private readonly IFlowUpdateService? _updateService;
+    private readonly IFlowDiagnosticsService? _diagnosticsService;
 
     private bool _isInitialized;
     private int _pendingTab = -1;
@@ -93,7 +95,8 @@ public partial class FlowShellWindow : Window, IFlowMainWindow
         ISettingsRepository? settingsRepo = null,
         GlobalHotkeyHook? hotkeyHook = null,
         WhisperModelManager? modelManager = null,
-        IFlowUpdateService? updateService = null) : this()
+        IFlowUpdateService? updateService = null,
+        IFlowDiagnosticsService? diagnosticsService = null) : this()
     {
         _coordinator = coordinator;
         _capture = capture;
@@ -110,6 +113,7 @@ public partial class FlowShellWindow : Window, IFlowMainWindow
         _hotkeyHook = hotkeyHook;
         _modelManager = modelManager;
         _updateService = updateService;
+        _diagnosticsService = diagnosticsService;
 
         WireCoordinatorEvents();
     }
@@ -788,6 +792,88 @@ public partial class FlowShellWindow : Window, IFlowMainWindow
                 {
                     SendError(requestId, action, ex.Message);
                 }
+                break;
+            }
+
+            case "get-diagnostics-info":
+            {
+                if (_diagnosticsService != null)
+                {
+                    var diag = await _diagnosticsService.GetDiagnosticsInfoAsync();
+                    SendResponse(requestId, action, new
+                    {
+                        totalCrashCount = diag.TotalCrashCount,
+                        lastCrashUtc = diag.LastCrashUtc?.ToString("O"),
+                        lastCrashReason = diag.LastCrashReason,
+                        logsDirectory = diag.LogsDirectory,
+                        logsTotalSizeBytes = diag.LogsTotalSizeBytes,
+                        crashesDirectory = diag.CrashesDirectory,
+                        enableAnonymousTelemetry = diag.EnableAnonymousTelemetry,
+                        uptimeSeconds = diag.UptimeSeconds
+                    });
+                }
+                else
+                {
+                    SendResponse(requestId, action, new
+                    {
+                        totalCrashCount = 0,
+                        lastCrashUtc = (string?)null,
+                        lastCrashReason = (string?)null,
+                        logsDirectory = "",
+                        logsTotalSizeBytes = 0L,
+                        crashesDirectory = "",
+                        enableAnonymousTelemetry = false,
+                        uptimeSeconds = 0.0
+                    });
+                }
+                break;
+            }
+
+            case "open-logs-folder":
+            {
+                _diagnosticsService?.OpenLogsFolder();
+                SendResponse(requestId, action, new { success = true });
+                break;
+            }
+
+            case "export-diagnostics":
+            {
+                if (_diagnosticsService != null)
+                {
+                    string path = await _diagnosticsService.ExportDiagnosticsBundleAsync();
+                    SendResponse(requestId, action, new { success = true, exportPath = path });
+                }
+                else
+                {
+                    SendError(requestId, action, "Diagnostics service not available");
+                }
+                break;
+            }
+
+            case "clear-crash-reports":
+            {
+                _diagnosticsService?.ClearCrashReports();
+                SendResponse(requestId, action, new { success = true });
+                break;
+            }
+
+            case "set-telemetry-opt-in":
+            {
+                bool enabled = payload.ValueKind == JsonValueKind.Object &&
+                               payload.TryGetProperty("enabled", out var enProp) &&
+                               enProp.GetBoolean();
+
+                if (_diagnosticsService != null)
+                {
+                    await _diagnosticsService.SetTelemetryOptInAsync(enabled);
+                }
+                else if (_settingsRepo != null)
+                {
+                    var s = await _settingsRepo.LoadSettingsAsync();
+                    await _settingsRepo.SaveSettingsAsync(s with { EnableAnonymousTelemetry = enabled });
+                }
+
+                SendResponse(requestId, action, new { success = true, enabled });
                 break;
             }
 

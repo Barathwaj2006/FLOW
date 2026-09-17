@@ -82,7 +82,8 @@ public static class FlowHubWindowManager
         GlobalHotkeyHook? hotkeyHook = null,
         int targetTab = 0,
         Flow.Inference.WhisperModelManager? modelManager = null,
-        Updates.IFlowUpdateService? updateService = null)
+        Updates.IFlowUpdateService? updateService = null,
+        Diagnostics.IFlowDiagnosticsService? diagnosticsService = null)
     {
         lock (s_lock)
         {
@@ -145,7 +146,8 @@ public static class FlowHubWindowManager
                                 settingsRepo,
                                 hotkeyHook,
                                 modelManager,
-                                updateService);
+                                updateService,
+                                diagnosticsService);
                         }
                         catch (Exception shellEx)
                         {
