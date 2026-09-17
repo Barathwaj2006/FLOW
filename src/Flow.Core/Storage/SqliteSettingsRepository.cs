@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
@@ -68,13 +68,18 @@ public sealed class SqliteSettingsRepository : ISettingsRepository
 
         string theme = await GetSettingAsync("Theme", ct) ?? "Dark";
         string? audioDeviceId = await GetSettingAsync("AudioDeviceId", ct);
+        string retentionPolicy = await GetSettingAsync("RetentionPolicy", ct) ?? "Unlimited";
+        string? launchOnStartupStr = await GetSettingAsync("LaunchOnStartup", ct);
+        bool launchOnStartup = bool.TryParse(launchOnStartupStr, out bool parsedLaunch) && parsedLaunch;
 
         return new FlowAppSettings(
             Language: language,
             VadThreshold: vadThreshold,
             HotkeyVk: hotkeyVk,
             Theme: theme,
-            AudioDeviceId: audioDeviceId
+            AudioDeviceId: audioDeviceId,
+            RetentionPolicy: retentionPolicy,
+            LaunchOnStartup: launchOnStartup
         );
     }
 
@@ -86,6 +91,8 @@ public sealed class SqliteSettingsRepository : ISettingsRepository
         await SetSettingAsync("VadThreshold", settings.VadThreshold.ToString(CultureInfo.InvariantCulture), ct);
         await SetSettingAsync("HotkeyVk", settings.HotkeyVk.ToString(CultureInfo.InvariantCulture), ct);
         await SetSettingAsync("Theme", settings.Theme, ct);
+        await SetSettingAsync("RetentionPolicy", settings.RetentionPolicy, ct);
+        await SetSettingAsync("LaunchOnStartup", settings.LaunchOnStartup.ToString(), ct);
         if (settings.AudioDeviceId != null)
         {
             await SetSettingAsync("AudioDeviceId", settings.AudioDeviceId, ct);

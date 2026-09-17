@@ -210,8 +210,6 @@ interface FloatingHudProps {
   onClose: () => void;
   audioLevel: number; // 0 - 100
   previewText?: string;
-  isHandsFree?: boolean;
-  setIsHandsFree?: (val: boolean) => void;
   activeStyleName?: string;
   lastTranscript?: DictationEntry | null;
   onCopyTranscript?: (text: string) => void;

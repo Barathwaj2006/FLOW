@@ -116,7 +116,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <div className="px-3 pt-2">
           <p className="text-[11px] text-[#94a3b8] truncate font-medium">
-            v1.2.0 • Offline/Local Engine
+            v1.0.0 • Offline/Local Engine
           </p>
         </div>
       </div>

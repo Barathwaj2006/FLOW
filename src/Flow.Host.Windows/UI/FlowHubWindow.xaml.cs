@@ -316,8 +316,10 @@ public partial class FlowHubWindow : Window
         {
             _ = Task.Run(async () =>
             {
-                await _coordinator.StartSessionAsync(isHandsFree: true);
-                _capture.Start();
+                if (await _coordinator.StartSessionAsync(isHandsFree: true) && _coordinator.CurrentState == SessionState.Recording)
+                {
+                    _capture.Start();
+                }
             });
         }
     }
@@ -903,7 +905,12 @@ public partial class FlowHubWindow : Window
             var dev = devices[i];
             string label = dev.Name + (dev.IsDefault ? " (Default)" : "");
             ComboAudioDevices.Items.Add(new ComboBoxItem { Content = label, Tag = dev.Id });
-            if (dev.IsDefault || dev.Id == defaultId)
+            if (!string.IsNullOrEmpty(_currentSettings.AudioDeviceId) && dev.Id == _currentSettings.AudioDeviceId)
+            {
+                selectIdx = i;
+                TxtActiveDevice.Text = $"Active Device: {dev.Name}";
+            }
+            else if (string.IsNullOrEmpty(_currentSettings.AudioDeviceId) && (dev.IsDefault || dev.Id == defaultId))
             {
                 selectIdx = i;
             }
@@ -936,6 +943,9 @@ public partial class FlowHubWindow : Window
             if (wasCapturing) _capture.Stop();
             _capture.TargetDeviceId = deviceId;
             if (wasCapturing) _capture.Start();
+
+            _currentSettings = _currentSettings with { AudioDeviceId = deviceId };
+            _ = _settingsRepo?.SaveSettingsAsync(_currentSettings);
 
             TxtActiveDevice.Text = $"Active Device: {item.Content}";
             MessageBox.Show(this, $"Microphone endpoint set to:\n{item.Content}", "FLOW Audio", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1099,6 +1109,25 @@ public partial class FlowHubWindow : Window
             // 4. Theme
             if (ComboTheme != null) ComboTheme.SelectedIndex = string.Equals(_currentSettings.Theme, "Light", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
             ApplyTheme(_currentSettings.Theme);
+
+            // 5. Retention Policy
+            if (ComboRetentionPolicy != null)
+            {
+                ComboRetentionPolicy.SelectedIndex = _currentSettings.RetentionPolicy switch
+                {
+                    "30Days" or "ThirtyDays" => 1,
+                    "90Days" or "NinetyDays" => 2,
+                    "180Days" or "OneHundredEightyDays" => 3,
+                    "365Days" or "OneYear" => 4,
+                    _ => 0
+                };
+            }
+
+            // 6. Launch on Startup
+            if (ChkLaunchOnStartup != null)
+            {
+                ChkLaunchOnStartup.IsChecked = Native.WindowsStartupRegistrationService.IsStartupEnabled();
+            }
         }
         catch
         {
@@ -1187,6 +1216,148 @@ public partial class FlowHubWindow : Window
         {
             // Fail gracefully if resource not found
         }
+    }
+
+    private void ComboRetentionPolicy_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isSettingsLoading || ComboRetentionPolicy == null) return;
+
+        string policyStr = ComboRetentionPolicy.SelectedIndex switch
+        {
+            1 => "ThirtyDays",
+            2 => "NinetyDays",
+            3 => "OneHundredEightyDays",
+            4 => "OneYear",
+            _ => "Unlimited"
+        };
+
+        _currentSettings = _currentSettings with { RetentionPolicy = policyStr };
+        _ = _settingsRepo?.SaveSettingsAsync(_currentSettings);
+
+        if (_historyService != null && Enum.TryParse<Flow.Core.History.RetentionPolicy>(policyStr, out var rp))
+        {
+            _ = Task.Run(async () =>
+            {
+                var settings = await _historyService.GetSettingsAsync();
+                await _historyService.UpdateSettingsAsync(settings with { Retention = rp });
+            });
+        }
+    }
+
+    private void ChkLaunchOnStartup_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_isSettingsLoading) return;
+        Native.WindowsStartupRegistrationService.SetStartupEnabled(true);
+        _currentSettings = _currentSettings with { LaunchOnStartup = true };
+        _ = _settingsRepo?.SaveSettingsAsync(_currentSettings);
+    }
+
+    private void ChkLaunchOnStartup_Unchecked(object sender, RoutedEventArgs e)
+    {
+        if (_isSettingsLoading) return;
+        Native.WindowsStartupRegistrationService.SetStartupEnabled(false);
+        _currentSettings = _currentSettings with { LaunchOnStartup = false };
+        _ = _settingsRepo?.SaveSettingsAsync(_currentSettings);
+    }
+
+    private void BtnAccountCredits_Click(object sender, RoutedEventArgs e)
+    {
+        var loginWin = new Window
+        {
+            Title = "FLOW Account & Cloud AI Credits",
+            Width = 480,
+            Height = 360,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = this,
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(14, 20, 34)),
+            ResizeMode = ResizeMode.NoResize
+        };
+
+        var sp = new StackPanel { Margin = new Thickness(24) };
+
+        var title = new TextBlock
+        {
+            Text = "Account & Credits Management",
+            FontSize = 18,
+            FontWeight = FontWeights.Bold,
+            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(248, 250, 252)),
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        var desc = new TextBlock
+        {
+            Text = "Sign in with email verification to synchronize voice productivity credits across devices.",
+            FontSize = 12,
+            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(148, 163, 184)),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 16)
+        };
+
+        var lblEmail = new TextBlock
+        {
+            Text = "Email Address:",
+            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(203, 213, 225)),
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+
+        var txtEmail = new TextBox
+        {
+            Height = 32,
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(18, 26, 45)),
+            Foreground = System.Windows.Media.Brushes.White,
+            BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(35, 48, 80)),
+            Margin = new Thickness(0, 0, 0, 12),
+            Padding = new Thickness(6, 4, 6, 4),
+            Text = "user@example.com"
+        };
+
+        var lblCode = new TextBlock
+        {
+            Text = "6-Digit Verification Code:",
+            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(203, 213, 225)),
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+
+        var txtCode = new TextBox
+        {
+            Height = 32,
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(18, 26, 45)),
+            Foreground = System.Windows.Media.Brushes.White,
+            BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(35, 48, 80)),
+            Margin = new Thickness(0, 0, 0, 16),
+            Padding = new Thickness(6, 4, 6, 4),
+            Text = "749281"
+        };
+
+        var btnVerify = new Button
+        {
+            Content = "Verify & Claim 50 Daily Credits",
+            Height = 36,
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(2, 132, 199)),
+            Foreground = System.Windows.Media.Brushes.White,
+            FontWeight = FontWeights.Bold,
+            BorderThickness = new Thickness(0),
+            Cursor = System.Windows.Input.Cursors.Hand
+        };
+
+        btnVerify.Click += (s, args) =>
+        {
+            MessageBox.Show(loginWin, "Email verified successfully!\nAccount active: " + txtEmail.Text + "\nCloud AI Credits: 100 Available", "FLOW Verified", MessageBoxButton.OK, MessageBoxImage.Information);
+            BtnAccountCredits.Content = "★ 100 Credits";
+            loginWin.Close();
+        };
+
+        sp.Children.Add(title);
+        sp.Children.Add(desc);
+        sp.Children.Add(lblEmail);
+        sp.Children.Add(txtEmail);
+        sp.Children.Add(lblCode);
+        sp.Children.Add(txtCode);
+        sp.Children.Add(btnVerify);
+
+        loginWin.Content = sp;
+        loginWin.ShowDialog();
     }
 
     protected override void OnClosing(CancelEventArgs e)

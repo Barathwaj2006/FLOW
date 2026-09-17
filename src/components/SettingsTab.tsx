@@ -29,9 +29,32 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   availableMics = [],
 }) => {
   const [clearedConfirm, setClearedConfirm] = useState(false);
-  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
-  const [startMinimized, setStartMinimized] = useState(true);
-  const [launchAtStartup, setLaunchAtStartup] = useState(true);
+  const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('flow_theme_mode') as 'light' | 'dark') || 'light';
+  });
+  const [startMinimized, setStartMinimized] = useState<boolean>(() => {
+    const saved = localStorage.getItem('flow_start_minimized');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [launchAtStartup, setLaunchAtStartup] = useState<boolean>(() => {
+    const saved = localStorage.getItem('flow_launch_at_startup');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const handleThemeChange = (mode: 'light' | 'dark') => {
+    setThemeMode(mode);
+    localStorage.setItem('flow_theme_mode', mode);
+  };
+
+  const handleLaunchAtStartupChange = (val: boolean) => {
+    setLaunchAtStartup(val);
+    localStorage.setItem('flow_launch_at_startup', String(val));
+  };
+
+  const handleStartMinimizedChange = (val: boolean) => {
+    setStartMinimized(val);
+    localStorage.setItem('flow_start_minimized', String(val));
+  };
 
   const languages = [
     { code: 'auto', name: 'Auto-Detect' },
@@ -90,7 +113,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <label className="block text-xs text-slate-700 mb-1.5 font-medium">Appearance Theme</label>
             <div className="grid grid-cols-2 gap-2">
               <button
-                onClick={() => setThemeMode('light')}
+                onClick={() => handleThemeChange('light')}
                 className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition ${
                   themeMode === 'light'
                     ? 'bg-sky-50 border-[#0284c7] text-[#0284c7] shadow-xs'
@@ -101,7 +124,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 <span>Light</span>
               </button>
               <button
-                onClick={() => setThemeMode('dark')}
+                onClick={() => handleThemeChange('dark')}
                 className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition ${
                   themeMode === 'dark'
                     ? 'bg-sky-50 border-[#0284c7] text-[#0284c7] shadow-xs'
@@ -142,7 +165,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               <input
                 type="checkbox"
                 checked={launchAtStartup}
-                onChange={e => setLaunchAtStartup(e.target.checked)}
+                onChange={e => handleLaunchAtStartupChange(e.target.checked)}
                 className="sr-only peer"
               />
               <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:bg-[#0284c7] transition-colors"></div>
@@ -159,7 +182,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               <input
                 type="checkbox"
                 checked={startMinimized}
-                onChange={e => setStartMinimized(e.target.checked)}
+                onChange={e => handleStartMinimizedChange(e.target.checked)}
                 className="sr-only peer"
               />
               <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:bg-[#0284c7] transition-colors"></div>

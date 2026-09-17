@@ -199,6 +199,8 @@ public static class Program
         var coordinatorLogger = loggerFactory.CreateLogger<VoiceSessionCoordinator>();
         var contextService = new WindowsUIAutomationContextService(loggerFactory.CreateLogger<WindowsUIAutomationContextService>());
 
+        var biasingService = new Flow.Core.Personalization.PersonalizationBiasingService(dictEngine, dictRepo);
+
         // Enforce 20-minute desktop ceiling with 19-minute warning
         _coordinator = new VoiceSessionCoordinator(
             ringBuffer,
@@ -210,7 +212,8 @@ public static class Program
             maxRecordingSeconds: 1200.0,
             warningThresholdSeconds: 1140.0,
             contextService: contextService,
-            historyService: historyService
+            historyService: historyService,
+            biasingService: biasingService
         );
 
         // Apply persisted settings dynamically to coordinator
@@ -229,7 +232,7 @@ public static class Program
         _capture = new WasapiAudioCapture(chunk =>
         {
             _coordinator.ProcessAudioChunk(chunk);
-        }, captureLogger, targetDeviceId: null, deviceManager: deviceManager);
+        }, captureLogger, targetDeviceId: initialSettings.AudioDeviceId, deviceManager: deviceManager);
 
         deviceManager.DefaultDeviceChanged += newDefaultId =>
         {
@@ -290,8 +293,10 @@ public static class Program
                 _hud.RepositionForActiveMonitor();
                 _ = Task.Run(async () =>
                 {
-                    await _coordinator.StartSessionAsync(isHandsFree: true);
-                    _capture.Start();
+                    if (await _coordinator.StartSessionAsync(isHandsFree: true) && _coordinator.CurrentState == SessionState.Recording)
+                    {
+                        _capture.Start();
+                    }
                 });
             }
         };
@@ -311,8 +316,10 @@ public static class Program
                 _hud.RepositionForActiveMonitor();
                 _ = Task.Run(async () =>
                 {
-                    await _coordinator.StartSessionAsync(isHandsFree: true);
-                    _capture.Start();
+                    if (await _coordinator.StartSessionAsync(isHandsFree: true) && _coordinator.CurrentState == SessionState.Recording)
+                    {
+                        _capture.Start();
+                    }
                 });
             }
         };
@@ -360,8 +367,10 @@ public static class Program
             _hud.RepositionForActiveMonitor();
             _ = Task.Run(async () =>
             {
-                await _coordinator.StartSessionAsync(isHandsFree);
-                _capture.Start();
+                if (await _coordinator.StartSessionAsync(isHandsFree) && _coordinator.CurrentState == SessionState.Recording)
+                {
+                    _capture.Start();
+                }
             });
         };
 
@@ -389,8 +398,10 @@ public static class Program
             _ = Task.Run(async () =>
             {
                 logger.LogInformation("Command Mode hotkey triggered.");
-                await _coordinator.StartCommandSessionAsync();
-                _capture.Start();
+                if (await _coordinator.StartCommandSessionAsync() && _coordinator.CurrentState == SessionState.Recording)
+                {
+                    _capture.Start();
+                }
             });
         };
 

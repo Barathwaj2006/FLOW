@@ -11,6 +11,7 @@ import { ScratchpadTab } from './components/ScratchpadTab';
 import { SettingsTab } from './components/SettingsTab';
 import { AboutTab } from './components/AboutTab';
 import { OnboardingModal } from './components/OnboardingModal';
+import { LoginModal } from './components/LoginModal';
 import { 
   TabType, 
   SessionState, 
@@ -56,9 +57,15 @@ export const App: React.FC = () => {
   const [sessionState, setSessionState] = useState<SessionState>('idle');
   const [audioLevel, setAudioLevel] = useState(0);
   const [previewText, setPreviewText] = useState('');
-  const [testText, setTestText] = useState('');
-  const [isHandsFree, setIsHandsFree] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(() => {
+    return localStorage.getItem('flow_auth_user') || null;
+  });
+  const [credits, setCredits] = useState<number>(() => {
+    const saved = localStorage.getItem('flow_user_credits');
+    return saved !== null ? Number(saved) : 50;
+  });
   const [availableMics, setAvailableMics] = useState<string[]>([
     'Default Windows Audio Endpoint (WASAPI)',
     'Microphone Array (Realtek High Definition Audio)',
@@ -193,11 +200,21 @@ export const App: React.FC = () => {
     return styles.find(s => s.id === activeStyleId) || styles[0];
   }, [styles, activeStyleId]);
 
-  // Audio Chime Feedback synthesizer
+  const toneAudioCtxRef = useRef<AudioContext | null>(null);
+
+  // Audio Chime Feedback synthesizer (reuses AudioContext to eliminate memory/thread leaks)
   const playTone = (frequency: number, duration: number = 0.1) => {
     if (!settings.soundFeedback) return;
     try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!toneAudioCtxRef.current || toneAudioCtxRef.current.state === 'closed') {
+        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtxClass) return;
+        toneAudioCtxRef.current = new AudioCtxClass();
+      }
+      const ctx = toneAudioCtxRef.current;
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
@@ -238,12 +255,19 @@ export const App: React.FC = () => {
         recognition.lang = settings.language === 'English (UK)' ? 'en-GB' : 'en-US';
 
         recognition.onresult = (event: any) => {
+          let final = '';
           let interim = '';
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            interim += event.results[i][0].transcript;
+          for (let i = 0; i < event.results.length; ++i) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              final += transcript + ' ';
+            } else {
+              interim += transcript;
+            }
           }
-          if (interim) {
-            setPreviewText(interim);
+          const fullText = (final + interim).trim();
+          if (fullText) {
+            setPreviewText(fullText);
           }
         };
 
@@ -356,16 +380,14 @@ export const App: React.FC = () => {
         state: 'Completed',
         isFavorite: false,
         text: formatted,
-        latency: 'INT8 • EN-US • 112ms',
-        engine: 'FLOW Local Int8 v3.2',
+        latency: 'Local Whisper • DirectML',
+        engine: 'FLOW Local Whisper Engine',
       };
 
       lastInsertedEntryRef.current = newEntry;
       setLastTranscript(newEntry);
       setHistory(prev => [newEntry, ...prev]);
 
-      // Insert into quick test box or active scratchpad
-      setTestText(prev => (prev ? `${prev} ${formatted}` : formatted));
       setPreviewText(formatted);
       setSessionState('inserted');
       showToast('Transcript completed • Zero-Enter Invariant ✓');
@@ -458,14 +480,6 @@ export const App: React.FC = () => {
       setLastTranscript(remaining[0] || null);
     }
 
-    // Remove from test text if present
-    setTestText(prev => {
-      if (prev.endsWith(undone.text)) {
-        return prev.slice(0, -undone.text.length).trimEnd();
-      }
-      return prev.replace(undone.text, '').trim();
-    });
-
     playTone(329.63, 0.12); // E4 tone
     showToast(`Backtrack Undone: "${undone.text.slice(0, 24)}..."`);
   };
@@ -554,7 +568,7 @@ export const App: React.FC = () => {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleWindowBlur);
     };
-  }, [sessionState, isHandsFree, previewText]);
+  }, [sessionState, previewText]);
 
   // Handlers for History
   const handleToggleFavoriteHistory = (id: string) => {
@@ -589,6 +603,23 @@ export const App: React.FC = () => {
     };
     setDictionary(prev => [newEntry, ...prev]);
     showToast(`Added "${term}" to Vocabulary.`);
+  };
+
+  const handleUpdateDictionaryEntry = (id: string, term: string, replacement?: string, category?: string) => {
+    setDictionary(prev =>
+      prev.map(item =>
+        item.id === id
+          ? {
+              ...item,
+              term,
+              replacement: replacement || term,
+              category: category || item.category || 'General',
+              isCorrection: !!replacement,
+            }
+          : item
+      )
+    );
+    showToast(`Updated "${term}" in Vocabulary.`);
   };
 
   const handleToggleFavoriteDictionary = (id: string) => {
@@ -669,6 +700,27 @@ export const App: React.FC = () => {
     );
   };
 
+  const handleLoginSuccess = (email: string) => {
+    setUserEmail(email);
+    localStorage.setItem('flow_auth_user', email);
+    showToast(`Signed in as ${email}`);
+  };
+
+  const handleClaimCredits = (amount: number) => {
+    setCredits(prev => {
+      const next = prev + amount;
+      localStorage.setItem('flow_user_credits', String(next));
+      return next;
+    });
+    showToast(`+${amount} Credits claimed!`);
+  };
+
+  const handleSignOut = () => {
+    setUserEmail(null);
+    localStorage.removeItem('flow_auth_user');
+    showToast('Signed out of FLOW account.');
+  };
+
   return (
     <div className="flex h-screen w-full bg-[#f8fafc] text-slate-900 overflow-hidden font-sans">
       {/* Toast Notification */}
@@ -690,6 +742,9 @@ export const App: React.FC = () => {
         onMinimizeToTray={() => showToast('FLOW minimized to system tray notification area.')}
         zeroEnterActive={settings.zeroEnterInvariant}
         onOpenShortcutSettings={() => setActiveTab('settings')}
+        credits={credits}
+        userEmail={userEmail}
+        onOpenCredits={() => setIsLoginModalOpen(true)}
       />
 
       {/* Left Sidebar Navigation Rail */}
@@ -743,6 +798,7 @@ export const App: React.FC = () => {
             <DictionaryTab
               entries={dictionary}
               onAddEntry={handleAddDictionaryEntry}
+              onUpdateEntry={handleUpdateDictionaryEntry}
               onToggleFavorite={handleToggleFavoriteDictionary}
               onDeleteEntry={handleDeleteDictionaryEntry}
               testWordSanitize={(txt: string) =>
@@ -844,8 +900,6 @@ export const App: React.FC = () => {
           onClose={() => setShowFloatingHud(false)}
           audioLevel={audioLevel}
           previewText={previewText}
-          isHandsFree={isHandsFree}
-          setIsHandsFree={setIsHandsFree}
           activeStyleName={activeStyle.name}
           lastTranscript={lastTranscript}
           onCopyTranscript={handleCopyTranscript}
@@ -893,6 +947,17 @@ export const App: React.FC = () => {
         isListening={sessionState === 'listening'}
         audioLevel={audioLevel}
         previewText={previewText}
+      />
+
+      {/* Account, Credits & Email Verification Login Modal */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        userEmail={userEmail}
+        credits={credits}
+        onLoginSuccess={handleLoginSuccess}
+        onClaimCredits={handleClaimCredits}
+        onSignOut={handleSignOut}
       />
     </div>
   );

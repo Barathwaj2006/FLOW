@@ -4,6 +4,7 @@ import { DictionaryEntry, SnippetEntry } from '../types';
 interface DictionaryTabProps {
   entries: DictionaryEntry[];
   onAddEntry: (term: string, replacement?: string, category?: string) => void;
+  onUpdateEntry?: (id: string, term: string, replacement?: string, category?: string) => void;
   onToggleFavorite: (id: string) => void;
   onDeleteEntry: (id: string) => void;
   testWordSanitize?: (txt: string) => string;
@@ -13,6 +14,7 @@ interface DictionaryTabProps {
 export const DictionaryTab: React.FC<DictionaryTabProps> = ({
   entries,
   onAddEntry,
+  onUpdateEntry,
   onToggleFavorite,
   onDeleteEntry,
   testWordSanitize,
@@ -22,6 +24,7 @@ export const DictionaryTab: React.FC<DictionaryTabProps> = ({
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [sortOption, setSortOption] = useState<string>('starred');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Modal form states
@@ -42,6 +45,10 @@ export const DictionaryTab: React.FC<DictionaryTabProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && (e.key === 'n' || e.key === 'N')) {
         e.preventDefault();
+        setEditingId(null);
+        setSpokenInput('');
+        setOutputInput('');
+        setCategoryInput('Tech');
         setIsModalOpen(true);
       }
       if (e.key === '/' && document.activeElement !== searchInputRef.current && !isModalOpen) {
@@ -63,8 +70,13 @@ export const DictionaryTab: React.FC<DictionaryTabProps> = ({
     e.preventDefault();
     if (!spokenInput.trim() || !outputInput.trim()) return;
 
-    onAddEntry(spokenInput.trim(), outputInput.trim(), categoryInput);
+    if (editingId && onUpdateEntry) {
+      onUpdateEntry(editingId, spokenInput.trim(), outputInput.trim(), categoryInput);
+    } else {
+      onAddEntry(spokenInput.trim(), outputInput.trim(), categoryInput);
+    }
     setIsModalOpen(false);
+    setEditingId(null);
     setSpokenInput('');
     setOutputInput('');
   };
@@ -230,7 +242,13 @@ export const DictionaryTab: React.FC<DictionaryTabProps> = ({
           <div className="flex items-center gap-1.5">
             <button
               id="open-modal-btn"
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => {
+                setEditingId(null);
+                setSpokenInput('');
+                setOutputInput('');
+                setCategoryInput('Tech');
+                setIsModalOpen(true);
+              }}
               className="h-8 px-3.5 rounded bg-[#0284c7] hover:bg-[#0369a1] active:scale-[0.985] text-white text-xs font-medium flex items-center gap-1.5 shadow-xs transition-all"
             >
               <span className="material-symbols-outlined text-[16px]">add</span>
@@ -323,8 +341,10 @@ export const DictionaryTab: React.FC<DictionaryTabProps> = ({
                 <div className="col-span-1 flex items-center justify-end gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
                   <button 
                     onClick={() => {
+                      setEditingId(entry.id);
                       setSpokenInput(entry.term);
                       setOutputInput(entry.replacement || '');
+                      setCategoryInput(entry.category || 'Tech');
                       setIsModalOpen(true);
                     }}
                     className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700" 
@@ -488,10 +508,14 @@ export const DictionaryTab: React.FC<DictionaryTabProps> = ({
             <div className="flex items-center justify-between px-6 py-4 bg-[#f8fafc] border-b border-[#e2e8f0]">
               <div className="flex items-center gap-2.5">
                 <div className="w-6 h-6 rounded bg-[#e0f2fe] flex items-center justify-center text-[#0284c7]">
-                  <span className="material-symbols-outlined text-[16px]">add_circle</span>
+                  <span className="material-symbols-outlined text-[16px]">
+                    {editingId ? 'edit' : 'add_circle'}
+                  </span>
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-900 leading-none">Add Vocabulary Rule</h2>
+                  <h2 className="text-sm font-semibold text-slate-900 leading-none">
+                    {editingId ? 'Edit Vocabulary Rule' : 'Add Vocabulary Rule'}
+                  </h2>
                   <p className="text-[11px] text-slate-500 mt-0.5">
                     Configures the local inference replacement mapper
                   </p>
@@ -644,7 +668,7 @@ export const DictionaryTab: React.FC<DictionaryTabProps> = ({
                   className="h-8 px-4 rounded bg-[#0284c7] hover:bg-[#0369a1] text-white text-xs font-medium transition-all flex items-center gap-1.5 shadow-xs active:scale-95"
                 >
                   <span className="material-symbols-outlined text-[16px]">save</span>
-                  <span>Save word</span>
+                  <span>{editingId ? 'Update word' : 'Save word'}</span>
                 </button>
               </div>
             </form>

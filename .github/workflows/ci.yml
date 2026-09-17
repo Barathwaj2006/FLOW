@@ -46,3 +46,46 @@ jobs:
           }
           
           Write-Host "All Windows governance and architecture specifications validated." -ForegroundColor Cyan
+
+  build-and-test-dotnet:
+    name: Build & Test Native .NET 9 Solution
+    runs-on: windows-latest
+    needs: validate-windows-specs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore Flow.sln
+
+      - name: Build Solution (Release)
+        run: dotnet build Flow.sln -c Release --no-restore
+
+      - name: Run All Tests (Release)
+        run: dotnet test Flow.sln -c Release --no-build --verbosity normal
+
+  build-react-ui:
+    name: Build React Prototype UI
+    runs-on: windows-latest
+    needs: validate-windows-specs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck & Build UI
+        run: npm run build
+

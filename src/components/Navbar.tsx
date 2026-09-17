@@ -8,6 +8,9 @@ interface NavbarProps {
   onMinimizeToTray: () => void;
   zeroEnterActive: boolean;
   onOpenShortcutSettings?: () => void;
+  credits?: number;
+  userEmail?: string | null;
+  onOpenCredits?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -17,6 +20,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onMinimizeToTray,
   zeroEnterActive,
   onOpenShortcutSettings,
+  credits = 50,
+  userEmail = null,
+  onOpenCredits,
 }) => {
   return (
     <>
@@ -118,10 +124,22 @@ export const Navbar: React.FC<NavbarProps> = ({
             <kbd className="font-mono text-xs text-slate-700 font-semibold">Alt + B</kbd>
           </button>
 
+          {/* Credits Pill */}
+          <button
+            id="btn-navbar-credits"
+            onClick={onOpenCredits}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 hover:border-amber-300 transition-all shadow-xs cursor-pointer active:scale-95"
+            title="Cloud AI Credits & Account"
+          >
+            <span className="material-symbols-outlined text-amber-600 text-[16px]">stars</span>
+            <span className="text-xs font-bold font-mono">{credits} Credits</span>
+          </button>
+
           {/* User Profile Avatar */}
           <div 
+            onClick={onOpenCredits}
             className="w-8 h-8 rounded-full bg-[#e0f2fe] border border-[#bae6fd] flex items-center justify-center text-[#0284c7] shadow-xs cursor-pointer hover:bg-[#bae6fd] transition-colors"
-            title="Barathwaj (Local Profile)"
+            title={userEmail ? `${userEmail} (Signed In)` : "Sign In with Email"}
           >
             <span className="material-symbols-outlined text-[18px]">person</span>
           </div>

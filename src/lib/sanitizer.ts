@@ -12,7 +12,7 @@ interface SanitizerOptions {
   style?: StyleProfile;
 }
 
-const FILLER_WORDS_REGEX = /\b(um|uh|erm|ah|like|you know)\b/gi;
+const FILLER_WORDS_REGEX = /\b(um|uh|erm|ah|hmm)\b/gi;
 const MULTIPLE_SPACES_REGEX = /[ \t]+/g;
 
 // Spoken punctuation patterns matching DeterministicTextSanitizer.cs

@@ -249,6 +249,7 @@
 
                 <!-- Right Actions -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BtnAccountCredits" Content="★ 50 Credits" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,10,0" Click="BtnAccountCredits_Click" Foreground="#F59E0B" FontWeight="Bold"/>
                     <Button x:Name="BtnMinimizeTray" Content="Minimize to Tray" Style="{StaticResource SecondaryButtonStyle}" Click="BtnMinimizeTray_Click"/>
                 </StackPanel>
             </Grid>
@@ -942,6 +943,16 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- System & Startup -->
+                            <Border Style="{StaticResource CardBorderStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="System &amp; Startup" FontSize="16" FontWeight="Bold" Foreground="#F8FAFC" Margin="0,0,0,4"/>
+                                    <TextBlock Text="Configure Windows startup and background launch behavior." Foreground="#94A3B8" Margin="0,0,0,12"/>
+
+                                    <CheckBox x:Name="ChkLaunchOnStartup" Content="Launch FLOW on Windows Startup (Minimized to Tray)" Foreground="#F8FAFC" FontWeight="SemiBold" Checked="ChkLaunchOnStartup_Checked" Unchecked="ChkLaunchOnStartup_Unchecked"/>
+                                </StackPanel>
+                            </Border>
+
                             <!-- Privacy & Sovereignty -->
                             <Border Style="{StaticResource CardBorderStyle}">
                                 <StackPanel>
@@ -951,6 +962,15 @@
                                     <Border Background="#064E3B" BorderBrush="#059669" BorderThickness="1" CornerRadius="6" Padding="12,8" Margin="0,0,0,12">
                                         <TextBlock Text="✓ 100% Offline Audio Processing • Zero Network Transmission" Foreground="#A7F3D0" FontWeight="SemiBold" FontSize="12"/>
                                     </Border>
+
+                                    <TextBlock Text="History Retention Policy:" Foreground="#CBD5E1" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                    <ComboBox x:Name="ComboRetentionPolicy" Height="34" Background="#0E1422" Foreground="#F8FAFC" BorderBrush="#233050" SelectedIndex="0" Margin="0,0,0,14" SelectionChanged="ComboRetentionPolicy_SelectionChanged">
+                                        <ComboBoxItem Content="Keep Forever (Unlimited)"/>
+                                        <ComboBoxItem Content="Auto-delete after 30 Days"/>
+                                        <ComboBoxItem Content="Auto-delete after 90 Days"/>
+                                        <ComboBoxItem Content="Auto-delete after 180 Days"/>
+                                        <ComboBoxItem Content="Auto-delete after 1 Year"/>
+                                    </ComboBox>
 
                                     <StackPanel Orientation="Horizontal">
                                         <Button Content="Clear All Local History" Style="{StaticResource DangerButtonStyle}" Click="BtnClearAllHistory_Click"/>

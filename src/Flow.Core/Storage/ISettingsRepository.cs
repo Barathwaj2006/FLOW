@@ -1,4 +1,4 @@
-﻿using System.Threading;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Flow.Core.Storage;
@@ -11,7 +11,9 @@ public sealed record FlowAppSettings(
     float VadThreshold = 0.015f,
     int HotkeyVk = 0xA5, // VK_RMENU (Right Alt)
     string Theme = "Dark",
-    string? AudioDeviceId = null
+    string? AudioDeviceId = null,
+    string RetentionPolicy = "Unlimited",
+    bool LaunchOnStartup = false
 );
 
 /// <summary>

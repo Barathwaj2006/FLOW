@@ -46,3 +46,12 @@ aws-credentials.json
 .DS_Store
 build/
 .build/
+
+# Node.js & Web
+node_modules/
+dist/
+.freebuff/
+
+# Build & Release Artifacts
+artifacts/
+

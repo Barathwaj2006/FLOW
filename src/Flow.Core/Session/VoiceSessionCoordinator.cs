@@ -63,6 +63,9 @@ public sealed class VoiceSessionCoordinator
     private bool _warningFired;
     private bool _limitExceededFired;
     private bool _isHandsFree;
+    private Guid _activeSessionId;
+
+    public Guid ActiveSessionId => _activeSessionId;
 
     public SessionState CurrentState
     {
@@ -249,17 +252,18 @@ public sealed class VoiceSessionCoordinator
     /// </summary>
     /// <param name="isHandsFree">True if triggered via hands-free double-tap.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task StartSessionAsync(bool isHandsFree = false, CancellationToken cancellationToken = default)
+    public Task<bool> StartSessionAsync(bool isHandsFree = false, CancellationToken cancellationToken = default)
     {
         lock (_stateLock)
         {
             if (_currentState is SessionState.Recording or SessionState.Processing or SessionState.Inserting or SessionState.Backtracking)
             {
                 _logger?.LogWarning("StartSessionAsync rejected: session is currently active in state {State}.", _currentState);
-                return Task.CompletedTask;
+                return Task.FromResult(false);
             }
 
             Guid sessionId = Guid.NewGuid();
+            _activeSessionId = sessionId;
             var contextSnapshot = _contextService.CaptureContext(sessionId, 200, 10000);
             ActiveContext = contextSnapshot;
 
@@ -270,7 +274,7 @@ public sealed class VoiceSessionCoordinator
                 SetState(SessionState.Cancelled, "Password field detected — recording blocked");
                 SessionWarning?.Invoke("Password field detected. Voice recording is disabled for your protection.");
                 InvalidateContext();
-                return Task.CompletedTask;
+                return Task.FromResult(false);
             }
 
             // Capture target window at session onset to protect against window switching
@@ -295,9 +299,8 @@ public sealed class VoiceSessionCoordinator
 
             string detail = isHandsFree ? "Hands-Free Listening" : "Listening";
             SetState(SessionState.Recording, detail);
+            return Task.FromResult(true);
         }
-
-        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -307,17 +310,18 @@ public sealed class VoiceSessionCoordinator
     /// </summary>
     /// <param name="isHandsFree">True if triggered in hands-free mode.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task StartCommandSessionAsync(bool isHandsFree = false, CancellationToken cancellationToken = default)
+    public Task<bool> StartCommandSessionAsync(bool isHandsFree = false, CancellationToken cancellationToken = default)
     {
         lock (_stateLock)
         {
             if (_currentState is SessionState.Recording or SessionState.Processing or SessionState.Inserting or SessionState.Backtracking)
             {
                 _logger?.LogWarning("StartCommandSessionAsync rejected: session is currently active in state {State}.", _currentState);
-                return Task.CompletedTask;
+                return Task.FromResult(false);
             }
 
             Guid sessionId = Guid.NewGuid();
+            _activeSessionId = sessionId;
             var contextSnapshot = _contextService.CaptureContext(sessionId, 200, 10000);
             ActiveContext = contextSnapshot;
 
@@ -328,7 +332,7 @@ public sealed class VoiceSessionCoordinator
                 SetState(SessionState.Cancelled, "Password field detected — command mode blocked");
                 SessionWarning?.Invoke("Password field detected. Command mode is disabled for your protection.");
                 InvalidateContext();
-                return Task.CompletedTask;
+                return Task.FromResult(false);
             }
 
             // Capture target window at command session onset
@@ -353,9 +357,8 @@ public sealed class VoiceSessionCoordinator
 
             string detail = isHandsFree ? "Command: Hands-Free" : "Command: Listening";
             SetState(SessionState.Recording, detail);
+            return Task.FromResult(true);
         }
-
-        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -574,7 +577,7 @@ public sealed class VoiceSessionCoordinator
                                     try
                                     {
                                         await _historyService.RecordDictationAsync(
-                                            sessionId: record.Id,
+                                            sessionId: _activeSessionId != Guid.Empty ? _activeSessionId : record.Id,
                                             text: "", // Never store raw selection
                                             duration: TimeSpan.FromMilliseconds(sessionDurationMs),
                                             language: _languageSessionService.ActiveLanguage.Code.Value,
@@ -686,7 +689,7 @@ public sealed class VoiceSessionCoordinator
                         try
                         {
                             await _historyService.RecordDictationAsync(
-                                sessionId: Guid.NewGuid(),
+                                sessionId: _activeSessionId != Guid.Empty ? _activeSessionId : Guid.NewGuid(),
                                 text: cleanText,
                                 duration: TimeSpan.FromMilliseconds(sessionDurationMs),
                                 language: _languageSessionService.ActiveLanguage.Code.Value,
@@ -734,7 +737,7 @@ public sealed class VoiceSessionCoordinator
                         try
                         {
                             await _historyService.RecordDictationAsync(
-                                sessionId: record.Id,
+                                sessionId: _activeSessionId != Guid.Empty ? _activeSessionId : record.Id,
                                 text: cleanText,
                                 duration: TimeSpan.FromMilliseconds(sessionDurationMs),
                                 language: _languageSessionService.ActiveLanguage.Code.Value,

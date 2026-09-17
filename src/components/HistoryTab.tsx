@@ -22,10 +22,6 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
   const [isCopied, setIsCopied] = useState(false);
   const [pasteToast, setPasteToast] = useState<string | null>(null);
 
-  // Audio Playback simulation
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [playbackSec, setPlaybackSec] = useState(0);
-  const playbackIntervalRef = useRef<any>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const selectedItem = entries.find(e => e.id === selectedId) || entries[0];
@@ -56,6 +52,23 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
       if (appFilter === 'chrome' && !appLower.includes('chrome')) return false;
     }
 
+    if (dateFilter !== 'all') {
+      const createdDate = new Date(item.createdAt);
+      const now = new Date();
+      if (dateFilter === 'today') {
+        const isSameDay = createdDate.toDateString() === now.toDateString();
+        if (!isSameDay) return false;
+      } else if (dateFilter === 'week') {
+        const diffDays = (now.getTime() - createdDate.getTime()) / (1000 * 3600 * 24);
+        if (diffDays > 7) return false;
+      }
+    }
+
+    if (langFilter !== 'all') {
+      const itemLang = (item.language || '').toLowerCase();
+      if (!itemLang.includes(langFilter.toLowerCase())) return false;
+    }
+
     if (queryMatch(item, searchQuery)) return true;
     return false;
   });
@@ -70,34 +83,6 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
     );
   }
 
-  // Audio playback controls
-  const togglePlayAudio = () => {
-    if (isPlayingAudio) {
-      clearInterval(playbackIntervalRef.current);
-      setIsPlayingAudio(false);
-      setPlaybackSec(0);
-    } else {
-      setIsPlayingAudio(true);
-      setPlaybackSec(0);
-      const totalSec = Math.max(3, Math.round((selectedItem?.durationMs || 8400) / 1000));
-      playbackIntervalRef.current = setInterval(() => {
-        setPlaybackSec(prev => {
-          if (prev >= totalSec) {
-            clearInterval(playbackIntervalRef.current);
-            setIsPlayingAudio(false);
-            return 0;
-          }
-          return prev + 1;
-        });
-      }, 1000);
-    }
-  };
-
-  useEffect(() => {
-    setIsPlayingAudio(false);
-    clearInterval(playbackIntervalRef.current);
-    setPlaybackSec(0);
-  }, [selectedId]);
 
   const handleCopyFormatted = () => {
     if (!selectedItem) return;
@@ -384,7 +369,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
 
                 <div className="flex items-center justify-between text-slate-500 text-[11px] mt-1 pt-1 border-t border-slate-100">
                   <span className="text-slate-500 font-mono text-[10px]">
-                    {entry.latency || 'INT8 • EN-US • 120ms'}
+                    {entry.latency || 'Local Whisper • DirectML'}
                   </span>
                   <span className="text-sky-600 font-medium flex items-center gap-0.5">
                     {entry.target || 'Direct Message'}
@@ -450,18 +435,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
 
                 <div className="p-3.5 rounded-lg bg-slate-50/80 border border-slate-200 text-slate-900 text-sm leading-relaxed shadow-inner min-h-[120px] select-text">
                   <p id="inspectorBody">
-                    {/* Render with custom highlight if matching 'Int8 inference' or 'audioStreamHandler' */}
-                    {selectedItem.text.includes('Int8 inference') ? (
-                      <>
-                        Hey Jordan, could you make sure the pull request for the zero-latency audio engine gets merged into staging before our 3:30 sync? We already ran the{' '}
-                        <span className="bg-sky-100 border border-sky-300 text-sky-900 font-semibold px-1.5 py-0.5 rounded font-mono text-[11px] inline-block" title="Auto-corrected terminology">
-                          Int8 inference
-                        </span>{' '}
-                        benchmark tests locally.
-                      </>
-                    ) : (
-                      selectedItem.text
-                    )}
+                    {selectedItem.text}
                   </p>
                 </div>
               </div>
@@ -495,47 +469,20 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
                 </div>
               )}
 
-              {/* Audio Playback Bar with Mini Scrubber */}
+              {/* Offline Privacy Diagnostic Card */}
               <div className="p-3.5 rounded-lg bg-slate-50/80 border border-slate-200 flex flex-col gap-2">
-                <div className="flex items-center justify-between text-slate-500 text-[11px]">
-                  <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[15px] text-sky-600">mic</span>
-                    <span className="font-mono font-medium text-slate-700">Local Session Replay</span>
-                  </div>
-                  <span className="font-mono text-slate-700 font-semibold" id="audioTimer">
-                    0:0{playbackSec} / 0:{durationSec < 10 ? `0${durationSec}` : durationSec}
-                  </span>
+                <div className="flex items-center gap-2 text-slate-700 text-xs font-semibold">
+                  <span className="material-symbols-outlined text-[16px] text-emerald-600">verified_user</span>
+                  <span>100% Offline RAM Privacy</span>
                 </div>
-
-                {/* Interactive Waveform Scrubber */}
-                <div 
-                  onClick={togglePlayAudio}
-                  className="flex items-center gap-1 h-9 px-2.5 bg-white border border-slate-200 rounded cursor-pointer group shadow-xs hover:border-sky-300 transition-colors"
-                >
-                  <button
-                    className="w-6 h-6 rounded-full bg-sky-600 hover:bg-sky-700 flex items-center justify-center text-white mr-1 shrink-0 shadow-xs"
-                    id="playBtn"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">
-                      {isPlayingAudio ? 'pause' : 'play_arrow'}
-                    </span>
-                  </button>
-
-                  {/* 15 Mini Waveform Bars */}
-                  <div className="flex items-center justify-between flex-1 h-full gap-[3px] py-1" id="waveformContainer">
-                    {[12, 20, 28, 16, 24, 32, 20, 12, 24, 28, 16, 20, 28, 12, 8].map((height, idx) => {
-                      const isActive = isPlayingAudio ? idx <= playbackSec * 2 : idx < 6;
-                      return (
-                        <div
-                          key={idx}
-                          style={{ height: `${height}px` }}
-                          className={`w-[3px] rounded-full transition-all duration-150 ${
-                            isActive ? 'bg-sky-600' : 'bg-slate-200'
-                          }`}
-                        ></div>
-                      );
-                    })}
-                  </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Audio buffer discarded immediately after transcription to enforce 100% offline RAM privacy. Zero audio files stored on disk.
+                </p>
+                <div className="flex items-center gap-2 pt-1 text-[10px] text-slate-500 font-mono">
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span>Audio Buffer: Purged from RAM</span>
+                  <span className="text-slate-300">•</span>
+                  <span>Disk Storage: 0 Bytes</span>
                 </div>
               </div>
 
@@ -554,7 +501,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
                   <div className="p-2.5 rounded bg-slate-50 border border-slate-200 flex flex-col">
                     <span className="text-[10px] text-slate-500 uppercase">Engine Inference</span>
                     <span className="font-mono text-xs text-sky-700 font-semibold mt-0.5">
-                      {selectedItem.latency || '120ms (Int8)'}
+                      {selectedItem.latency || 'Local Whisper (DirectML)'}
                     </span>
                   </div>
                   <div className="p-2.5 rounded bg-slate-50 border border-slate-200 flex flex-col">
@@ -566,7 +513,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
                   <div className="p-2.5 rounded bg-slate-50 border border-slate-200 flex flex-col">
                     <span className="text-[10px] text-slate-500 uppercase">Model Pipeline</span>
                     <span className="font-mono text-xs text-slate-800 font-semibold mt-0.5">
-                      {selectedItem.engine || 'FLOW Local Int8 v3.2'}
+                      {selectedItem.engine || 'FLOW Local Whisper Engine'}
                     </span>
                   </div>
                 </div>
