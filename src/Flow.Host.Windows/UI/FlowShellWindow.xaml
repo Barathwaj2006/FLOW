@@ -1,0 +1,29 @@
+﻿<Window x:Class="Flow.Host.Windows.UI.FlowShellWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="FLOW — AI Voice Productivity Platform"
+        Width="1280" Height="820"
+        MinWidth="960" MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        Background="#0B0F17"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True">
+    <Grid Background="#0B0F17">
+        <wv2:WebView2 x:Name="ShellWebView" 
+                      DefaultBackgroundColor="#0B0F17"
+                      HorizontalAlignment="Stretch" 
+                      VerticalAlignment="Stretch" />
+        
+        <!-- Loading overlay displayed while CoreWebView2 initializes and renders -->
+        <Grid x:Name="LoadingOverlay" Background="#0B0F17" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Visible">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Width="56" Height="56" CornerRadius="14" Background="#1E293B" Margin="0,0,0,16" HorizontalAlignment="Center">
+                    <TextBlock Text="⚡" FontSize="28" Foreground="#F59E0B" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="FLOW" Foreground="#F59E0B" FontSize="26" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                <TextBlock Text="Initializing Native Voice Platform..." Foreground="#94A3B8" FontSize="14" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

@@ -19,7 +19,7 @@ public static class FlowHubWindowManager
 {
     private static readonly object s_lock = new();
     private static Thread? s_uiThread;
-    private static FlowHubWindow? s_window;
+    private static IFlowMainWindow? s_window;
     private static Dispatcher? s_dispatcher;
 
     public static bool IsOpen
@@ -33,10 +33,38 @@ public static class FlowHubWindowManager
         }
     }
 
+    public static bool IsWebView2ShellActive
+    {
+        get
+        {
+            lock (s_lock)
+            {
+                return s_window is FlowShellWindow;
+            }
+        }
+    }
+
     public static event Action? ExitApplicationRequested;
 
     /// <summary>
-    /// Shows the FLOW Hub window. If already instantiated, brings it to foreground and restores normal window state.
+    /// Verifies if Microsoft Edge WebView2 Runtime is installed and available on this machine.
+    /// </summary>
+    public static bool IsWebView2Available()
+    {
+        try
+        {
+            string version = Microsoft.Web.WebView2.Core.CoreWebView2Environment.GetAvailableBrowserVersionString();
+            return !string.IsNullOrEmpty(version);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Shows the FLOW Hub window. Uses modern embedded FlowShellWindow (WebView2) if available,
+    /// or seamlessly falls back to native WPF FlowHubWindow if the runtime is absent.
     /// </summary>
     public static void ShowWindow(
         VoiceSessionCoordinator? coordinator = null,
@@ -52,7 +80,8 @@ public static class FlowHubWindowManager
         StyleFormattingEngine? styleEngine = null,
         Flow.Core.Storage.ISettingsRepository? settingsRepo = null,
         GlobalHotkeyHook? hotkeyHook = null,
-        int targetTab = 0)
+        int targetTab = 0,
+        Flow.Inference.WhisperModelManager? modelManager = null)
     {
         lock (s_lock)
         {
@@ -85,36 +114,86 @@ public static class FlowHubWindowManager
                 try
                 {
                     s_dispatcher = Dispatcher.CurrentDispatcher;
-                    s_window = new FlowHubWindow(
-                        coordinator,
-                        capture,
-                        deviceManager,
-                        historyService,
-                        scratchpadService,
-                        dictRepo,
-                        dictEngine,
-                        snippetRepo,
-                        snippetEngine,
-                        styleRepo,
-                        styleEngine,
-                        settingsRepo,
-                        hotkeyHook);
+
+                    bool useWebView2 = false;
+                    try
+                    {
+                        useWebView2 = IsWebView2Available();
+                    }
+                    catch
+                    {
+                        useWebView2 = false;
+                    }
+
+                    if (useWebView2)
+                    {
+                        try
+                        {
+                            s_window = new FlowShellWindow(
+                                coordinator,
+                                capture,
+                                deviceManager,
+                                historyService,
+                                scratchpadService,
+                                dictRepo,
+                                dictEngine,
+                                snippetRepo,
+                                snippetEngine,
+                                styleRepo,
+                                styleEngine,
+                                settingsRepo,
+                                hotkeyHook,
+                                modelManager);
+                        }
+                        catch (Exception shellEx)
+                        {
+                            s_window = null;
+                            try
+                            {
+                                string logDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FLOW");
+                                System.IO.Directory.CreateDirectory(logDir);
+                                System.IO.File.AppendAllText(System.IO.Path.Combine(logDir, "shell_fallback.log"), $"[{DateTime.UtcNow:O}] WebView2 Shell Init Failed, falling back to WPF:\n{shellEx}\n\n");
+                            }
+                            catch { }
+                        }
+                    }
+
+                    if (s_window == null)
+                    {
+                        s_window = new FlowHubWindow(
+                            coordinator,
+                            capture,
+                            deviceManager,
+                            historyService,
+                            scratchpadService,
+                            dictRepo,
+                            dictEngine,
+                            snippetRepo,
+                            snippetEngine,
+                            styleRepo,
+                            styleEngine,
+                            settingsRepo,
+                            hotkeyHook);
+                    }
 
                     s_window.ExitApplicationRequested += () =>
                     {
                         ExitApplicationRequested?.Invoke();
                     };
 
-                    s_window.Closed += (sender, args) =>
+                    if (s_window is System.Windows.Window wpfWindow)
                     {
-                        lock (s_lock)
+                        wpfWindow.Closed += (sender, args) =>
                         {
-                            s_window = null;
-                            s_dispatcher = null;
-                            s_uiThread = null;
-                        }
-                        Dispatcher.CurrentDispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
-                    };
+                            lock (s_lock)
+                            {
+                                s_window = null;
+                                s_dispatcher = null;
+                                s_uiThread = null;
+                            }
+                            Dispatcher.CurrentDispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
+                        };
+                    }
 
                     s_window.SelectTab(targetTab);
                     s_window.Show();

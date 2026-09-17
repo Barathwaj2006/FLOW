@@ -33,6 +33,7 @@ import {
   INITIAL_SETTINGS 
 } from './lib/initialData';
 import { sanitizeAndFormat } from './lib/sanitizer';
+import { onNativeEvent } from './lib/nativeBridge';
 import {
   checkLocalEngineHealth,
   transcribeLocalAudio,
@@ -205,13 +206,13 @@ export const App: React.FC = () => {
         } else if (lower === 'processing' || lower === 'inserting') {
           setSessionState('processing');
         } else if (lower === 'completed') {
-          setSessionState('done');
+          setSessionState('inserted');
           setTimeout(() => setSessionState('idle'), 1200);
         } else if (lower === 'cancelled') {
           setSessionState('idle');
           setPreviewText('');
         } else if (lower === 'error') {
-          setSessionState('error');
+          setSessionState('idle');
           setHudError(detail || 'Session error');
         } else if (lower === 'idle') {
           setSessionState('idle');
@@ -236,6 +237,27 @@ export const App: React.FC = () => {
       unsubscribe();
     };
   }, [isEngineConnected]);
+
+  // Listen for native IPC requests (tab navigation, modals) from system tray or native host
+  useEffect(() => {
+    const unsubs = [
+      onNativeEvent<string>('navigate-tab', (tab) => {
+        if (tab) {
+          setActiveTab(tab.toLowerCase() as TabType);
+        }
+      }),
+      onNativeEvent<void>('open-model-wizard', () => {
+        setIsModelWizardOpen(true);
+      }),
+      onNativeEvent<void>('open-login', () => {
+        setIsLoginModalOpen(true);
+      }),
+    ];
+
+    return () => {
+      unsubs.forEach((u) => u());
+    };
+  }, []);
 
   // Sync to localStorage
   useEffect(() => {

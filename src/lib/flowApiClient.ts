@@ -5,6 +5,7 @@
  */
 
 import { DictationEntry, DictionaryEntry, HardwareProfile, ModelStatusInfo, ModelDownloadProgress } from '../types';
+import { isNativeShell, sendNativeRequest, onNativeEvent } from './nativeBridge';
 
 let activePort = 5005;
 
@@ -18,9 +19,26 @@ export interface EngineStatus {
 }
 
 /**
- * Checks if the local FLOW .NET Host server is running on 127.0.0.1:5005 (or 5006).
+ * Checks if the local FLOW .NET Host server is running on 127.0.0.1:5005 (or 5006),
+ * or directly via Microsoft.Web.WebView2 Native Host IPC.
  */
 export async function checkLocalEngineHealth(): Promise<EngineStatus> {
+  if (isNativeShell()) {
+    try {
+      const data = await sendNativeRequest<any>('get-status', null, 2000);
+      return {
+        connected: true,
+        modelInstalled: data?.modelInstalled ?? true,
+        modelName: data?.modelName ?? 'ggml-tiny.en.bin',
+        engine: data?.engine ?? 'Whisper.net Native Local Engine (DirectML IPC)',
+        port: 0,
+        offlineSovereignty: data?.offlineSovereignty ?? '100% Offline (Zero Cloud Audio / Native Host IPC)',
+      };
+    } catch {
+      // Fall through to port probe if native bridge did not reply
+    }
+  }
+
   const ports = [activePort, 5005, 5006];
   const tried = new Set<number>();
 
@@ -66,7 +84,7 @@ export async function checkLocalEngineHealth(): Promise<EngineStatus> {
 }
 
 /**
- * Transcribes audio via the local .NET Whisper engine over HTTP.
+ * Transcribes audio via the local .NET Whisper engine over HTTP or Native IPC.
  */
 export async function transcribeLocalAudio(
   audioBlob: Blob,
@@ -79,6 +97,23 @@ export async function transcribeLocalAudio(
   confidence: number;
   engine: string;
 }> {
+  if (isNativeShell()) {
+    try {
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      const len = bytes.byteLength;
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const audioBase64 = btoa(binary);
+      const res = await sendNativeRequest<any>('transcribe', { audioBase64, language }, 30000);
+      if (res) return res;
+    } catch (err) {
+      console.warn('[FLOW] Native IPC transcription failed, falling back to HTTP:', err);
+    }
+  }
+
   const res = await fetch(`http://127.0.0.1:${activePort}/api/transcribe`, {
     method: 'POST',
     headers: {
@@ -100,6 +135,14 @@ export async function transcribeLocalAudio(
  * Retrieves persisted dictation history from the local SQLite database.
  */
 export async function fetchLocalHistory(): Promise<DictationEntry[]> {
+  if (isNativeShell()) {
+    try {
+      const items = await sendNativeRequest<DictationEntry[]>('get-history');
+      if (items && Array.isArray(items)) {
+        return items;
+      }
+    } catch {}
+  }
   try {
     const res = await fetch(`http://127.0.0.1:${activePort}/api/history`, {
       headers: { Accept: 'application/json' },
@@ -115,6 +158,14 @@ export async function fetchLocalHistory(): Promise<DictationEntry[]> {
  * Retrieves personal dictionary entries from the local SQLite database.
  */
 export async function fetchLocalDictionary(): Promise<DictionaryEntry[]> {
+  if (isNativeShell()) {
+    try {
+      const items = await sendNativeRequest<DictionaryEntry[]>('get-dictionary');
+      if (items && Array.isArray(items)) {
+        return items;
+      }
+    } catch {}
+  }
   try {
     const res = await fetch(`http://127.0.0.1:${activePort}/api/dictionary`, {
       headers: { Accept: 'application/json' },
@@ -135,6 +186,14 @@ export async function saveLocalDictionaryEntry(entry: {
   isStarred?: boolean;
   category?: string;
 }): Promise<boolean> {
+  if (isNativeShell()) {
+    try {
+      const res = await sendNativeRequest<any>('add-dictionary', entry);
+      return res?.success !== false;
+    } catch {
+      return false;
+    }
+  }
   try {
     const res = await fetch(`http://127.0.0.1:${activePort}/api/dictionary`, {
       method: 'POST',
@@ -213,6 +272,12 @@ export function encodeWavFromFloat32(samples: Float32Array, sampleRate = 16000):
  * Fetches the detected hardware acceleration profile (DirectML GPU/NPU/CPU) from the local host.
  */
 export async function fetchHardwareProfile(): Promise<HardwareProfile | null> {
+  if (isNativeShell()) {
+    try {
+      const hw = await sendNativeRequest<HardwareProfile>('get-hardware');
+      if (hw) return hw;
+    } catch {}
+  }
   try {
     const res = await fetch(`http://127.0.0.1:${activePort}/api/hardware`, {
       headers: { Accept: 'application/json' },
@@ -228,6 +293,14 @@ export async function fetchHardwareProfile(): Promise<HardwareProfile | null> {
  * Retrieves the status and integrity of all available local Whisper models.
  */
 export async function fetchModelsList(): Promise<ModelStatusInfo[]> {
+  if (isNativeShell()) {
+    try {
+      const models = await sendNativeRequest<ModelStatusInfo[]>('get-models');
+      if (models && Array.isArray(models)) {
+        return models;
+      }
+    } catch {}
+  }
   try {
     const res = await fetch(`http://127.0.0.1:${activePort}/api/models`, {
       headers: { Accept: 'application/json' },
@@ -243,6 +316,14 @@ export async function fetchModelsList(): Promise<ModelStatusInfo[]> {
  * Triggers background resumable download for the specified Whisper model.
  */
 export async function startModelDownload(modelName: string): Promise<boolean> {
+  if (isNativeShell()) {
+    try {
+      const res = await sendNativeRequest<any>('download-model', { modelName });
+      return res?.success !== false;
+    } catch {
+      return false;
+    }
+  }
   try {
     const res = await fetch(`http://127.0.0.1:${activePort}/api/models/download`, {
       method: 'POST',
@@ -259,6 +340,12 @@ export async function startModelDownload(modelName: string): Promise<boolean> {
  * Fetches real-time download progress, percent, and transfer speed (MB/s).
  */
 export async function fetchDownloadProgress(): Promise<ModelDownloadProgress | null> {
+  if (isNativeShell()) {
+    try {
+      const prog = await sendNativeRequest<ModelDownloadProgress | null>('get-download-progress');
+      if (prog) return prog;
+    } catch {}
+  }
   try {
     const res = await fetch(`http://127.0.0.1:${activePort}/api/models/progress`, {
       headers: { Accept: 'application/json' },
@@ -274,6 +361,14 @@ export async function fetchDownloadProgress(): Promise<ModelDownloadProgress | n
  * Cancels active model download.
  */
 export async function cancelModelDownload(): Promise<boolean> {
+  if (isNativeShell()) {
+    try {
+      const res = await sendNativeRequest<any>('cancel-download');
+      return res?.success !== false;
+    } catch {
+      return false;
+    }
+  }
   try {
     const res = await fetch(`http://127.0.0.1:${activePort}/api/models/cancel`, {
       method: 'POST',
@@ -289,6 +384,14 @@ export async function cancelModelDownload(): Promise<boolean> {
  * Selects active local Whisper model profile.
  */
 export async function selectActiveModel(modelName: string): Promise<boolean> {
+  if (isNativeShell()) {
+    try {
+      const res = await sendNativeRequest<any>('select-model', { modelName });
+      return res?.success !== false;
+    } catch {
+      return false;
+    }
+  }
   try {
     const res = await fetch(`http://127.0.0.1:${activePort}/api/models/select`, {
       method: 'POST',
@@ -311,11 +414,38 @@ export interface SessionStreamCallbacks {
 }
 
 /**
- * Subscribes to the native Host's Server-Sent Events (SSE) session stream at /api/session/stream.
+ * Subscribes to the native Host's session stream via Native IPC or Server-Sent Events (SSE).
  * Dispatches real-time session state transitions, audio levels, partial transcripts, and final text.
- * Returns an unsubscribe function to close the EventSource cleanly.
+ * Returns an unsubscribe function to close the stream cleanly.
  */
 export function subscribeToSessionStream(callbacks: SessionStreamCallbacks): () => void {
+  if (isNativeShell()) {
+    const unsubs = [
+      onNativeEvent('session-state', (payload: any) => {
+        callbacks.onState?.(payload?.state ?? '', payload?.detail);
+      }),
+      onNativeEvent('audio-level', (payload: any) => {
+        callbacks.onAudioLevel?.(payload?.level ?? 0);
+      }),
+      onNativeEvent('partial-transcript', (payload: any) => {
+        callbacks.onPartial?.(payload?.text ?? '');
+      }),
+      onNativeEvent('final-transcript', (payload: any) => {
+        callbacks.onFinal?.(payload?.text ?? '');
+      }),
+      onNativeEvent('session-completed', (payload: any) => {
+        callbacks.onCompleted?.(payload?.text ?? '');
+      }),
+      onNativeEvent('session-error', (payload: any) => {
+        callbacks.onError?.(payload?.error);
+      }),
+    ];
+
+    return () => {
+      unsubs.forEach((u) => u());
+    };
+  }
+
   let eventSource: EventSource | null = null;
   let isClosed = false;
 

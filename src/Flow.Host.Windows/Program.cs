@@ -285,7 +285,8 @@ public static class Program
                 styleEngine,
                 settingsRepo,
                 _hotkeyHook,
-                targetTab: targetTab);
+                targetTab: targetTab,
+                modelManager: modelManager);
         }
 
         // Wire Tray Icon Actions

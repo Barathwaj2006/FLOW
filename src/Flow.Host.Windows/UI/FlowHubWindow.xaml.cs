@@ -53,7 +53,7 @@ public sealed class HistoryDisplayItem
     };
 }
 
-public partial class FlowHubWindow : Window
+public partial class FlowHubWindow : Window, IFlowMainWindow
 {
     private readonly VoiceSessionCoordinator? _coordinator;
     private readonly WasapiAudioCapture? _capture;
