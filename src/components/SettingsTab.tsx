@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FlowSettings, HardwareProfile, ModelStatusInfo, ModelDownloadProgress } from '../types';
+import { FlowSettings, HardwareProfile, ModelStatusInfo, ModelDownloadProgress, UpdateStatusInfo } from '../types';
 import {
   fetchHardwareProfile,
   fetchModelsList,
@@ -7,7 +7,12 @@ import {
   fetchDownloadProgress,
   cancelModelDownload,
   selectActiveModel,
+  fetchUpdateStatus,
+  checkForUpdates,
+  downloadUpdate,
+  applyUpdateAndRestart,
 } from '../lib/flowApiClient';
+import { onNativeEvent } from '../lib/nativeBridge';
 import { ModelDownloadWizardModal } from './ModelDownloadWizardModal';
 
 interface SettingsTabProps {
@@ -102,6 +107,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [loadingHardware, setLoadingHardware] = useState(false);
   const pollIntervalRef = useRef<any>(null);
 
+  // Software Updates State (Velopack)
+  const [updateInfo, setUpdateInfo] = useState<UpdateStatusInfo>({
+    status: 'Idle',
+    currentVersion: '1.0.0',
+    downloadProgressPercent: 0,
+  });
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [isDownloadingUpdate, setIsDownloadingUpdate] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
   const loadHardwareAndModels = async () => {
     setLoadingHardware(true);
     try {
@@ -118,10 +133,52 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   useEffect(() => {
     loadHardwareAndModels();
+
+    fetchUpdateStatus().then(info => setUpdateInfo(info));
+    const unsubscribe = onNativeEvent('update-status-changed', (info: UpdateStatusInfo) => {
+      setUpdateInfo(info);
+      if (info.status === 'Downloading') {
+        setIsDownloadingUpdate(true);
+      } else if (info.status === 'ReadyToRestart') {
+        setIsDownloadingUpdate(false);
+      }
+    });
+
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      unsubscribe();
     };
   }, []);
+
+  const handleCheckForUpdates = async () => {
+    setIsCheckingUpdate(true);
+    setUpdateError(null);
+    try {
+      const info = await checkForUpdates();
+      setUpdateInfo(info);
+      if (info.status === 'Failed' && info.errorMessage) {
+        setUpdateError(info.errorMessage);
+      }
+    } catch (err: any) {
+      setUpdateError(err?.message || 'Failed to check for updates');
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
+
+  const handleDownloadUpdate = async () => {
+    setIsDownloadingUpdate(true);
+    setUpdateError(null);
+    const success = await downloadUpdate();
+    if (!success) {
+      setIsDownloadingUpdate(false);
+      setUpdateError('Failed to initiate update download');
+    }
+  };
+
+  const handleApplyUpdate = async () => {
+    await applyUpdateAndRestart();
+  };
 
   const handleDownloadModel = async (modelName: string) => {
     setDownloadingModelName(modelName);
@@ -727,6 +784,105 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             </button>
           </div>
         </div>
+      </section>
+
+      {/* 6. Software Updates (Velopack) */}
+      <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+            <span className="material-symbols-outlined text-[#0284c7] text-[18px]">system_update</span>
+            <h2>Software Updates</h2>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+            v{updateInfo.currentVersion}
+          </span>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${
+                updateInfo.status === 'ReadyToRestart' ? 'bg-emerald-500 animate-pulse' :
+                updateInfo.status === 'Downloading' ? 'bg-sky-500 animate-pulse' :
+                updateInfo.status === 'UpdateAvailable' ? 'bg-amber-500' :
+                updateInfo.status === 'Checking' ? 'bg-sky-400 animate-ping' :
+                updateInfo.status === 'Failed' ? 'bg-rose-500' : 'bg-slate-400'
+              }`} />
+              <span className="text-xs font-semibold text-slate-900">
+                {updateInfo.status === 'ReadyToRestart' && 'Update Ready to Install'}
+                {updateInfo.status === 'Downloading' && `Downloading Update (${updateInfo.downloadProgressPercent}%)`}
+                {updateInfo.status === 'UpdateAvailable' && `New Version Available: v${updateInfo.availableVersion}`}
+                {updateInfo.status === 'Checking' && 'Checking for updates...'}
+                {updateInfo.status === 'Failed' && 'Update Check Failed'}
+                {updateInfo.status === 'Idle' && 'FLOW is up-to-date'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              {updateInfo.status === 'ReadyToRestart' && `Version ${updateInfo.availableVersion ?? 'update'} is ready. Restart FLOW to finish updating.`}
+              {updateInfo.status === 'Downloading' && 'Velopack is downloading delta packages in the background.'}
+              {updateInfo.status === 'UpdateAvailable' && `A new release (v${updateInfo.availableVersion}) is available on GitHub.`}
+              {updateInfo.status === 'Checking' && 'Connecting to update release channels...'}
+              {updateInfo.status === 'Failed' && (updateError || 'An error occurred while communicating with the update server.')}
+              {updateInfo.status === 'Idle' && 'You are running the latest version with automatic delta binary patching.'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {updateInfo.status === 'ReadyToRestart' ? (
+              <button
+                onClick={handleApplyUpdate}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">restart_alt</span>
+                Restart & Update
+              </button>
+            ) : updateInfo.status === 'UpdateAvailable' ? (
+              <button
+                onClick={handleDownloadUpdate}
+                disabled={isDownloadingUpdate}
+                className="px-4 py-2 bg-[#0284c7] hover:bg-[#0369a1] disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">download</span>
+                Download Update
+              </button>
+            ) : (
+              <button
+                onClick={handleCheckForUpdates}
+                disabled={isCheckingUpdate || updateInfo.status === 'Downloading'}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-800 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${isCheckingUpdate ? 'animate-spin' : ''}`}>
+                  sync
+                </span>
+                {isCheckingUpdate ? 'Checking...' : 'Check for Updates'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Download Progress Bar */}
+        {updateInfo.status === 'Downloading' && (
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-[11px] font-medium text-slate-600">
+              <span>Downloading delta patch...</span>
+              <span>{updateInfo.downloadProgressPercent}%</span>
+            </div>
+            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#0284c7] rounded-full transition-all duration-300"
+                style={{ width: `${Math.max(0, Math.min(100, updateInfo.downloadProgressPercent))}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Error notification if any */}
+        {updateError && updateInfo.status === 'Failed' && (
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-700 text-xs">
+            <span className="material-symbols-outlined text-[16px] shrink-0">error</span>
+            <span>{updateError}</span>
+          </div>
+        )}
       </section>
 
       {/* First-Run Model Download & Acceleration Wizard */}

@@ -136,3 +136,22 @@ export interface ModelDownloadProgress {
   errorMessage?: string | null;
 }
 
+export type UpdateStatus =
+  | 'Idle'
+  | 'Checking'
+  | 'UpdateAvailable'
+  | 'NoUpdateAvailable'
+  | 'Downloading'
+  | 'ReadyToRestart'
+  | 'Failed';
+
+export interface UpdateStatusInfo {
+  status: UpdateStatus;
+  currentVersion: string;
+  availableVersion?: string | null;
+  downloadProgressPercent: number;
+  errorMessage?: string | null;
+  lastCheckedUtc?: string | null;
+  isInstalled?: boolean;
+}
+

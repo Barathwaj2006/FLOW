@@ -4,7 +4,7 @@
  * Enables 100% offline local Whisper speech-to-text inference with AVX2/DirectML acceleration.
  */
 
-import { DictationEntry, DictionaryEntry, HardwareProfile, ModelStatusInfo, ModelDownloadProgress } from '../types';
+import { DictationEntry, DictionaryEntry, HardwareProfile, ModelStatusInfo, ModelDownloadProgress, UpdateStatusInfo } from '../types';
 import { isNativeShell, sendNativeRequest, onNativeEvent } from './nativeBridge';
 
 let activePort = 5005;
@@ -512,5 +512,78 @@ export function subscribeToSessionStream(callbacks: SessionStreamCallbacks): () 
       eventSource = null;
     }
   };
+}
+
+/**
+ * Fetches the current application update status from the host.
+ */
+export async function fetchUpdateStatus(): Promise<UpdateStatusInfo> {
+  if (isNativeShell()) {
+    try {
+      const res = await sendNativeRequest<UpdateStatusInfo>('get-update-status');
+      if (res) return res;
+    } catch {}
+  }
+  return {
+    status: 'Idle',
+    currentVersion: '1.0.0',
+    downloadProgressPercent: 0,
+    isInstalled: false,
+  };
+}
+
+/**
+ * Initiates an on-demand update check.
+ */
+export async function checkForUpdates(): Promise<UpdateStatusInfo> {
+  if (isNativeShell()) {
+    try {
+      const res = await sendNativeRequest<UpdateStatusInfo>('check-update');
+      if (res) return res;
+    } catch (err: any) {
+      return {
+        status: 'Failed',
+        currentVersion: '1.0.0',
+        downloadProgressPercent: 0,
+        errorMessage: err?.message || 'Update check failed',
+      };
+    }
+  }
+  return {
+    status: 'NoUpdateAvailable',
+    currentVersion: '1.0.0',
+    downloadProgressPercent: 0,
+    lastCheckedUtc: new Date().toISOString(),
+  };
+}
+
+/**
+ * Downloads available application update package.
+ */
+export async function downloadUpdate(): Promise<boolean> {
+  if (isNativeShell()) {
+    try {
+      const res = await sendNativeRequest<{ success: boolean }>('download-update');
+      return res?.success !== false;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * Applies the downloaded update and restarts the application.
+ */
+export async function applyUpdateAndRestart(): Promise<boolean> {
+  if (isNativeShell()) {
+    try {
+      const res = await sendNativeRequest<{ success: boolean }>('apply-update');
+      return res?.success !== false;
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 

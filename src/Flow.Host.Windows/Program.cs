@@ -19,8 +19,10 @@ using Flow.Host.Windows.Lifecycle;
 using Flow.Host.Windows.Native;
 using Flow.Host.Windows.Tray;
 using Flow.Host.Windows.UI;
+using Flow.Host.Windows.Updates;
 using Flow.Inference;
 using Microsoft.Extensions.Logging;
+using Velopack;
 
 namespace Flow.Host.Windows;
 
@@ -33,10 +35,16 @@ public static class Program
     private static TrayIconManager? _tray;
     private static LocalApiServer? _localApiServer;
     private static WindowsPowerStateManager? _powerManager;
+    private static IFlowUpdateService? _updateService;
 
     [STAThread]
     public static int Main(string[] args)
     {
+        // 0. Velopack application lifecycle hook
+        // MUST run before any mutex, single-instance coordination, or GUI creation.
+        // Handles --veloapp-install, --veloapp-updated, --veloapp-uninstall.
+        VelopackApp.Build().Run();
+
         try
         {
             return Run(args);
@@ -346,6 +354,13 @@ public static class Program
             });
         };
 
+        // 4.5 Background Auto-Updater Engine (Velopack)
+        _updateService = new VelopackUpdateService(
+            coordinator: _coordinator,
+            capture: _capture,
+            logger: loggerFactory.CreateLogger<VelopackUpdateService>()
+        );
+
         // 5. Global Push-to-Talk, Double-Tap Hands-Free, and Backtrack Hook
         _hotkeyHook = new GlobalHotkeyHook(initialSettings.HotkeyVk, doubleTapThresholdMs: 350.0);
 
@@ -366,7 +381,8 @@ public static class Program
                 settingsRepo,
                 _hotkeyHook,
                 targetTab: targetTab,
-                modelManager: modelManager);
+                modelManager: modelManager,
+                updateService: _updateService);
         }
 
         // Wire Tray Icon Actions
@@ -617,6 +633,9 @@ public static class Program
         // Arm keyboard hook only after UI is presented and all subsystems are verified idle
         _hotkeyHook.Arm();
 
+        // 8. Arm background update polling timer (checks every 4 hours)
+        _updateService?.StartBackgroundCheckTimer(TimeSpan.FromHours(4));
+
         logger.LogInformation("FLOW Voice Core initialized and listening. Hold-to-talk: [Alt + Space]. Hands-free: [Alt + B]. Click HUD to dictate. Cancel: [Esc].");
 
         // Native Windows message loop
@@ -638,6 +657,7 @@ public static class Program
 
         // Cleanup
         _localApiServer?.Dispose();
+        _updateService?.Dispose();
         FlowHubWindowManager.CloseWindow();
         _hotkeyHook.Dispose();
         _powerManager?.Dispose();

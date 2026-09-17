@@ -6,9 +6,11 @@
 param(
     [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
+    [string]$Version = "1.0.0",
     [switch]$SkipWebBuild,
     [switch]$SignBinaries,
-    [switch]$InstallPrerequisites
+    [switch]$InstallPrerequisites,
+    [switch]$VelopackPack
 )
 
 $ErrorActionPreference = "Stop"
@@ -158,10 +160,41 @@ $zipHash = (Get-FileHash $zipArchive -Algorithm SHA256).Hash
 Write-Host "Portable archive created: $zipArchive ($zipSizeMB MB)" -ForegroundColor Green
 Write-Host "SHA256: $zipHash" -ForegroundColor Cyan
 
+# ------------------------------------------------------------------------------
+# STEP 7: Package Velopack Delta Update Bundle (Optional)
+# ------------------------------------------------------------------------------
+$vpkOutDir = Join-Path $ReleaseDir "velopack"
+if ($VelopackPack) {
+    Write-Host "`n[7/7] Packaging Velopack Delta Update Release (vpk)..." -ForegroundColor Yellow
+    $vpkCmd = Get-Command vpk -ErrorAction SilentlyContinue
+    if (-not $vpkCmd -and $InstallPrerequisites) {
+        Write-Host "Installing Velopack CLI (vpk) dotnet tool..." -ForegroundColor Cyan
+        & dotnet tool install -g vpk
+        $vpkCmd = Get-Command vpk -ErrorAction SilentlyContinue
+    }
+
+    if ($vpkCmd) {
+        if (-not (Test-Path $vpkOutDir)) { New-Item -ItemType Directory -Path $vpkOutDir -Force | Out-Null }
+        Write-Host "Running: vpk pack -u FLOW -v $Version -p $PublishDir -e Flow.Host.Windows.exe -o $vpkOutDir" -ForegroundColor Cyan
+        & vpk pack -u FLOW -v $Version -p $PublishDir -e Flow.Host.Windows.exe -o $vpkOutDir
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "Velopack release package generated successfully in: $vpkOutDir" -ForegroundColor Green
+        } else {
+            Write-Warning "Velopack pack returned exit code $LASTEXITCODE."
+        }
+    } else {
+        Write-Host "Velopack CLI (vpk) is not installed." -ForegroundColor Yellow
+        Write-Host "Install it with: dotnet tool install -g vpk" -ForegroundColor DarkGray
+    }
+}
+
 $sw.Stop()
 Write-Host "`n============================================================" -ForegroundColor Green
 Write-Host "Build & Packaging Completed Successfully in $($sw.Elapsed.ToString('mm\:ss'))!" -ForegroundColor Green
 Write-Host "Publish Folder: $PublishDir" -ForegroundColor Cyan
 Write-Host "Installer:      $InstallerDir" -ForegroundColor Cyan
 Write-Host "Release Zip:    $zipArchive" -ForegroundColor Cyan
+if ($VelopackPack) {
+    Write-Host "Velopack Out:   $vpkOutDir" -ForegroundColor Cyan
+}
 Write-Host "============================================================" -ForegroundColor Green

@@ -17,6 +17,7 @@ using Flow.Core.Scratchpad;
 using Flow.Core.Session;
 using Flow.Core.Storage;
 using Flow.Host.Windows.Native;
+using Flow.Host.Windows.Updates;
 using Flow.Inference;
 using Microsoft.Web.WebView2.Core;
 
@@ -61,6 +62,7 @@ public partial class FlowShellWindow : Window, IFlowMainWindow
     private readonly ISettingsRepository? _settingsRepo;
     private readonly GlobalHotkeyHook? _hotkeyHook;
     private readonly WhisperModelManager? _modelManager;
+    private readonly IFlowUpdateService? _updateService;
 
     private bool _isInitialized;
     private int _pendingTab = -1;
@@ -77,20 +79,21 @@ public partial class FlowShellWindow : Window, IFlowMainWindow
     }
 
     public FlowShellWindow(
-        VoiceSessionCoordinator? coordinator,
-        WasapiAudioCapture? capture,
-        WasapiDeviceManager? deviceManager,
-        IHistoryService? historyService,
-        IScratchpadService? scratchpadService,
-        IPersonalDictionaryRepository? dictRepo,
-        PersonalDictionaryEngine? dictEngine,
-        ISnippetRepository? snippetRepo,
-        SnippetExpansionEngine? snippetEngine,
-        IStyleRepository? styleRepo,
-        StyleFormattingEngine? styleEngine,
-        ISettingsRepository? settingsRepo,
-        GlobalHotkeyHook? hotkeyHook,
-        WhisperModelManager? modelManager = null) : this()
+        VoiceSessionCoordinator? coordinator = null,
+        WasapiAudioCapture? capture = null,
+        WasapiDeviceManager? deviceManager = null,
+        IHistoryService? historyService = null,
+        IScratchpadService? scratchpadService = null,
+        IPersonalDictionaryRepository? dictRepo = null,
+        PersonalDictionaryEngine? dictEngine = null,
+        ISnippetRepository? snippetRepo = null,
+        SnippetExpansionEngine? snippetEngine = null,
+        IStyleRepository? styleRepo = null,
+        StyleFormattingEngine? styleEngine = null,
+        ISettingsRepository? settingsRepo = null,
+        GlobalHotkeyHook? hotkeyHook = null,
+        WhisperModelManager? modelManager = null,
+        IFlowUpdateService? updateService = null) : this()
     {
         _coordinator = coordinator;
         _capture = capture;
@@ -106,6 +109,7 @@ public partial class FlowShellWindow : Window, IFlowMainWindow
         _settingsRepo = settingsRepo;
         _hotkeyHook = hotkeyHook;
         _modelManager = modelManager;
+        _updateService = updateService;
 
         WireCoordinatorEvents();
     }
@@ -145,6 +149,22 @@ public partial class FlowShellWindow : Window, IFlowMainWindow
             _modelManager.ProgressUpdated += (prog) =>
             {
                 BroadcastEvent("download-progress", prog);
+            };
+        }
+
+        if (_updateService != null)
+        {
+            _updateService.StatusChanged += (info) =>
+            {
+                BroadcastEvent("update-status-changed", new
+                {
+                    status = info.Status.ToString(),
+                    currentVersion = info.CurrentVersion,
+                    availableVersion = info.AvailableVersion,
+                    downloadProgressPercent = info.DownloadProgressPercent,
+                    errorMessage = info.ErrorMessage,
+                    lastCheckedUtc = info.LastCheckedUtc?.ToString("O")
+                });
             };
         }
     }
@@ -683,6 +703,91 @@ public partial class FlowShellWindow : Window, IFlowMainWindow
             {
                 ExitApplicationRequested?.Invoke();
                 SendResponse(requestId, action, new { success = true });
+                break;
+            }
+
+            case "get-update-status":
+            {
+                var status = _updateService?.CurrentStatus;
+                SendResponse(requestId, action, new
+                {
+                    status = (status?.Status ?? Updates.UpdateStatus.Idle).ToString(),
+                    currentVersion = status?.CurrentVersion ?? (_updateService?.CurrentVersion ?? "1.0.0"),
+                    availableVersion = status?.AvailableVersion,
+                    downloadProgressPercent = status?.DownloadProgressPercent ?? 0,
+                    errorMessage = status?.ErrorMessage,
+                    lastCheckedUtc = status?.LastCheckedUtc?.ToString("O"),
+                    isInstalled = _updateService?.IsInstalled ?? false
+                });
+                break;
+            }
+
+            case "check-update":
+            {
+                if (_updateService == null)
+                {
+                    SendError(requestId, action, "Update service not available");
+                    return;
+                }
+
+                try
+                {
+                    var info = await _updateService.CheckForUpdatesAsync();
+                    SendResponse(requestId, action, new
+                    {
+                        status = info.Status.ToString(),
+                        currentVersion = info.CurrentVersion,
+                        availableVersion = info.AvailableVersion,
+                        downloadProgressPercent = info.DownloadProgressPercent,
+                        errorMessage = info.ErrorMessage,
+                        lastCheckedUtc = info.LastCheckedUtc?.ToString("O"),
+                        isInstalled = _updateService.IsInstalled
+                    });
+                }
+                catch (Exception ex)
+                {
+                    SendError(requestId, action, ex.Message);
+                }
+                break;
+            }
+
+            case "download-update":
+            {
+                if (_updateService == null)
+                {
+                    SendError(requestId, action, "Update service not available");
+                    return;
+                }
+
+                try
+                {
+                    bool ok = await _updateService.DownloadUpdatesAsync();
+                    SendResponse(requestId, action, new { success = ok });
+                }
+                catch (Exception ex)
+                {
+                    SendError(requestId, action, ex.Message);
+                }
+                break;
+            }
+
+            case "apply-update":
+            {
+                if (_updateService == null)
+                {
+                    SendError(requestId, action, "Update service not available");
+                    return;
+                }
+
+                try
+                {
+                    bool ok = await _updateService.ApplyUpdatesAndRestartAsync();
+                    SendResponse(requestId, action, new { success = ok });
+                }
+                catch (Exception ex)
+                {
+                    SendError(requestId, action, ex.Message);
+                }
                 break;
             }
 
