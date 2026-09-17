@@ -162,9 +162,10 @@ export function sanitizeAndFormat(rawText: string, options: SanitizerOptions = {
     }
   }
 
-  // 9. Initial capitalization
+  // 9. Initial and sentence boundary capitalization
   if (capitalizeFirstWord && text.length > 0) {
     text = text.charAt(0).toUpperCase() + text.slice(1);
+    text = text.replace(/(?<=[.!?]\s+)([a-z])/g, m => m.toUpperCase());
   }
 
   // 10. Terminal punctuation check

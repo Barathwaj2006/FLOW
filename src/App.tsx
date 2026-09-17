@@ -32,6 +32,13 @@ import {
   INITIAL_SETTINGS 
 } from './lib/initialData';
 import { sanitizeAndFormat } from './lib/sanitizer';
+import {
+  checkLocalEngineHealth,
+  transcribeLocalAudio,
+  encodeWavFromFloat32,
+  fetchLocalHistory,
+  fetchLocalDictionary,
+} from './lib/flowApiClient';
 
 export const App: React.FC = () => {
   // Navigation
@@ -130,6 +137,58 @@ export const App: React.FC = () => {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioMeterIntervalRef = useRef<any>(null);
   const sessionStartTimeRef = useRef<number>(0);
+  const [isEngineConnected, setIsEngineConnected] = useState<boolean>(false);
+  const [hudError, setHudError] = useState<string | null>(null);
+  const recordedSamplesRef = useRef<Float32Array[]>([]);
+  const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
+
+  // Poll Local .NET Host and sync data from SQLite
+  useEffect(() => {
+    let isMounted = true;
+    const pollEngine = async () => {
+      const status = await checkLocalEngineHealth();
+      if (!isMounted) return;
+      setIsEngineConnected(status.connected);
+
+      if (status.connected) {
+        try {
+          const [dbHistory, dbDict] = await Promise.all([
+            fetchLocalHistory(),
+            fetchLocalDictionary(),
+          ]);
+          if (isMounted) {
+            if (dbHistory && dbHistory.length > 0) {
+              setHistory(prev => {
+                const map = new Map<string, DictationEntry>();
+                dbHistory.forEach(e => map.set(e.id, e));
+                prev.forEach(e => {
+                  if (!map.has(e.id)) map.set(e.id, e);
+                });
+                return Array.from(map.values());
+              });
+            }
+            if (dbDict && dbDict.length > 0) {
+              setDictionary(prev => {
+                const map = new Map<string, DictionaryEntry>();
+                dbDict.forEach(d => map.set(d.id, d));
+                prev.forEach(d => {
+                  if (!map.has(d.id)) map.set(d.id, d);
+                });
+                return Array.from(map.values());
+              });
+            }
+          }
+        } catch {}
+      }
+    };
+
+    pollEngine();
+    const interval = setInterval(pollEngine, 8000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Sync to localStorage
   useEffect(() => {
@@ -238,12 +297,13 @@ export const App: React.FC = () => {
   // Start Dictation
   const startDictation = async () => {
     if (sessionState === 'listening') return;
+    setHudError(null);
     setSessionState('listening');
     setPreviewText('');
     sessionStartTimeRef.current = Date.now();
     playTone(587.33, 0.08); // D5 pitch
 
-    // Try browser speech recognition if supported
+    // Try browser speech recognition for real-time live preview
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     let recognitionStarted = false;
 
@@ -281,47 +341,70 @@ export const App: React.FC = () => {
       }
     }
 
-    // Try getting user media for true RMS audio level visualizer
+    // Capture audio stream for true RMS-to-dBFS meter and local Whisper inference
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaStreamRef.current = stream;
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+        const audioCtx = new AudioCtxClass();
         audioContextRef.current = audioCtx;
+
         const source = audioCtx.createMediaStreamSource(stream);
         const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
+        analyser.fftSize = 512;
         source.connect(analyser);
 
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        // Record raw samples for offline Whisper engine
+        recordedSamplesRef.current = [];
+        const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+        processor.onaudioprocess = (e) => {
+          const channelData = e.inputBuffer.getChannelData(0);
+          recordedSamplesRef.current.push(new Float32Array(channelData));
+        };
+        source.connect(processor);
+        processor.connect(audioCtx.destination);
+        audioProcessorRef.current = processor;
+
+        // Calibrated logarithmic dBFS audio visualizer
+        const timeData = new Float32Array(analyser.fftSize);
         audioMeterIntervalRef.current = setInterval(() => {
-          analyser.getByteFrequencyData(dataArray);
-          let sum = 0;
-          for (let i = 0; i < dataArray.length; i++) {
-            sum += dataArray[i];
+          analyser.getFloatTimeDomainData(timeData);
+          let sumSquares = 0;
+          for (let i = 0; i < timeData.length; i++) {
+            sumSquares += timeData[i] * timeData[i];
           }
-          const average = sum / dataArray.length;
-          const normalized = Math.min(100, Math.round((average / 128) * 100));
+          const rms = Math.sqrt(sumSquares / timeData.length);
+          // Standard audio meter: map -60 dBFS (silence) to 0 dBFS (peak)
+          const db = rms > 0.0001 ? 20 * Math.log10(rms) : -60;
+          const normalized = Math.max(0, Math.min(100, Math.round(((db + 60) / 60) * 100)));
           setAudioLevel(normalized);
-        }, 60);
+        }, 50);
       }
     } catch {
       // Physical microphone permission denied or unavailable
       setAudioLevel(0);
+      setHudError('Microphone unavailable or permission denied.');
       showToast('Physical microphone unavailable or permission denied.');
     }
   };
 
   // Stop Dictation and finalize formatted insertion
-  const stopDictation = (forcedTranscript?: string) => {
+  const stopDictation = async (forcedTranscript?: string) => {
     if (sessionState !== 'listening') return;
     setSessionState('processing');
     playTone(440, 0.1); // A4 pitch
 
-    // Clear intervals and streams
+    // Clear intervals and audio nodes
     if (audioMeterIntervalRef.current) {
       clearInterval(audioMeterIntervalRef.current);
       audioMeterIntervalRef.current = null;
+    }
+    if (audioProcessorRef.current) {
+      try {
+        audioProcessorRef.current.disconnect();
+      } catch {}
+      audioProcessorRef.current = null;
     }
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(t => t.stop());
@@ -340,7 +423,32 @@ export const App: React.FC = () => {
 
     setAudioLevel(0);
 
-    const rawTranscript = (forcedTranscript !== undefined ? forcedTranscript : previewText).trim();
+    let rawTranscript = (forcedTranscript !== undefined ? forcedTranscript : previewText).trim();
+
+    // If connected to local .NET Whisper host, transcribe using offline Whisper.net engine
+    if (isEngineConnected && recordedSamplesRef.current.length > 0 && !forcedTranscript) {
+      try {
+        const totalLength = recordedSamplesRef.current.reduce((acc, curr) => acc + curr.length, 0);
+        if (totalLength > 1600) { // More than 100ms of audio
+          const merged = new Float32Array(totalLength);
+          let offset = 0;
+          for (const chunk of recordedSamplesRef.current) {
+            merged.set(chunk, offset);
+            offset += chunk.length;
+          }
+
+          const wavBlob = encodeWavFromFloat32(merged, 16000);
+          const localResult = await transcribeLocalAudio(wavBlob, settings.language);
+          if (localResult && localResult.text) {
+            rawTranscript = localResult.text;
+          }
+        }
+      } catch (err: any) {
+        console.warn('Local Whisper transcription failed, falling back to browser preview:', err);
+        setHudError(err.message || 'Local transcription failed');
+      }
+    }
+
     if (!rawTranscript) {
       setSessionState('idle');
       setPreviewText('');
@@ -380,8 +488,8 @@ export const App: React.FC = () => {
         state: 'Completed',
         isFavorite: false,
         text: formatted,
-        latency: 'Local Whisper • DirectML',
-        engine: 'FLOW Local Whisper Engine',
+        latency: isEngineConnected ? 'Local Whisper • DirectML' : 'Web Speech API',
+        engine: isEngineConnected ? 'FLOW Local Whisper Engine' : 'Web Demo Engine',
       };
 
       lastInsertedEntryRef.current = newEntry;
@@ -745,6 +853,7 @@ export const App: React.FC = () => {
         credits={credits}
         userEmail={userEmail}
         onOpenCredits={() => setIsLoginModalOpen(true)}
+        isEngineConnected={isEngineConnected}
       />
 
       {/* Left Sidebar Navigation Rail */}
@@ -908,6 +1017,13 @@ export const App: React.FC = () => {
           activeMic={settings.activeMic}
           bottomOffset={bottomOffset}
           multiMonitorMode={multiMonitorMode}
+          hasError={!!hudError}
+          errorMessage={hudError || undefined}
+          onRetry={() => {
+            setHudError(null);
+            recordingModeRef.current = 'click';
+            startDictation();
+          }}
         />
       )}
 

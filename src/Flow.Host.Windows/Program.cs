@@ -31,6 +31,7 @@ public static class Program
     private static GlobalHotkeyHook? _hotkeyHook;
     private static FloatingHudController? _hud;
     private static TrayIconManager? _tray;
+    private static LocalApiServer? _localApiServer;
 
     [STAThread]
     public static int Main(string[] args)
@@ -220,6 +221,18 @@ public static class Program
         _coordinator.SetVadThreshold(initialSettings.VadThreshold);
         _coordinator.SelectedLanguage = initialSettings.Language;
         _coordinator.SetSessionLanguage(new Flow.Core.Language.LanguageCode(initialSettings.Language));
+
+        // 2.5 Local HTTP API Bridge Server (100% Offline Local Whisper endpoint for web UI)
+        _localApiServer = new LocalApiServer(
+            whisperInference,
+            formattingPipeline,
+            dictRepo,
+            dictEngine,
+            historyRepo,
+            modelManager,
+            loggerFactory.CreateLogger<LocalApiServer>()
+        );
+        _localApiServer.Start();
 
         // 3. Windows UI & System Tray
         _hud = new FloatingHudController();
@@ -552,6 +565,7 @@ public static class Program
         }
 
         // Cleanup
+        _localApiServer?.Dispose();
         FlowHubWindowManager.CloseWindow();
         _hotkeyHook.Dispose();
         _capture.Dispose();

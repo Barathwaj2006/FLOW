@@ -11,6 +11,7 @@ interface NavbarProps {
   credits?: number;
   userEmail?: string | null;
   onOpenCredits?: () => void;
+  isEngineConnected?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -23,6 +24,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   credits = 50,
   userEmail = null,
   onOpenCredits,
+  isEngineConnected = false,
 }) => {
   return (
     <>
@@ -39,16 +41,31 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span className="font-semibold text-[11px] tracking-wider uppercase text-[#0f172a]">FLOW</span>
           <div className="h-3 w-[1px] bg-[#e2e8f0] mx-1"></div>
           
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#f1f5f9] border border-[#e2e8f0]">
+          <div 
+            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border transition-all ${
+              sessionState === 'listening'
+                ? 'bg-rose-50 border-rose-200 text-rose-700'
+                : sessionState === 'processing'
+                ? 'bg-sky-50 border-sky-200 text-sky-700'
+                : isEngineConnected
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                : 'bg-amber-50 border-amber-200 text-amber-700'
+            }`}
+            title={
+              isEngineConnected
+                ? 'Connected to Flow.Host.Windows local Whisper engine (100% Offline)'
+                : 'FLOW Host offline; running in Standalone Web Mode'
+            }
+          >
             <div className={`w-1.5 h-1.5 rounded-full ${
-              sessionState === 'listening' ? 'bg-[#ef4444] animate-ping' :
-              sessionState === 'processing' ? 'bg-[#0284c7] animate-spin' :
-              'bg-[#0284c7] animate-pulse'
+              sessionState === 'listening' ? 'bg-rose-500 animate-ping' :
+              sessionState === 'processing' ? 'bg-sky-500 animate-spin' :
+              isEngineConnected ? 'bg-emerald-500' : 'bg-amber-500'
             }`}></div>
-            <span className="text-[10px] font-medium text-[#64748b]">
+            <span className="text-[10px] font-medium">
               {sessionState === 'listening' ? 'Recording Audio' :
                sessionState === 'processing' ? 'Whisper Inference' :
-               'Local Engine'}
+               isEngineConnected ? 'Local Whisper Connected' : 'Web Demo Mode'}
             </span>
           </div>
 

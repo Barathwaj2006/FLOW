@@ -33,7 +33,13 @@ FLOW v1.0.0 is a production-grade, system-wide AI voice productivity platform bu
 - **Snippets**: Spoken trigger expansion into boilerplate paragraphs.
 - **Cursor-Independent Transcript Preservation**: If window focus changes mid-sentence, text insertion safely aborts to prevent misdirection while preserving the full transcript in `LastTranscript` and local SQLite History.
 
-### 5. Account & Voice Credits Management
+### 5. Local HTTP API Bridge & Frontend Integration
+- **Local Zero-Dependency Server**: Non-blocking `LocalApiServer` on `http://127.0.0.1:5005` connecting web and native desktop interfaces directly to local Whisper.net inference.
+- **100% Offline Web Dictation**: React UI records PCM/WAV and posts to `/api/transcribe` for real-time local Whisper inference with AVX2 and DirectML acceleration.
+- **Logarithmic dBFS Audio Meter**: Calibrated true RMS-to-dBFS visualization with natural speech sensitivity.
+- **HUD Error State & Retry**: Real-time error handling with visual notification and retry loop in the floating obsidian HUD.
+
+### 6. Account & Voice Credits Management
 - Passwordless 6-digit email verification login.
 - Cloud AI Credits balance for optional cloud prompt transformations and style synchronization.
 - Secured using Windows DPAPI (`DataProtectionScope.CurrentUser`) for cryptographic credential protection at rest.
@@ -44,11 +50,11 @@ FLOW v1.0.0 is a production-grade, system-wide AI voice productivity platform bu
 
 | Suite | Tests | Result | Status |
 | :--- | :--- | :--- | :--- |
-| **`Flow.Core.Tests`** | 3,698 tests | 3,698 Passed, 0 Failed, 0 Skipped | **100% Pass** |
-| **`Flow.Windows.Tests`** | 201 tests | 201 Passed, 0 Failed, 0 Skipped | **100% Pass** |
-| **Total Test Suite** | **3,899 tests** | **3,899 / 3,899 Passed** | **100% Pass** |
+| **`Flow.Core.Tests`** | 3,702 tests | 3,702 Passed, 0 Failed, 0 Skipped | **100% Pass** |
+| **`Flow.Windows.Tests`** | 203 tests | 203 Passed, 0 Failed, 0 Skipped | **100% Pass** |
+| **Total Test Suite** | **3,905 tests** | **3,905 / 3,905 Passed** | **100% Pass** |
 | **TypeScript / React** | `npm run lint` | 0 Errors, 0 Warnings | **Pass** |
-| **Vite Production** | `npm run build` | Built in 1.56s | **Pass** |
+| **Vite Production** | `npm run build` | Built in 1.25s | **Pass** |
 
 ---
 

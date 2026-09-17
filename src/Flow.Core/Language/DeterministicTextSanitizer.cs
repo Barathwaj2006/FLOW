@@ -31,6 +31,10 @@ public sealed class DeterministicTextSanitizer : ILanguageEngine
         (new Regex(@"\s+\bnew paragraph\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), " ")
     };
 
+    private static readonly Regex SentenceBoundaryRegex = new(
+        @"(?<=[.!?]\s+)([a-z])",
+        RegexOptions.Compiled);
+
     /// <inheritdoc />
     public string Format(string rawText, FormattingOptions? options = null)
     {
@@ -75,10 +79,14 @@ public sealed class DeterministicTextSanitizer : ILanguageEngine
             return string.Empty;
         }
 
-        // 5. Initial capitalization
-        if (options.CapitalizeFirstWord && char.IsLower(text[0]))
+        // 5. Initial and sentence boundary capitalization
+        if (options.CapitalizeFirstWord && text.Length > 0)
         {
-            text = char.ToUpperInvariant(text[0]) + text.Substring(1);
+            if (char.IsLower(text[0]))
+            {
+                text = char.ToUpperInvariant(text[0]) + text.Substring(1);
+            }
+            text = SentenceBoundaryRegex.Replace(text, m => m.Value.ToUpperInvariant());
         }
 
         // 6. Ensure terminal punctuation if enabled
