@@ -349,8 +349,10 @@ public partial class FlowShellWindow : Window, IFlowMainWindow
 
     public async Task HandleActionAsync(string requestId, string action, JsonElement payload)
     {
-        switch (action.ToLowerInvariant())
+        try
         {
+            switch (action.ToLowerInvariant())
+            {
             case "get-status":
             {
                 bool installed = _modelManager?.IsModelInstalledAndValid() ?? true;
@@ -884,6 +886,11 @@ public partial class FlowShellWindow : Window, IFlowMainWindow
             }
         }
     }
+    catch (Exception ex)
+    {
+        SendError(requestId, action, ex.Message);
+    }
+}
 
     protected override void OnClosing(CancelEventArgs e)
     {

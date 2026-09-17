@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Text;
@@ -97,6 +97,7 @@ public sealed class RedactingFileLoggerProvider : ILoggerProvider, IAsyncDisposa
     {
         try
         {
+            Directory.CreateDirectory(_logsDirectory);
             string dateStr = DateTime.UtcNow.ToString("yyyyMMdd");
             string logFilePath = Path.Combine(_logsDirectory, $"flow-{dateStr}.log");
 

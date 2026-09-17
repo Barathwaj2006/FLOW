@@ -95,6 +95,11 @@ public sealed class FlowDiagnosticsService : IFlowDiagnosticsService
             ? Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)
             : targetDirectory;
 
+        if (string.IsNullOrWhiteSpace(outDir))
+        {
+            outDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FLOW");
+        }
+
         Directory.CreateDirectory(outDir);
 
         string zipName = $"FLOW-Diagnostics-{DateTime.UtcNow:yyyyMMdd_HHmmss}.zip";
