@@ -230,7 +230,8 @@ public static class Program
             dictEngine,
             historyRepo,
             modelManager,
-            loggerFactory.CreateLogger<LocalApiServer>()
+            coordinator: _coordinator,
+            logger: loggerFactory.CreateLogger<LocalApiServer>()
         );
         _localApiServer.Start();
 
@@ -476,6 +477,11 @@ public static class Program
             {
                 logger.LogInformation("Command Mode: Executed Editor Action '{Action}'. Safety Policy: {Verdict}", e.ActionName, safety.Verdict);
             }
+        };
+
+        _coordinator.PartialTranscriptReceived += partial =>
+        {
+            _hud.UpdatePartialTranscript(partial);
         };
 
         _coordinator.FinalTextInserted += text =>

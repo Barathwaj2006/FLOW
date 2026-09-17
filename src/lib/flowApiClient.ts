@@ -301,3 +301,86 @@ export async function selectActiveModel(modelName: string): Promise<boolean> {
   }
 }
 
+export interface SessionStreamCallbacks {
+  onState?: (state: string, detail?: string) => void;
+  onAudioLevel?: (level: number) => void;
+  onPartial?: (text: string) => void;
+  onFinal?: (text: string) => void;
+  onCompleted?: (text: string) => void;
+  onError?: (err: any) => void;
+}
+
+/**
+ * Subscribes to the native Host's Server-Sent Events (SSE) session stream at /api/session/stream.
+ * Dispatches real-time session state transitions, audio levels, partial transcripts, and final text.
+ * Returns an unsubscribe function to close the EventSource cleanly.
+ */
+export function subscribeToSessionStream(callbacks: SessionStreamCallbacks): () => void {
+  let eventSource: EventSource | null = null;
+  let isClosed = false;
+
+  const connect = () => {
+    if (isClosed) return;
+    try {
+      eventSource = new EventSource(`http://127.0.0.1:${activePort}/api/session/stream`);
+
+      eventSource.addEventListener('state', (e: MessageEvent) => {
+        try {
+          const data = JSON.parse(e.data);
+          callbacks.onState?.(data.state, data.detail);
+        } catch {}
+      });
+
+      eventSource.addEventListener('audioLevel', (e: MessageEvent) => {
+        try {
+          const data = JSON.parse(e.data);
+          callbacks.onAudioLevel?.(data.level);
+        } catch {}
+      });
+
+      eventSource.addEventListener('partial', (e: MessageEvent) => {
+        try {
+          const data = JSON.parse(e.data);
+          callbacks.onPartial?.(data.text);
+        } catch {}
+      });
+
+      eventSource.addEventListener('final', (e: MessageEvent) => {
+        try {
+          const data = JSON.parse(e.data);
+          callbacks.onFinal?.(data.text);
+        } catch {}
+      });
+
+      eventSource.addEventListener('completed', (e: MessageEvent) => {
+        try {
+          const data = JSON.parse(e.data);
+          callbacks.onCompleted?.(data.text);
+        } catch {}
+      });
+
+      eventSource.onerror = (err) => {
+        callbacks.onError?.(err);
+        eventSource?.close();
+        if (!isClosed) {
+          setTimeout(connect, 3000);
+        }
+      };
+    } catch {
+      if (!isClosed) {
+        setTimeout(connect, 3000);
+      }
+    }
+  };
+
+  connect();
+
+  return () => {
+    isClosed = true;
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+  };
+}
+

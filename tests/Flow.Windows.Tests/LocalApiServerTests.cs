@@ -72,4 +72,56 @@ public sealed class LocalApiServerTests
         Assert.Empty(LocalApiServer.DecodeAudioToSamples(Array.Empty<byte>()));
         Assert.Empty(LocalApiServer.DecodeAudioToSamples(null!));
     }
+
+    [Fact]
+    public async Task SessionStream_StreamsSseHeadersAndInitialState()
+    {
+        var modelManager = new WhisperModelManager();
+        var whisperInference = new WhisperNetInferenceEngine(modelManager);
+        var pipeline = new TranscriptProcessingPipeline();
+        var ringBuffer = new Flow.Core.Audio.AudioRingBuffer(10.0);
+        var vad = new Flow.Core.Audio.EnergyVAD();
+        var asrReg = new Flow.Core.ASR.ASREngineRegistry();
+        var sanitizer = new Flow.Core.Language.DeterministicTextSanitizer();
+        var insertion = new Flow.Host.Windows.Native.WindowsTextInsertionService();
+        var coordinator = new Flow.Core.Session.VoiceSessionCoordinator(ringBuffer, vad, asrReg, sanitizer, insertion);
+
+        using var server = new LocalApiServer(
+            whisperInference,
+            pipeline,
+            coordinator: coordinator,
+            preferredPort: 5019
+        );
+
+        server.Start();
+        if (!server.IsRunning)
+        {
+            return;
+        }
+
+        try
+        {
+            using var client = new HttpClient();
+            using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(3));
+
+            var req = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{server.Port}/api/session/stream");
+            using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+
+            Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+            Assert.StartsWith("text/event-stream", resp.Content.Headers.ContentType?.ToString());
+
+            using var stream = await resp.Content.ReadAsStreamAsync(cts.Token);
+            using var reader = new StreamReader(stream);
+
+            string? eventLine = await reader.ReadLineAsync(cts.Token);
+            string? dataLine = await reader.ReadLineAsync(cts.Token);
+
+            Assert.Equal("event: state", eventLine);
+            Assert.Contains("Idle", dataLine);
+        }
+        finally
+        {
+            server.Stop();
+        }
+    }
 }

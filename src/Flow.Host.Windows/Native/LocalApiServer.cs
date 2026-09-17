@@ -12,6 +12,7 @@ using Flow.Core.Audio;
 using Flow.Core.History;
 using Flow.Core.Language;
 using Flow.Core.Personalization.Dictionary;
+using Flow.Core.Session;
 using Flow.Core.Storage;
 using Flow.Core.TranscriptProcessing;
 using Flow.Inference;
@@ -27,6 +28,7 @@ namespace Flow.Host.Windows.Native;
 /// 3. Persistent dictionary synchronization (/api/dictionary)
 /// 4. Local history synchronization (/api/history)
 /// 5. Local DPAPI token verification (/api/auth/verify)
+/// 6. Real-time session streaming over SSE (/api/session/stream)
 /// </summary>
 public sealed class LocalApiServer : IDisposable
 {
@@ -37,6 +39,7 @@ public sealed class LocalApiServer : IDisposable
     private readonly PersonalDictionaryEngine? _dictEngine;
     private readonly SqliteHistoryRepository? _historyRepo;
     private readonly WhisperModelManager? _modelManager;
+    private readonly VoiceSessionCoordinator? _coordinator;
     private readonly ILogger<LocalApiServer>? _logger;
 
     private CancellationTokenSource? _cts;
@@ -53,6 +56,7 @@ public sealed class LocalApiServer : IDisposable
         PersonalDictionaryEngine? dictEngine = null,
         SqliteHistoryRepository? historyRepo = null,
         WhisperModelManager? modelManager = null,
+        VoiceSessionCoordinator? coordinator = null,
         ILogger<LocalApiServer>? logger = null,
         int preferredPort = 5005)
     {
@@ -62,6 +66,7 @@ public sealed class LocalApiServer : IDisposable
         _dictEngine = dictEngine;
         _historyRepo = historyRepo;
         _modelManager = modelManager;
+        _coordinator = coordinator;
         _logger = logger;
         _listener = new HttpListener();
 
@@ -238,6 +243,11 @@ public sealed class LocalApiServer : IDisposable
                      req.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase))
             {
                 await HandleAuthVerifyAsync(req, resp, ct);
+            }
+            else if (path.Equals("/api/session/stream", StringComparison.OrdinalIgnoreCase) &&
+                     req.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleSessionStreamAsync(resp, ct);
             }
             else
             {
@@ -842,6 +852,134 @@ public sealed class LocalApiServer : IDisposable
         }
 
         return resampled;
+    }
+
+    private async Task HandleSessionStreamAsync(HttpListenerResponse resp, CancellationToken ct)
+    {
+        resp.StatusCode = (int)HttpStatusCode.OK;
+        resp.ContentType = "text/event-stream; charset=utf-8";
+        resp.Headers.Add("Cache-Control", "no-cache");
+        resp.Headers.Add("Connection", "keep-alive");
+        resp.Headers.Add("Access-Control-Allow-Origin", "*");
+
+        using var writer = new StreamWriter(resp.OutputStream, new UTF8Encoding(false), bufferSize: 1024, leaveOpen: false);
+
+        if (_coordinator == null)
+        {
+            await writer.WriteAsync("event: error\ndata: {\"error\":\"VoiceSessionCoordinator unavailable\"}\n\n");
+            await writer.FlushAsync();
+            resp.Close();
+            return;
+        }
+
+        using var clientDisconnectedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var clientToken = clientDisconnectedCts.Token;
+
+        // Send initial current state snapshot
+        string initialStateJson = JsonSerializer.Serialize(new
+        {
+            state = _coordinator.CurrentState.ToString(),
+            isHandsFree = _coordinator.IsHandsFree,
+            mode = _coordinator.CurrentMode.ToString()
+        });
+        await writer.WriteAsync($"event: state\ndata: {initialStateJson}\n\n");
+        await writer.FlushAsync();
+
+        var writeLock = new SemaphoreSlim(1, 1);
+
+        async Task SendSseEventAsync(string eventName, object payload)
+        {
+            if (clientToken.IsCancellationRequested) return;
+            try
+            {
+                await writeLock.WaitAsync(clientToken);
+                try
+                {
+                    string json = JsonSerializer.Serialize(payload);
+                    await writer.WriteAsync($"event: {eventName}\ndata: {json}\n\n");
+                    await writer.FlushAsync();
+                }
+                finally
+                {
+                    writeLock.Release();
+                }
+            }
+            catch
+            {
+                clientDisconnectedCts.Cancel();
+            }
+        }
+
+        Action<SessionState, string?> onState = (state, detail) =>
+        {
+            _ = SendSseEventAsync("state", new { state = state.ToString(), detail });
+        };
+
+        Action<float> onAudioLevel = (level) =>
+        {
+            _ = SendSseEventAsync("audioLevel", new { level });
+        };
+
+        Action<string> onPartial = (text) =>
+        {
+            _ = SendSseEventAsync("partial", new { text });
+        };
+
+        Action<string> onFinal = (text) =>
+        {
+            _ = SendSseEventAsync("final", new { text });
+        };
+
+        Action<string> onCompleted = (text) =>
+        {
+            _ = SendSseEventAsync("completed", new { text });
+        };
+
+        _coordinator.StateChanged += onState;
+        _coordinator.AudioLevelChanged += onAudioLevel;
+        _coordinator.PartialTranscriptReceived += onPartial;
+        _coordinator.FinalTextInserted += onFinal;
+        _coordinator.TranscriptCompleted += onCompleted;
+
+        try
+        {
+            while (!clientToken.IsCancellationRequested)
+            {
+                await Task.Delay(15000, clientToken);
+                await writeLock.WaitAsync(clientToken);
+                try
+                {
+                    await writer.WriteAsync(": keepalive\n\n");
+                    await writer.FlushAsync();
+                }
+                finally
+                {
+                    writeLock.Release();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal client disconnect or server shutdown
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogDebug(ex, "Client SSE stream terminated.");
+        }
+        finally
+        {
+            _coordinator.StateChanged -= onState;
+            _coordinator.AudioLevelChanged -= onAudioLevel;
+            _coordinator.PartialTranscriptReceived -= onPartial;
+            _coordinator.FinalTextInserted -= onFinal;
+            _coordinator.TranscriptCompleted -= onCompleted;
+            writeLock.Dispose();
+            try
+            {
+                resp.Close();
+            }
+            catch { }
+        }
     }
 
     public void Dispose()

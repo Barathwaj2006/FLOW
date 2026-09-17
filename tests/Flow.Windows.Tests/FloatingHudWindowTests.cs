@@ -62,6 +62,20 @@ public class FloatingHudWindowTests
         Assert.Equal(1.0f, hud.AudioLevel);
     }
 
+    [Fact]
+    public void UpdatePartialTranscript_UpdatesTranscriptText_AndClearsOnNonRecordingState()
+    {
+        using var hud = new FloatingHudController();
+
+        hud.UpdateState(SessionState.Recording, "Listening");
+        hud.UpdatePartialTranscript("partial streaming text");
+        Assert.Equal("partial streaming text", hud.PartialTranscript);
+
+        // Transitioning to processing or completed clears the partial transcript
+        hud.UpdateState(SessionState.Processing, "Transcribing");
+        Assert.Null(hud.PartialTranscript);
+    }
+
     [DllImport("user32.dll", EntryPoint = "GetWindowLong")]
     private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 }

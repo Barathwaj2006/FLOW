@@ -25,6 +25,7 @@ public sealed class FloatingHudController : IDisposable
     private IntPtr _hwnd = IntPtr.Zero;
     private SessionState _currentState = SessionState.Idle;
     private string _statusText = "Ready";
+    private string? _partialTranscript;
     private bool _isCommandMode;
     private float _audioLevel;
     private bool _isDisposed;
@@ -32,6 +33,7 @@ public sealed class FloatingHudController : IDisposable
     public IntPtr Handle => _hwnd;
     public bool IsVisible => _hwnd != IntPtr.Zero && IsWindowVisible(_hwnd);
     public string StatusText => _statusText;
+    public string? PartialTranscript => _partialTranscript;
     public bool IsCommandMode => _isCommandMode;
     public float AudioLevel => _audioLevel;
     public event Action<uint, IntPtr>? WindowMessageReceived;
@@ -143,6 +145,11 @@ public sealed class FloatingHudController : IDisposable
             _ => "Ready"
         };
 
+        if (state != SessionState.Recording)
+        {
+            _partialTranscript = null;
+        }
+
         if (state == SessionState.Idle)
         {
             Hide();
@@ -154,6 +161,18 @@ public sealed class FloatingHudController : IDisposable
             {
                 InvalidateRect(_hwnd, IntPtr.Zero, false);
             }
+        }
+    }
+
+    /// <summary>
+    /// Updates the streaming partial transcript displayed on the floating HUD during recording.
+    /// </summary>
+    public void UpdatePartialTranscript(string? text)
+    {
+        _partialTranscript = text;
+        if (IsVisible && _hwnd != IntPtr.Zero)
+        {
+            InvalidateRect(_hwnd, IntPtr.Zero, false);
         }
     }
 
@@ -320,9 +339,18 @@ public sealed class FloatingHudController : IDisposable
                 DeleteObject(dotBrush);
                 DeleteObject(dotPen);
 
-                // 3. Status Text (Segoe UI / #F3F4F6)
+                // 3. Status Text / Live Streaming Partial Transcript (Segoe UI / #F3F4F6 or #FDE68A)
                 SetBkMode(memDc, 1 /* TRANSPARENT */);
-                SetTextColor(memDc, RGB(243, 244, 246));
+
+                string display = (_currentState == SessionState.Recording && !string.IsNullOrWhiteSpace(_partialTranscript))
+                    ? _partialTranscript
+                    : _statusText;
+
+                uint textColor = (_currentState == SessionState.Recording && !string.IsNullOrWhiteSpace(_partialTranscript))
+                    ? RGB(253, 230, 138) // Warm Amber (#FDE68A) for partial transcript
+                    : RGB(243, 244, 246);
+
+                SetTextColor(memDc, textColor);
 
                 IntPtr hFont = CreateFont(
                     15, 0, 0, 0, 500 /* FW_MEDIUM */,
@@ -332,7 +360,7 @@ public sealed class FloatingHudController : IDisposable
                 IntPtr oldFont = SelectObject(memDc, hFont);
 
                 RECT textRect = new() { Left = 30, Top = 0, Right = width - 70, Bottom = height };
-                DrawText(memDc, _statusText, -1, ref textRect, 0x00000004 /* DT_VCENTER */ | 0x00000020 /* DT_SINGLELINE */ | 0x00000040 /* DT_END_ELLIPSIS */);
+                DrawText(memDc, display, -1, ref textRect, 0x00000004 /* DT_VCENTER */ | 0x00000020 /* DT_SINGLELINE */ | 0x00000040 /* DT_END_ELLIPSIS */);
 
                 SelectObject(memDc, oldFont);
                 DeleteObject(hFont);

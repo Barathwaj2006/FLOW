@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Flow.Core.Backtrack;
@@ -49,4 +49,22 @@ public interface ITextInsertionService
     /// Inviolable invariant: MUST NEVER simulate Enter (VK_RETURN) or modify wrong target application.
     /// </summary>
     Task<bool> BacktrackAsync(InsertionRecord record, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Safely updates speculatively injected text at the cursor by backspacing divergent characters and appending the new text.
+    /// Inviolable invariant: MUST NEVER simulate Enter (VK_RETURN) or click submit.
+    /// </summary>
+    Task<bool> UpdateSpeculativeTextAsync(string previousSpeculative, string newSpeculative, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(true);
+    }
+
+    /// <summary>
+    /// Safely clears speculatively injected text by backspacing all speculative characters.
+    /// Inviolable invariant: MUST NEVER simulate Enter (VK_RETURN).
+    /// </summary>
+    Task<bool> ClearSpeculativeTextAsync(string currentSpeculative, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(true);
+    }
 }

@@ -39,6 +39,7 @@ import {
   encodeWavFromFloat32,
   fetchLocalHistory,
   fetchLocalDictionary,
+  subscribeToSessionStream,
 } from './lib/flowApiClient';
 
 export const App: React.FC = () => {
@@ -191,6 +192,50 @@ export const App: React.FC = () => {
       clearInterval(interval);
     };
   }, []);
+
+  // Synchronize live session stream (SSE) from the native FLOW Host
+  useEffect(() => {
+    if (!isEngineConnected) return;
+
+    const unsubscribe = subscribeToSessionStream({
+      onState: (state, detail) => {
+        const lower = state.toLowerCase();
+        if (lower === 'recording') {
+          setSessionState('listening');
+        } else if (lower === 'processing' || lower === 'inserting') {
+          setSessionState('processing');
+        } else if (lower === 'completed') {
+          setSessionState('done');
+          setTimeout(() => setSessionState('idle'), 1200);
+        } else if (lower === 'cancelled') {
+          setSessionState('idle');
+          setPreviewText('');
+        } else if (lower === 'error') {
+          setSessionState('error');
+          setHudError(detail || 'Session error');
+        } else if (lower === 'idle') {
+          setSessionState('idle');
+          setPreviewText('');
+        }
+      },
+      onAudioLevel: (level) => {
+        setAudioLevel(Math.min(100, Math.round(level * 100)));
+      },
+      onPartial: (text) => {
+        setPreviewText(text);
+      },
+      onFinal: (text) => {
+        setPreviewText(text);
+      },
+      onCompleted: (text) => {
+        setPreviewText(text);
+      },
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [isEngineConnected]);
 
   // Sync to localStorage
   useEffect(() => {

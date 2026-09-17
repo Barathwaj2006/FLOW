@@ -126,6 +126,57 @@ public sealed class WindowsTextInsertionService : ITextInsertionService
         return Task.FromResult(true);
     }
 
+    /// <inheritdoc />
+    public async Task<bool> UpdateSpeculativeTextAsync(string previousSpeculative, string newSpeculative, CancellationToken cancellationToken = default)
+    {
+        if (previousSpeculative == newSpeculative)
+        {
+            return true;
+        }
+
+        // Inviolable Zero-Enter filter: Never emit physical return/newline
+        string safeNew = (newSpeculative ?? "").Replace("\r", " ").Replace("\n", " ");
+        string safePrev = previousSpeculative ?? "";
+
+        // Compute common prefix
+        int minLen = Math.Min(safePrev.Length, safeNew.Length);
+        int commonPrefixLen = 0;
+        while (commonPrefixLen < minLen && safePrev[commonPrefixLen] == safeNew[commonPrefixLen])
+        {
+            commonPrefixLen++;
+        }
+
+        int deleteCount = safePrev.Length - commonPrefixLen;
+        string appendText = safeNew.Substring(commonPrefixLen);
+
+        if (deleteCount > 0)
+        {
+            int countToDelete = Math.Clamp(deleteCount, 1, 2000);
+            SimulateBackspaces(countToDelete);
+        }
+
+        if (!string.IsNullOrEmpty(appendText))
+        {
+            var result = await InsertTextAsync(appendText, cancellationToken);
+            return result.Success;
+        }
+
+        return true;
+    }
+
+    /// <inheritdoc />
+    public Task<bool> ClearSpeculativeTextAsync(string currentSpeculative, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(currentSpeculative))
+        {
+            return Task.FromResult(true);
+        }
+
+        int countToDelete = Math.Clamp(currentSpeculative.Length, 1, 2000);
+        SimulateBackspaces(countToDelete);
+        return Task.FromResult(true);
+    }
+
     private bool TryUiaInsertion(IntPtr hwnd, string text)
     {
         try

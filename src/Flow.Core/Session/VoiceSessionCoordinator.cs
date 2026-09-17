@@ -64,6 +64,42 @@ public sealed class VoiceSessionCoordinator
     private bool _limitExceededFired;
     private bool _isHandsFree;
     private Guid _activeSessionId;
+    private CancellationTokenSource? _speculativeCts;
+    private Task? _speculativeTask;
+    private string _lastSpeculativeTranscript = string.Empty;
+    private bool _enableSpeculativeInjection;
+
+    /// <summary>
+    /// When enabled, safe partial transcript diffing inserts text at the cursor in real-time during recording.
+    /// Inviolable: Zero Enter is always enforced. Disabled by default for maximum predictability.
+    /// </summary>
+    public bool EnableSpeculativeInjection
+    {
+        get
+        {
+            lock (_stateLock) return _enableSpeculativeInjection;
+        }
+        set
+        {
+            lock (_stateLock) _enableSpeculativeInjection = value;
+        }
+    }
+
+    /// <summary>
+    /// Cadence in milliseconds for background speculative inference runs (default: 850ms).
+    /// </summary>
+    public int SpeculativeInferenceIntervalMs { get; set; } = 850;
+
+    /// <summary>
+    /// Latest speculative partial transcript produced during the active recording session.
+    /// </summary>
+    public string LastSpeculativeTranscript
+    {
+        get
+        {
+            lock (_stateLock) return _lastSpeculativeTranscript;
+        }
+    }
 
     public Guid ActiveSessionId => _activeSessionId;
 
@@ -299,6 +335,14 @@ public sealed class VoiceSessionCoordinator
 
             string detail = isHandsFree ? "Hands-Free Listening" : "Listening";
             SetState(SessionState.Recording, detail);
+
+            _speculativeCts?.Cancel();
+            _speculativeCts?.Dispose();
+            _speculativeCts = CancellationTokenSource.CreateLinkedTokenSource(_sessionCts.Token);
+            _lastSpeculativeTranscript = string.Empty;
+            var specToken = _speculativeCts.Token;
+            _speculativeTask = Task.Run(() => RunSpeculativeInferenceLoopAsync(specToken), specToken);
+
             return Task.FromResult(true);
         }
     }
@@ -357,6 +401,14 @@ public sealed class VoiceSessionCoordinator
 
             string detail = isHandsFree ? "Command: Hands-Free" : "Command: Listening";
             SetState(SessionState.Recording, detail);
+
+            _speculativeCts?.Cancel();
+            _speculativeCts?.Dispose();
+            _speculativeCts = CancellationTokenSource.CreateLinkedTokenSource(_sessionCts.Token);
+            _lastSpeculativeTranscript = string.Empty;
+            var specToken = _speculativeCts.Token;
+            _speculativeTask = Task.Run(() => RunSpeculativeInferenceLoopAsync(specToken), specToken);
+
             return Task.FromResult(true);
         }
     }
@@ -413,6 +465,108 @@ public sealed class VoiceSessionCoordinator
     }
 
     /// <summary>
+    /// Background speculative inference worker loop that executes chunked ASR passes
+    /// during active recording sessions to stream partial transcripts and pre-warm final transcription.
+    /// </summary>
+    private async Task RunSpeculativeInferenceLoopAsync(CancellationToken ct)
+    {
+        _logger?.LogDebug("Speculative ASR inference loop started.");
+
+        try
+        {
+            // Initial accumulation delay
+            await Task.Delay(SpeculativeInferenceIntervalMs, ct);
+
+            while (!ct.IsCancellationRequested)
+            {
+                SessionState state;
+                lock (_stateLock)
+                {
+                    state = _currentState;
+                }
+
+                if (state != SessionState.Recording)
+                {
+                    break;
+                }
+
+                if (_hasDetectedSpeechInSession && _ringBuffer.BufferedDurationSeconds >= 0.8)
+                {
+                    try
+                    {
+                        var audioSnapshot = _ringBuffer.ToAudioBuffer();
+                        if (audioSnapshot.DurationSeconds >= 0.5)
+                        {
+                            string? biasingPrompt = null;
+                            if (ActiveContext?.IsSensitive != true)
+                            {
+                                biasingPrompt = _biasingService?.BuildPrompt(
+                                    _languageSessionService.ActiveLanguage.WhisperCode,
+                                    ActiveTarget?.ProcessName,
+                                    CodeSwitchingBiasingPrompt
+                                ) ?? CodeSwitchingBiasingPrompt;
+                            }
+
+                            var asrOptions = new ASROptions(
+                                Language: _languageSessionService.ActiveLanguage.WhisperCode,
+                                Prompt: biasingPrompt
+                            );
+
+                            var result = await _asrRegistry.TranscribeWithFallbackAsync(audioSnapshot, options: asrOptions, cancellationToken: ct);
+
+                            if (!ct.IsCancellationRequested && !string.IsNullOrWhiteSpace(result.Text))
+                            {
+                                string candidateText = result.Text.Trim();
+                                string previousText;
+                                bool inject;
+
+                                lock (_stateLock)
+                                {
+                                    previousText = _lastSpeculativeTranscript;
+                                    _lastSpeculativeTranscript = candidateText;
+                                    inject = _enableSpeculativeInjection && _sessionMode == SessionMode.Dictation;
+                                }
+
+                                if (candidateText != previousText)
+                                {
+                                    PartialTranscriptReceived?.Invoke(candidateText);
+
+                                    if (inject && ActiveTarget != null && _contextService.ValidateTargetStillActive(ActiveTarget) && !_contextService.IsFocusInPasswordField())
+                                    {
+                                        await _insertionService.UpdateSpeculativeTextAsync(previousText, candidateText, ct);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogDebug(ex, "Speculative ASR pass failed or skipped.");
+                    }
+                }
+
+                await Task.Delay(SpeculativeInferenceIntervalMs, ct);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Clean cancellation on session state change
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Unexpected exception in speculative inference loop.");
+        }
+        finally
+        {
+            _logger?.LogDebug("Speculative ASR inference loop concluded.");
+        }
+    }
+
+    /// <summary>
     /// Ends the current recording session and executes the transcription/insertion pipeline.
     /// </summary>
     public async Task<bool> EndSessionAsync(CancellationToken cancellationToken = default)
@@ -427,6 +581,16 @@ public sealed class VoiceSessionCoordinator
             _isHandsFree = false;
         }
 
+        _speculativeCts?.Cancel();
+        if (_speculativeTask != null)
+        {
+            try
+            {
+                await Task.WhenAny(_speculativeTask, Task.Delay(150));
+            }
+            catch { }
+        }
+
         var ct = _sessionCts?.Token ?? cancellationToken;
 
         try
@@ -434,11 +598,29 @@ public sealed class VoiceSessionCoordinator
             double duration = _ringBuffer.BufferedDurationSeconds;
             if (duration < 0.2 || (!_hasDetectedSpeechInSession && duration < 0.5))
             {
+                string specToClear;
+                bool shouldClear;
                 lock (_stateLock)
                 {
+                    specToClear = _lastSpeculativeTranscript;
+                    _lastSpeculativeTranscript = string.Empty;
+                    shouldClear = _enableSpeculativeInjection && !string.IsNullOrEmpty(specToClear);
                     _sessionMode = SessionMode.Dictation;
                     _activeSelectedText = null;
                 }
+
+                if (shouldClear)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _insertionService.ClearSpeculativeTextAsync(specToClear, CancellationToken.None);
+                        }
+                        catch { }
+                    });
+                }
+
                 SetState(SessionState.Cancelled, "No speech detected");
                 _ringBuffer.Clear();
                 return false;
@@ -712,8 +894,28 @@ public sealed class VoiceSessionCoordinator
 
             SetState(SessionState.Inserting, "Inserting");
 
+            string prevSpec;
+            bool useSpeculative;
+            lock (_stateLock)
+            {
+                prevSpec = _lastSpeculativeTranscript;
+                _lastSpeculativeTranscript = string.Empty;
+                useSpeculative = _enableSpeculativeInjection && !string.IsNullOrEmpty(prevSpec);
+            }
+
             // 3. Safe cursor text insertion
-            var insertionResult = await _insertionService.InsertTextAsync(cleanText, ct);
+            InsertionResult insertionResult;
+            if (useSpeculative)
+            {
+                bool specSuccess = await _insertionService.UpdateSpeculativeTextAsync(prevSpec, cleanText, ct);
+                insertionResult = specSuccess
+                    ? new InsertionResult(true, InsertionStrategy.SendInputClipboardFallback, ActiveTarget?.ProcessName, TimeSpan.Zero, null, ActiveTarget?.Hwnd ?? IntPtr.Zero, (uint)(ActiveTarget?.ProcessId ?? 0), cleanText.Length)
+                    : await _insertionService.InsertTextAsync(cleanText, ct);
+            }
+            else
+            {
+                insertionResult = await _insertionService.InsertTextAsync(cleanText, ct);
+            }
 
             if (insertionResult.Success)
             {
@@ -806,12 +1008,31 @@ public sealed class VoiceSessionCoordinator
     /// </summary>
     public Task CancelSessionAsync(string reason = "Cancelled")
     {
+        _speculativeCts?.Cancel();
+        string specToClear;
+        bool shouldClear;
+
         lock (_stateLock)
         {
+            specToClear = _lastSpeculativeTranscript;
+            _lastSpeculativeTranscript = string.Empty;
+            shouldClear = _enableSpeculativeInjection && !string.IsNullOrEmpty(specToClear);
             _isHandsFree = false;
             _sessionMode = SessionMode.Dictation;
             _activeSelectedText = null;
             InvalidateContext();
+        }
+
+        if (shouldClear)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _insertionService.ClearSpeculativeTextAsync(specToClear, CancellationToken.None);
+                }
+                catch { }
+            });
         }
 
         _languageSessionService.ResetSession();

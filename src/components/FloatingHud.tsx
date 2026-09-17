@@ -474,10 +474,23 @@ export const FloatingHud: React.FC<FloatingHudProps> = ({
 
         {/* Center Stage Dynamic Content */}
         <div className="flex items-center min-w-[130px] flex-1 pr-1 overflow-hidden">
-          {/* STATE A: Listening / Realtime Audio Waveform & MM:SS Elapsed Timer */}
+          {/* STATE A: Listening / Realtime Audio Waveform & Streaming Partial Transcript */}
           {isListening && (
             <div className="flex items-center justify-between gap-2.5 w-full animate-in fade-in duration-150 overflow-hidden">
-              <DynamicSvgWave audioLevel={audioLevel} isListening={isListening} />
+              {previewText ? (
+                <div className="flex items-center gap-2 overflow-hidden flex-1 max-w-[240px] sm:max-w-[280px]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#B87333] animate-pulse shrink-0" />
+                  <span
+                    id="flow-hud-partial-transcript"
+                    className="text-xs font-medium text-[#FFD8A8] truncate select-none tracking-tight animate-in fade-in"
+                    title={previewText}
+                  >
+                    "{previewText}"
+                  </span>
+                </div>
+              ) : (
+                <DynamicSvgWave audioLevel={audioLevel} isListening={isListening} />
+              )}
               <div
                 id="flow-recording-timer-pill"
                 className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#27170E]/85 border border-[#3D2A1F] shrink-0 select-none shadow-xs"
